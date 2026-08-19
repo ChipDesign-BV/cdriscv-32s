@@ -1,0 +1,113 @@
+// SPDX-FileCopyrightText: 2026 ChipDesign B.V.
+// SPDX-License-Identifier: Apache-2.0
+//
+// cdriscv-32s -- SEC-DED (39,32) Hsiao encoder / decoder.
+//
+// GENERATED FILE -- do not edit by hand.
+// Regenerate with  python3 scripts/gen_secded.py  (see that script for
+// the construction and the properties it checks).
+//
+// Code word layout: {parity[6:0], data[31:0]}
+// Row weights of the parity check matrix: [14, 14, 14, 14, 14, 13, 13]
+//
+// STATUS: NOT VERIFIED YET -- DO NOT USE YET.
+
+`default_nettype none
+
+// ---------------------------------------------------------------------
+// Encoder
+// ---------------------------------------------------------------------
+module cdriscv_ecc_enc (
+    input  logic [31:0] data_i,
+    output logic [38:0] cw_o
+);
+
+  logic [6:0] parity;
+
+  assign parity[0] = ^(data_i & 32'h8ca53295);
+  assign parity[1] = ^(data_i & 32'h53294ca5);
+  assign parity[2] = ^(data_i & 32'h64ca5329);
+  assign parity[3] = ^(data_i & 32'h995294aa);
+  assign parity[4] = ^(data_i & 32'ha62ca54a);
+  assign parity[5] = ^(data_i & 32'h49932952);
+  assign parity[6] = ^(data_i & 32'h3254ca54);
+
+  assign cw_o = {parity, data_i};
+
+endmodule
+
+// ---------------------------------------------------------------------
+// Decoder
+// ---------------------------------------------------------------------
+module cdriscv_ecc_dec (
+    input  logic [38:0] cw_i,
+    output logic [31:0] data_o,
+    output logic [6:0]  syndrome_o,
+    output logic        err_single_o,   // corrected
+    output logic        err_double_o    // uncorrectable
+);
+
+  logic [31:0] data_in;
+  logic [6:0]  parity_in;
+
+  assign data_in   = cw_i[31:0];
+  assign parity_in = cw_i[38:32];
+
+  assign syndrome_o[0] = parity_in[0] ^ (^(data_in & 32'h8ca53295));
+  assign syndrome_o[1] = parity_in[1] ^ (^(data_in & 32'h53294ca5));
+  assign syndrome_o[2] = parity_in[2] ^ (^(data_in & 32'h64ca5329));
+  assign syndrome_o[3] = parity_in[3] ^ (^(data_in & 32'h995294aa));
+  assign syndrome_o[4] = parity_in[4] ^ (^(data_in & 32'ha62ca54a));
+  assign syndrome_o[5] = parity_in[5] ^ (^(data_in & 32'h49932952));
+  assign syndrome_o[6] = parity_in[6] ^ (^(data_in & 32'h3254ca54));
+
+  // The syndrome of a single bit error equals that bit's column, which
+  // always has odd weight; a double error gives an even, non-zero one.
+  logic syndrome_nz, syndrome_odd;
+  assign syndrome_nz  = |syndrome_o;
+  assign syndrome_odd = ^syndrome_o;
+
+  assign err_single_o = syndrome_nz &&  syndrome_odd;
+  assign err_double_o = syndrome_nz && !syndrome_odd;
+
+  // Correction mask: one hot on the data bit whose column matches the
+  // syndrome.  A syndrome that matches a parity column corrects a
+  // parity bit, which needs no action on the data output.
+  logic [31:0] flip;
+
+  assign flip[ 0] = err_single_o && (syndrome_o == 7'h07);
+  assign flip[ 1] = err_single_o && (syndrome_o == 7'h38);
+  assign flip[ 2] = err_single_o && (syndrome_o == 7'h43);
+  assign flip[ 3] = err_single_o && (syndrome_o == 7'h1c);
+  assign flip[ 4] = err_single_o && (syndrome_o == 7'h61);
+  assign flip[ 5] = err_single_o && (syndrome_o == 7'h0e);
+  assign flip[ 6] = err_single_o && (syndrome_o == 7'h70);
+  assign flip[ 7] = err_single_o && (syndrome_o == 7'h0b);
+  assign flip[ 8] = err_single_o && (syndrome_o == 7'h34);
+  assign flip[ 9] = err_single_o && (syndrome_o == 7'h45);
+  assign flip[10] = err_single_o && (syndrome_o == 7'h1a);
+  assign flip[11] = err_single_o && (syndrome_o == 7'h62);
+  assign flip[12] = err_single_o && (syndrome_o == 7'h0d);
+  assign flip[13] = err_single_o && (syndrome_o == 7'h31);
+  assign flip[14] = err_single_o && (syndrome_o == 7'h46);
+  assign flip[15] = err_single_o && (syndrome_o == 7'h58);
+  assign flip[16] = err_single_o && (syndrome_o == 7'h23);
+  assign flip[17] = err_single_o && (syndrome_o == 7'h2c);
+  assign flip[18] = err_single_o && (syndrome_o == 7'h51);
+  assign flip[19] = err_single_o && (syndrome_o == 7'h16);
+  assign flip[20] = err_single_o && (syndrome_o == 7'h68);
+  assign flip[21] = err_single_o && (syndrome_o == 7'h13);
+  assign flip[22] = err_single_o && (syndrome_o == 7'h4c);
+  assign flip[23] = err_single_o && (syndrome_o == 7'h25);
+  assign flip[24] = err_single_o && (syndrome_o == 7'h2a);
+  assign flip[25] = err_single_o && (syndrome_o == 7'h52);
+  assign flip[26] = err_single_o && (syndrome_o == 7'h15);
+  assign flip[27] = err_single_o && (syndrome_o == 7'h29);
+  assign flip[28] = err_single_o && (syndrome_o == 7'h4a);
+  assign flip[29] = err_single_o && (syndrome_o == 7'h54);
+  assign flip[30] = err_single_o && (syndrome_o == 7'h26);
+  assign flip[31] = err_single_o && (syndrome_o == 7'h19);
+
+  assign data_o = data_in ^ flip;
+
+endmodule

@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you base your work on it, please cite it as below."
+authors:
+  - family-names: "Van Caekenberghe"
+    given-names: "Koen"
+    affiliation: "ChipDesign B.V."
+title: "cdriscv-32s: a 32-bit RISC-V core subsystem for safety-critical mixed-signal SoCs"
+date-released: 2026-08-19
+license: Apache-2.0
+url: "https://github.com/ChipDesign-BV/cdriscv-32s"

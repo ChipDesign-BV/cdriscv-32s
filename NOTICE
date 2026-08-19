@@ -1,0 +1,26 @@
+cdriscv-32s — a 32-bit RISC-V core subsystem for safety-critical
+mixed-signal SoCs
+
+Copyright 2026 ChipDesign B.V.
+
+This IP implements the RISC-V RV32IM_Zicsr_Zifencei instruction set as
+defined by the RISC-V unprivileged and privileged specifications
+(RISC-V International). It contains no third-party source code; all RTL,
+scripts and documentation in this repository are original work by
+ChipDesign B.V.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may
+not use these files except in compliance with the License. You may
+obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+NOT VERIFIED YET — DO NOT USE YET. This release has not been compiled,
+linted, simulated, synthesised or reviewed, and no functional safety
+claim of any kind is made. See README.md and doc/verification_plan.md.

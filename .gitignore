@@ -1,0 +1,11 @@
+build/
+obj_dir/
+*.vcd
+*.fst
+*.vvp
+*.elf
+*.bin
+*.dis
+*.log
+__pycache__/
+runs/
