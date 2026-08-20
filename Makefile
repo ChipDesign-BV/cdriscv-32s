@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench formal formal-if formal-ecc coverage cosim cosim-iverilog cosim-random
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench periph formal formal-if formal-ecc coverage cosim cosim-iverilog cosim-random
 
 all: lint
 
@@ -187,6 +187,24 @@ cosim-iverilog: $(BUILD)/tb_cosim.vvp $(BUILD)/cosim_isa.hex
 	  $(BUILD)/cosim_isa.elf --hex $(BUILD)/cosim_isa.hex \
 	  --vvp $(BUILD)/tb_cosim.vvp --count 5000
 
+# ------------------------------------------------- peripheral tests
+$(BUILD)/periph_test.elf: verif/core/periph_test.S tb/sw/link.ld | $(BUILD)
+	$(CC) -march=$(ARCH) -mabi=$(ABI) -nostdlib -nostartfiles \
+	  -T tb/sw/link.ld -o $@ verif/core/periph_test.S
+
+$(BUILD)/periph_test.bin: $(BUILD)/periph_test.elf
+	$(OBJCOPY) -O binary --only-section=.text $< $@
+
+# The memory BIST sweeps every word, so this one takes about 100k
+# cycles rather than the few hundred the other tests need.
+periph: $(BUILD)/tb_cdriscv_subsys.vvp $(BUILD)/periph_test.hex \
+        $(BUILD)/dtcm_zero.hex
+	$(VVP) $(BUILD)/tb_cdriscv_subsys.vvp \
+	  +ITCM_HEX=$(BUILD)/periph_test.hex \
+	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex \
+	  +MAX_CYCLES=2000000 | tee $(BUILD)/periph.log
+	@grep -q "PASS" $(BUILD)/periph.log
+
 # ------------------------------------------------------ safety tests
 $(BUILD)/safety_test.elf: verif/safety/safety_test.S tb/sw/link.ld | $(BUILD)
 	$(CC) -march=$(ARCH) -mabi=$(ABI) -nostdlib -nostartfiles \
@@ -238,7 +256,8 @@ $(BUILD)/obj_syscov/tb_sys_cov: $(RTL) $(TB) | $(BUILD)
 	  $(RTL) $(TB)
 
 coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
-          $(BUILD)/cosim_isa.hex $(BUILD)/safety_test.hex $(BUILD)/dtcm_zero.hex sw
+          $(BUILD)/cosim_isa.hex $(BUILD)/safety_test.hex \
+          $(BUILD)/periph_test.hex $(BUILD)/dtcm_zero.hex sw
 	@mkdir -p $(BUILD)/cov && rm -f $(BUILD)/cov/*.dat
 	@./$(BUILD)/obj_cov/tb_cosim_cov +HEX=$(BUILD)/cosim_isa.hex \
 	  +MAXRETIRE=100000 +QUIET > /dev/null 2>&1; \
@@ -255,6 +274,9 @@ coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
 	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/safety_test.hex \
 	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=20000 > /dev/null 2>&1; \
 	  mv coverage.dat $(BUILD)/cov/cov_safety.dat
+	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/periph_test.hex \
+	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=2000000 > /dev/null 2>&1; \
+	  mv coverage.dat $(BUILD)/cov/cov_periph.dat
 	verilator_coverage --write $(BUILD)/cov/merged.dat $(BUILD)/cov/cov_*.dat
 	@rm -rf $(BUILD)/cov/annotated
 	verilator_coverage --annotate $(BUILD)/cov/annotated --annotate-min 1 \
