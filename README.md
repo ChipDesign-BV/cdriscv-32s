@@ -123,7 +123,7 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Block bench: SEC-DED (`make block-ecc`) | **pass** | 209 308 checks, all 39 single and all 741 double bit error positions, mutation tested |
 | Block bench: mul/div (`make block-multdiv`) | **pass** | 4800 vectors, constant 33-cycle latency asserted, V0-A1 invariant checked |
 | Safety mechanisms, software half (`make safety`) | **pass** | 9 checks: injection self tests, sticky status, masking, software fault |
-| Safety mechanisms, bench half | **not run** | clock monitor, forced faults in the checker core — plan section 7 |
+| Safety mechanisms, bench half (`make safety-bench`) | **pass** | 7 checks: forced faults in the checker core, clock stopped/slow/fast, each with a quiet case |
 | Block benches: everything else | **not run** | plan section 5 |
 | Architectural test suite | **not run** | plan objective O1 |
 | Co-simulation vs Spike (`make cosim`) | **pass** | 208 instructions: PCs, register writes **and memory accesses** all identical, mutation tested; Verilator and Icarus agree |

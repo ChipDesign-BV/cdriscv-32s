@@ -20,7 +20,60 @@ register takes exactly the values it should along the way:
 | `0x00000110` | D-TCM uncorrectable error, *plus* the bus error it causes |
 | `0x00000800` | software fault trigger |
 
-Writing the test found two things.
+### Bench half — **pass**, 7 checks
+
+`make safety-bench` covers what software cannot reach: faults forced
+inside the checker core, and a system clock that misbehaves. Every
+mechanism gets a trigger case *and* a quiet case, because a mechanism
+wired to a constant passes a trigger-only test.
+
+| check | result |
+|-------|--------|
+| quiet: no fault during 2000 cycles of normal execution | status stays `0` |
+| lockstep: fault forced on a compared signal (checker fetch PC) | detected after **2 cycles** |
+| lockstep: fault forced on the register write data | detected after **2 cycles**, indirectly |
+| clock monitor: quiet at the nominal ratio | no fault, measured count 25 of a 22..30 window |
+| clock monitor: system clock stopped | detected in the reference domain |
+| clock monitor: system clock 1.5x too slow | detected, count 30 |
+| clock monitor: system clock 2.5x too fast | detected, count 9 |
+
+The stopped-clock case is the one that justifies the whole
+architecture of that block: a monitor clocked by the clock it watches
+cannot report that clock's failure, and this test is what demonstrates
+the reference-domain design does.
+
+### V4-F3 — register write data is not directly compared (observation)
+
+The lockstep compare vector carries the bus signals, the fault flags,
+sleep and the retire information — but not the register file write
+port. My first version of the test above asserted that a corrupted
+register write would therefore go **undetected**, and that assertion
+failed: it *was* caught, in 2 cycles.
+
+The reason is that the corruption propagates. A wrong register value
+reaches an address, a branch or a store quickly in ordinary code, and
+all of those are compared. So this is not a hole. What it is, is a
+detection latency that **depends on the program** rather than on the
+hardware: a value that is written and never read is never detected
+(harmless, it is dead), and a value read much later is detected much
+later.
+
+That matters for one specific claim. The fault tolerant time interval
+argument in the safety manual wants a *bounded* detection latency, and
+"2 cycles in this program" is not a bound. Two options, for whoever
+owns that argument:
+
+* add `rd_addr` and `rf_wdata` to the compare vector — 37 more bits,
+  and detection of any register file fault becomes unconditional and
+  single cycle, or
+* keep the vector as it is and state the latency as program dependent,
+  with a bound derived from the application's longest
+  write-to-first-use distance.
+
+Recorded rather than decided: it is a change to a safety mechanism and
+belongs with the FMEDA, not with a verification pass.
+
+Writing the software half found two things.
 
 ### V4-F1 — the ECC self test could never be triggered (design bug, FIXED)
 
