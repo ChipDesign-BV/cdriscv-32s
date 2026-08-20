@@ -5,6 +5,68 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V1/V2 continued — ECC bench and random programs (2026-08-20)
+
+### SEC-DED encoder/decoder (`verif/block/ecc`) — **pass**
+
+Exhaustive over error positions rather than sampled. For each data
+pattern the bench checks the clean code word, **all 39 single bit error
+positions**, and **all 741 double bit error pairs**:
+
+| Case | Required behaviour |
+|------|--------------------|
+| clean | no flag, data unchanged |
+| single bit | corrected to the original data, `err_single` only |
+| double bit | `err_double` only, never reported as correctable |
+
+Current run: **209 308 checks over 268 data patterns** (all zero, all
+one, both alternating patterns, walking one and walking zero across all
+32 bit positions, and 200 random), zero failures. `make block-ecc`.
+
+The double bit requirement is the one that matters for the safety
+argument: a decoder that flagged a double error *and* also "corrected"
+the data would pass any test that only inspects flags. Because the
+check demands `err_double` set and `err_single` clear, a silent
+miscorrection cannot pass.
+
+Mutation tested:
+
+| Mutation | Result |
+|----------|--------|
+| `err_double_o` tied low | detected, 53 352 / 56 232 |
+| `err_single_o` set for any non-zero syndrome | detected, 53 352 / 56 232 |
+| one data bit's correction term tied low | detected, 72 / 56 232 |
+| one syndrome bit inverted | detected, 56 232 / 56 232 |
+| no-op control mutation | not detected, as intended |
+
+The third row is worth reading: a single broken correction term shows up
+in only 72 of 56 232 checks. Sampling error positions instead of
+enumerating them could easily have missed it.
+
+### Random program co-simulation — **pass**
+
+`verif/core/gen_random_prog.py` generates constrained random RV32IM
+programs and `make cosim-random` runs each through the Spike
+comparison. Constrained rather than uniformly random, so that every
+difference found is a real one:
+
+* memory accesses are forced into a scratch area at aligned offsets, so
+  nothing escapes the TCM and no access fault appears unless a directed
+  test asks for one,
+* branches only jump forward by a few instructions, so control flow is
+  a DAG and no program can spin,
+* no computed `jalr`, no counter CSRs (`mcycle` and `minstret`
+  legitimately differ between model and RTL),
+* the register pool is seeded with the boundary values (0, ±1,
+  `INT_MIN`, `INT_MAX`, the alternating patterns) so that random
+  arithmetic lands on the corners often,
+* `x0` is used as a destination sometimes, on purpose.
+
+First regression: **25 of 25 programs match, 11 261 instructions
+compared**, PCs and register writes. Failing seeds are kept and the
+runner prints the command to reproduce one.
+
+
 ## Phase V2 — golden model co-simulation (2026-08-20, in progress)
 
 ### Register write co-simulation — **pass**

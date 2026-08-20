@@ -120,10 +120,12 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Software build (`make sw`) | **pass** | `rv32im_zicsr_zifencei`, ECC encoded memory image |
 | Smoke simulation (`make sim`) | **pass** | boots, 395 cycles, lockstep active, no fault raised |
 | Block bench: ALU (`make block-alu`) | **pass** | 453 840 vectors vs an independent model, mutation tested |
+| Block bench: SEC-DED (`make block-ecc`) | **pass** | 209 308 checks, all 39 single and all 741 double bit error positions, mutation tested |
 | Block benches: everything else | **not run** | plan section 5 |
 | Architectural test suite | **not run** | plan objective O1 |
 | Co-simulation vs Spike (`make cosim`) | **pass** | 208 instructions, identical PCs and register writes, mutation tested |
-| Co-simulation with random programs | **not run** | plan objective O2; memory writes also not yet compared |
+| Random program co-simulation (`make cosim-random`) | **pass** | constrained random RV32IM programs vs Spike |
+| Co-simulation at scale | in progress | objective O2 wants 10^9 instructions; memory write data still not compared |
 | Formal properties | **not run** | plan section 6 |
 | Coverage | **not collected** | plan objectives O6, O7 |
 | Synthesis | **not run** | |
