@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench formal cosim cosim-iverilog cosim-random
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench formal formal-if formal-ecc cosim cosim-iverilog cosim-random
 
 all: lint
 
@@ -226,10 +226,17 @@ safety-sw: $(BUILD)/tb_cdriscv_subsys.vvp $(BUILD)/safety_test.hex \
 FORMAL_DEPTH ?= 20
 SBY          ?= sby
 
-formal: | $(BUILD)
+formal: formal-if formal-ecc
+
+formal-if: | $(BUILD)
 	$(SBY) -f -d $(BUILD)/fv_if verif/formal/if_stage.sby bmc \
-	  | tee $(BUILD)/formal.log
-	@grep -q "DONE (PASS" $(BUILD)/formal.log
+	  | tee $(BUILD)/formal_if.log
+	@grep -q "DONE (PASS" $(BUILD)/formal_if.log
+
+formal-ecc: | $(BUILD)
+	$(SBY) -f -d $(BUILD)/fv_ecc verif/formal/ecc.sby bmc \
+	  | tee $(BUILD)/formal_ecc.log
+	@grep -q "DONE (PASS" $(BUILD)/formal_ecc.log
 
 # ---------------------------------------------------------------- ecc
 ecc:

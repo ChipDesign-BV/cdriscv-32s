@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 ChipDesign B.V.
+# SPDX-License-Identifier: Apache-2.0
+#
+# The encoder and decoder are combinational, so depth 2 quantifies over
+# every data value and every error position: a proof, not a sample.
+
+[tasks]
+bmc
+
+[options]
+mode bmc
+depth 2
+
+# abc (SAT) rather than yices (SMT): the code is XOR heavy, and SAT
+# handles that far better -- 3 seconds here against a 240 second
+# timeout with the SMT engine.
+#
+# Depth 2, not 1.  The properties sit in a clocked block, and a depth of
+# 1 never reaches the clock edge, so the run passes without checking
+# anything.  It looked like a 0.3 second proof; the mutation test is
+# what exposed it.
+[engines]
+abc bmc3
+
+[script]
+read -sv -formal cdriscv_ecc_secded.sv
+read -sv -formal ecc_fv.sv
+prep -top ecc_fv
+
+[files]
+rtl/safety/cdriscv_ecc_secded.sv
+verif/formal/ecc_fv.sv

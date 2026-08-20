@@ -308,8 +308,8 @@ depth of 20–30 cycles is enough for all of these.
 | `cdriscv_core` | `rf_we` is never asserted for `x0` |
 | | a trap and a retire never occur in the same cycle |
 | | the FSM never leaves a wait state without the corresponding completion |
-| `cdriscv_ecc_dec` | for any data and any single bit flip: output equals input |
-| | for any data and any double bit flip: `err_double_o` and no correction |
+| `cdriscv_ecc_dec` | for any data and any single bit flip: output equals input — **done** |
+| | for any data and any double bit flip: `err_double_o` and no correction — **done** |
 | `cdriscv_decoder` | `illegal_instr_o` implies no enable is set |
 | `cdriscv_safety_ctrl` | a status bit, once set, only clears through a write of 1 to it |
 
