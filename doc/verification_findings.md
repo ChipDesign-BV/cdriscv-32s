@@ -5,6 +5,66 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V6 — formal, fetch stage (2026-08-20)
+
+`make formal` bounded-model-checks `cdriscv_if_stage`, the block the
+plan calls the riskiest in the design: three concurrent state updates —
+request accepted, response accepted, redirect — share one always block,
+and the interesting cases are the ones where they coincide. Simulation
+samples that space; BMC covers it.
+
+**Passes to depth 20 in 11 seconds**, five properties:
+
+| property | what it says |
+|----------|--------------|
+| `p_pc_stream` | every instruction delivered is the next one of the stream that began at the last redirect |
+| `p_single_outstanding` | never two bus transactions in flight |
+| `p_addr_aligned` | fetch addresses are word aligned |
+| `p_redirect_flushes` | nothing is presented in the cycle after a redirect |
+| `p_fetch_en` | no request while fetching is disabled |
+
+`p_pc_stream` is the one that carries the weight. It compares the
+delivered PC against a reference model that restarts at every redirect
+target and advances by four per consumed instruction — so a stale
+instruction surviving a redirect, a discarded response surfacing, or a
+PC that skips or repeats all violate it.
+
+**Mutation tested.** Removing the discard of a fetch that was granted
+in the same cycle as a redirect — precisely the interleaving that is
+hard to hit in simulation — produces a counterexample at step 6. The
+properties have teeth on the case they were written for.
+
+### Getting it to converge, and what that cost
+
+The first attempt did not finish: at depth 40 the solver was spending
+over a minute per step and was still at step 21 after twelve minutes.
+Two abstractions fixed it, and both narrow what is proven, so both are
+written into the wrapper:
+
+* `instr_rdata_i` is tied to a constant. No property reads the
+  instruction word — they are all about which address is fetched and
+  which PC is delivered — so 32 free bits per step bought nothing.
+* redirect targets are confined to the low 1 KiB. The PC datapath is
+  uniform in width, so any *control* bug still has a counterexample in
+  that range; what this would miss is a bug that only appears at a
+  particular high address, a carry chain error for instance. That class
+  is left to simulation.
+
+With those, depth 20 runs in 11 seconds — about 70 times faster.
+
+**Limit, stated rather than glossed:** depth 60 still did not complete
+within ten minutes, and an unbounded k-induction proof has not been
+obtained. Depth 20 is enough to cover the request/response/redirect
+interleavings of this block, which take three to five cycles, but it is
+a bounded result and not a proof. Getting further needs a stronger
+abstraction — narrowing the PC width in the DUT for formal builds is
+the usual move — and is left as future work.
+
+The other blocks in the plan's formal list (LSU handshake, bus response
+routing, decoder, ECC decoder, safety controller stickiness) have not
+been done yet.
+
+
 ## Phase V4 — safety mechanisms (2026-08-20, in progress)
 
 `make safety` runs `verif/safety/safety_test.S` on the subsystem: nine

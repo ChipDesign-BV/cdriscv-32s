@@ -297,9 +297,9 @@ depth of 20–30 cycles is enough for all of these.
 
 | Block | Property |
 |-------|----------|
-| `cdriscv_if_stage` | at most one outstanding fetch at any time |
-| | after a redirect, no instruction is delivered whose PC does not belong to the new stream |
-| | a discarded response never sets `instr_valid_o` |
+| `cdriscv_if_stage` | at most one outstanding fetch at any time — **done** |
+| | after a redirect, no instruction is delivered whose PC does not belong to the new stream — **done**, as `p_pc_stream` |
+| | a discarded response never sets `instr_valid_o` — **done**, covered by `p_pc_stream` |
 | `cdriscv_lsu` | at most one outstanding data access |
 | | `addr`/`we`/`be`/`wdata` are stable from request to grant |
 | | `valid_o` pulses exactly once per accepted access |

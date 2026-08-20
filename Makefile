@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench cosim cosim-iverilog cosim-random
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench formal cosim cosim-iverilog cosim-random
 
 all: lint
 
@@ -217,6 +217,19 @@ safety-sw: $(BUILD)/tb_cdriscv_subsys.vvp $(BUILD)/safety_test.hex \
 	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex \
 	  +MAX_CYCLES=20000 | tee $(BUILD)/safety.log
 	@grep -q "PASS" $(BUILD)/safety.log
+
+# --------------------------------------------------------------- formal
+# Bounded model check of the fetch stage.  Depth is a variable because
+# the cost climbs steeply: the properties reason over 32-bit PCs, and
+# the solver time per step grows with depth.  FORMAL_DEPTH=20 is the
+# routine setting; a deeper run is worth doing before any release.
+FORMAL_DEPTH ?= 20
+SBY          ?= sby
+
+formal: | $(BUILD)
+	$(SBY) -f -d $(BUILD)/fv_if verif/formal/if_stage.sby bmc \
+	  | tee $(BUILD)/formal.log
+	@grep -q "DONE (PASS" $(BUILD)/formal.log
 
 # ---------------------------------------------------------------- ecc
 ecc:

@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 ChipDesign B.V.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Bounded model check of the fetch stage.  See verif/formal/if_stage_fv.sv
+# for what is proven and what is assumed.
+
+[tasks]
+bmc
+prove
+
+[options]
+bmc: mode bmc
+bmc: depth 20
+prove: mode prove
+prove: depth 20
+
+[engines]
+smtbmc yices
+
+[script]
+read -sv -formal cdriscv_if_stage.sv
+read -sv -formal if_stage_fv.sv
+prep -top if_stage_fv
+
+[files]
+rtl/core/cdriscv_if_stage.sv
+verif/formal/if_stage_fv.sv
