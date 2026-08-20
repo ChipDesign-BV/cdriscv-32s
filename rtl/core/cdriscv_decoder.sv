@@ -243,7 +243,8 @@ module cdriscv_decoder
               illegal_instr_o = (funct7 != 7'b0000000);
             end
             3'b101: begin                  // SRLI / SRAI
-              alu_op_o = instr_i[30] ? ALU_SRA : ALU_SRL;
+              if (instr_i[30]) alu_op_o = ALU_SRA;
+              else             alu_op_o = ALU_SRL;
               imm_o    = {27'b0, instr_i[24:20]};
               illegal_instr_o = !((funct7 == 7'b0000000) || (funct7 == 7'b0100000));
             end

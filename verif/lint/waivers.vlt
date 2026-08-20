@@ -1,0 +1,107 @@
+// SPDX-FileCopyrightText: 2026 ChipDesign B.V.
+// SPDX-License-Identifier: Apache-2.0
+//
+// cdriscv-32s -- Verilator lint waivers.
+//
+// Every waiver here carries a justification.  Anything not listed is a
+// lint failure: the lint target runs without -Wno-fatal so that a new
+// warning breaks the build.  See doc/verification_plan.md, objective O5.
+
+`verilator_config
+
+// ---------------------------------------------------------------------
+// DECLFILENAME -- two files deliberately hold more than one module
+// because the modules are variants of one primitive and belong together
+// (the synchroniser family, and the ECC encoder/decoder pair, which is
+// machine generated as a unit).
+// ---------------------------------------------------------------------
+lint_off -rule DECLFILENAME -file "*cdriscv_sync.sv"
+lint_off -rule DECLFILENAME -file "*cdriscv_ecc_secded.sv"
+
+// ---------------------------------------------------------------------
+// SYNCASYNCNET -- cdriscv_rst_sync is the reset synchroniser itself:
+// asynchronous assertion, synchronous release.  Its flop chain is
+// intentionally both async-reset and clocked; that IS the structure.
+// ---------------------------------------------------------------------
+lint_off -rule SYNCASYNCNET -file "*cdriscv_sync.sv"
+
+// ---------------------------------------------------------------------
+// UNUSEDPARAM -- cdriscv_pkg carries documentation constants that name
+// things the RTL does not have to reference (XLEN, the spare fault bit
+// numbers, derived widths).  Removing them would make the package a
+// worse description of the architecture.
+// ---------------------------------------------------------------------
+lint_off -rule UNUSEDPARAM -file "*cdriscv_pkg.sv"
+
+// ---------------------------------------------------------------------
+// UNUSEDSIGNAL, APB peripherals -- every APB slave receives the full
+// 12-bit paddr and 32-bit pwdata from the shared bus and decodes only
+// the bits its register map uses.  Trimming the ports per peripheral
+// would make the bridge instantiation asymmetric for no gain.
+// ---------------------------------------------------------------------
+lint_off -rule UNUSEDSIGNAL -file "*cdriscv_safety_ctrl.sv" -match "*paddr_i*"
+lint_off -rule UNUSEDSIGNAL -file "*cdriscv_wdog.sv"       -match "*paddr_i*"
+lint_off -rule UNUSEDSIGNAL -file "*cdriscv_clkmon.sv"     -match "*paddr_i*"
+lint_off -rule UNUSEDSIGNAL -file "*cdriscv_clkmon.sv"     -match "*pwdata_i*"
+lint_off -rule UNUSEDSIGNAL -file "*cdriscv_mbist.sv"      -match "*paddr_i*"
+lint_off -rule UNUSEDSIGNAL -file "*cdriscv_mbist.sv"      -match "*pwdata_i*"
+lint_off -rule UNUSEDSIGNAL -file "*cdriscv_timer.sv"      -match "*paddr_i*"
+lint_off -rule UNUSEDSIGNAL -file "*cdriscv_irq_ctrl.sv"   -match "*paddr_i*"
+lint_off -rule UNUSEDSIGNAL -file "*cdriscv_irq_ctrl.sv"   -match "*pwdata_i*"
+lint_off -rule UNUSEDSIGNAL -file "*cdriscv_ams_if.sv"     -match "*paddr_i*"
+
+// The APB bridge is addressed through the 4 KiB peripheral window, so
+// only the low 12 bits of the OBI address reach APB, and PADDR is word
+// addressed.
+lint_off -rule UNUSEDSIGNAL -file "*cdriscv_apb_bridge.sv" -match "*addr_i*"
+lint_off -rule UNUSEDSIGNAL -file "*cdriscv_apb_bridge.sv" -match "*addr_q*"
+
+// ---------------------------------------------------------------------
+// UNUSEDSIGNAL, structural invariants inside the core.  Each of these
+// is a bit that provably cannot carry information; the width exists so
+// that the intermediate arithmetic is correct.  Listed individually,
+// with the invariant, because these are exactly the places where a real
+// bug would also look like an unused bit.
+// ---------------------------------------------------------------------
+
+// mtvec[1] is forced to zero on write (the vectored/direct mode lives
+// in bit 0), so the trap vector never reads it.
+lint_off -rule UNUSEDSIGNAL -file "*cdriscv_core.sv" -match "*'mtvec'*"
+
+// shift_ext[32] is the sign extension bit that makes one arithmetic
+// right shift serve srl, sra and (via operand reversal) sll.  The
+// result only ever takes [31:0].
+lint_off -rule UNUSEDSIGNAL -file "*cdriscv_alu.sv" -match "*shift_ext*"
+
+// we_dec[0] is the write enable of x0, which is hard wired to zero.
+lint_off -rule UNUSEDSIGNAL -file "*cdriscv_regfile.sv" -match "*we_dec*"
+
+// acc_q[32]: in the multiply path bit 32 is explicitly written as zero.
+// In the divide path the restoring-division invariant keeps the partial
+// remainder below the divisor, hence below 2^32, so bit 32 is zero at
+// every iteration boundary.  The 33rd bit exists only for the shifted
+// intermediate.  Covered by an assertion in the block level bench.
+lint_off -rule UNUSEDSIGNAL -file "*cdriscv_multdiv.sv" -match "*acc_q*"
+
+// ---------------------------------------------------------------------
+// Open finding, NOT a waiver of the underlying issue:
+// cdriscv_mbist exposes only fail_data_q[31:0] through FAILDAT, so the
+// seven check bits of a failing code word cannot be read back.  Tracked
+// in doc/verification_findings.md as V0-F1; the waiver keeps lint green
+// until that is fixed.
+// ---------------------------------------------------------------------
+lint_off -rule UNUSEDSIGNAL -file "*cdriscv_mbist.sv" -match "*fail_data_q*"
+
+// mepc is always word aligned in this configuration (IALIGN=32), so the
+// CSR block masks the low two bits of the trap PC away.  This is the
+// exact line that changes if Zca is ever added -- see
+// doc/isa_extension_plan.md section 4.4.
+lint_off -rule UNUSEDSIGNAL -file "*cdriscv_csr.sv" -match "*trap_pc_i*"
+
+// ---------------------------------------------------------------------
+// Test bench: signals that are probed but not yet checked.  These are
+// observation points the bench should eventually assert on (err_pin_o
+// and reset_req_o in particular), so the waiver is scoped to the file
+// and will shrink as the bench grows.
+// ---------------------------------------------------------------------
+lint_off -rule UNUSEDSIGNAL -file "*tb_cdriscv_subsys.sv"

@@ -143,7 +143,6 @@ why it restarted.
 | `RV32M` | 1 | multiply/divide extension |
 | `RfParity` | 1 | register file parity |
 | `ItcmWords` / `DtcmWords` | 4096 | memory size in 32-bit words |
-| `ItcmInit` / `DtcmInit` | "" | simulation preload files |
 | `MbistAuto` | 0 | run the memory BIST after reset (destructive) |
 | `ItcmBase` / `DtcmBase` / `PeriphBase` | 0x0, 0x1000_0000, 0x2000_0000 | address map |
 | `HartId` | 0 | value of `mhartid` |

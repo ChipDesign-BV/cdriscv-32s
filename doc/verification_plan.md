@@ -1,9 +1,15 @@
 # cdriscv-32s verification plan
 
-> **Status: nothing below has been executed.** The RTL has never been
-> compiled, linted, simulated, synthesised or reviewed. This document is
-> the plan for changing that; every number in it is a target, not a
-> result.
+> **Status: execution has started at phase V0.** Every criterion below
+> is a target until the README status table says otherwise.
+>
+> **Progress, 2026-08-20:** phase V0 is complete — `make lint`,
+> `make lint-tb`, `make sw` and `make sim` all pass, and the subsystem
+> boots and runs the smoke program to completion with the lockstep pair
+> active. One design bug and six portability or flow issues were found
+> and are logged in `verification_findings.md`. Everything from V1
+> onwards is still ahead. The status table in the README is the
+> authoritative summary.
 >
 > Scope: the design as it stands today — RV32IM_Zicsr_Zifencei, single or
 > dual core, with the subsystem of `cdriscv_subsys.sv`. The ISA

@@ -100,6 +100,13 @@ module cdriscv_ams_if #(
   assign res_idx = 3'((ofs - 8'h10) >> 2);
   assign lim_idx = 3'((ofs - 8'h30) >> 2);
 
+  // Written as an if/else chain rather than a `case ... inside` with
+  // range items: the register arrays occupy address ranges, and not
+  // every simulator accepts range items in a case (Icarus does not).
+  logic in_result_range, in_limit_range;
+  assign in_result_range = (ofs >= 8'h10) && (ofs < (8'h10 + 8'(4*NumCh)));
+  assign in_limit_range  = (ofs >= 8'h30) && (ofs < (8'h30 + 8'(4*NumCh)));
+
   // ------------------------------------------------------------------
   // Analog flag synchronisation
   // ------------------------------------------------------------------
@@ -141,7 +148,12 @@ module cdriscv_ams_if #(
     state_d = state_q;
     unique case (state_q)
       AS_IDLE:  if (seq_trigger) state_d = AS_START;
-      AS_START: state_d = ch_selected ? AS_WAIT : AS_START;
+      AS_START: begin
+        // no ternary here: the two arms are enum literals and a strict
+        // simulator wants an explicit cast on the result
+        if (ch_selected) state_d = AS_WAIT;
+        else             state_d = AS_START;
+      end
       AS_WAIT:  if (adc_valid_i || (to_cnt_q == 16'b0)) state_d = AS_START;
       default:  state_d = AS_IDLE;
     endcase
@@ -260,7 +272,7 @@ module cdriscv_ams_if #(
           8'h54: flagcfg_q <= pwdata_i[3:0];
           8'h58: timeout_q <= pwdata_i[15:0];
           default: begin
-            if ((ofs >= 8'h30) && (ofs < (8'h30 + 8'(4*NumCh)))) begin
+            if (in_limit_range) begin
               lim_lo_q[lim_idx] <= pwdata_i[15:0];
               lim_hi_q[lim_idx] <= pwdata_i[31:16];
             end
@@ -280,20 +292,24 @@ module cdriscv_ams_if #(
   always_comb begin
     prdata_o = 32'b0;
     if (rd) begin
-      unique case (ofs) inside
-        8'h00:   prdata_o = {23'b0, irq_en_q, atest_sel_q, 1'b0, atest_en_q, cont_q, seq_en_q};
-        8'h04:   prdata_o = period_q;
-        8'h08:   prdata_o = {{(32-NumCh){1'b0}}, chmask_q};
-        8'h0c:   prdata_o = {4'b0, ana_flag_sync,
-                             {(16-NumCh){1'b0}}, sts_range_q,
-                             5'b0, sts_timeout_q, sts_done_q, (state_q != AS_IDLE)};
-        8'h50:   prdata_o = {{(32-AdcW){1'b0}}, dac_q};
-        8'h54:   prdata_o = {28'b0, flagcfg_q};
-        8'h58:   prdata_o = {16'b0, timeout_q};
-        [8'h10:8'h2f]: prdata_o = {{(32-AdcW){1'b0}}, result_q[res_idx]};
-        [8'h30:8'h4f]: prdata_o = {lim_hi_q[lim_idx], lim_lo_q[lim_idx]};
-        default: prdata_o = 32'b0;
-      endcase
+      if (in_result_range) begin
+        prdata_o = {{(32-AdcW){1'b0}}, result_q[res_idx]};
+      end else if (in_limit_range) begin
+        prdata_o = {lim_hi_q[lim_idx], lim_lo_q[lim_idx]};
+      end else begin
+        unique case (ofs)
+          8'h00:   prdata_o = {23'b0, irq_en_q, atest_sel_q, 1'b0, atest_en_q, cont_q, seq_en_q};
+          8'h04:   prdata_o = period_q;
+          8'h08:   prdata_o = {{(32-NumCh){1'b0}}, chmask_q};
+          8'h0c:   prdata_o = {4'b0, ana_flag_sync,
+                               {(16-NumCh){1'b0}}, sts_range_q,
+                               5'b0, sts_timeout_q, sts_done_q, (state_q != AS_IDLE)};
+          8'h50:   prdata_o = {{(32-AdcW){1'b0}}, dac_q};
+          8'h54:   prdata_o = {28'b0, flagcfg_q};
+          8'h58:   prdata_o = {16'b0, timeout_q};
+          default: prdata_o = 32'b0;
+        endcase
+      end
     end
   end
 
