@@ -205,6 +205,22 @@ dominate and hide every logic difference.
 The last row is where the extension work pays: expect 20–30 % of code
 size to be recoverable with Zca/Zcb/Zcmp.
 
+## 6.5 First measurement (2026-08-20)
+
+Not a benchmark, but the first real cycle count from the co-simulation
+program: **213 instructions in 1674 cycles, CPI 7.9**, of which about
+560 cycles are seventeen 33-cycle multiply and divide instructions.
+
+The dominant structural cost is not the multiplier: it is that the
+single entry instruction buffer guarantees a one cycle fetch bubble on
+every instruction, so **CPI 2 is the floor** for straight-line code.
+See finding V2-P1 in `verification_findings.md`. This moves "deeper
+prefetch" to the top of the improvement backlog of section 8, ahead of
+the fast multiplier that section 7 predicted would lead it.
+
+The prediction in section 7 below (CPI 1.5–2.5) was therefore wrong,
+and is left standing rather than quietly edited.
+
 ## 7. What to expect
 
 Predictions, stated so that being wrong is visible later. None of these

@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu cosim
 
 all: lint
 
@@ -93,6 +93,31 @@ block-alu: $(BUILD)/tb_alu.vvp $(ALU_VECTORS)
 	@grep -q "PASS" $(BUILD)/block_alu.log
 
 block: block-alu
+
+# ------------------------------------------------- core co-simulation
+# Runs one program on Spike and on the RTL and compares the retired
+# instruction streams.  SPIKE can be overridden; the default is where
+# scripts/build_spike.sh installs it.
+SPIKE      ?= /headless/verif-tools/spike/bin/spike
+COSIM_ARCH := rv32im_zicsr_zifencei
+COSIM_SRC  := verif/core/cosim_isa.S
+COSIM_LD   := verif/core/link_cosim.ld
+
+$(BUILD)/cosim_isa.elf: $(COSIM_SRC) $(COSIM_LD) | $(BUILD)
+	$(CC) -march=$(COSIM_ARCH) -mabi=$(ABI) -nostdlib -nostartfiles \
+	  -T $(COSIM_LD) -o $@ $(COSIM_SRC)
+	$(OBJDUMP) -d $@ > $(BUILD)/cosim_isa.dis
+
+$(BUILD)/cosim_isa.hex: $(BUILD)/cosim_isa.elf
+	$(OBJCOPY) -O binary $< $(BUILD)/cosim_isa.bin
+	$(PYTHON) scripts/mkimage.py $(BUILD)/cosim_isa.bin $@
+
+$(BUILD)/tb_cosim.vvp: $(RTL) verif/core/tb_cosim.sv | $(BUILD)
+	$(IVERILOG) -g2012 -o $@ -s tb_cosim $(RTL) verif/core/tb_cosim.sv
+
+cosim: $(BUILD)/tb_cosim.vvp $(BUILD)/cosim_isa.hex
+	SPIKE=$(SPIKE) VVP=$(VVP) $(PYTHON) verif/core/cosim.py \
+	  $(BUILD)/cosim_isa.elf --hex $(BUILD)/cosim_isa.hex --count 5000
 
 # ---------------------------------------------------------------- ecc
 ecc:
