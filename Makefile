@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu cosim
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc cosim cosim-random
 
 all: lint
 
@@ -92,7 +92,17 @@ block-alu: $(BUILD)/tb_alu.vvp $(ALU_VECTORS)
 	  +NVEC=$$(wc -l < $(ALU_VECTORS)) | tee $(BUILD)/block_alu.log
 	@grep -q "PASS" $(BUILD)/block_alu.log
 
-block: block-alu
+ECC_PATTERNS ?= 200
+
+$(BUILD)/tb_ecc.vvp: rtl/core/cdriscv_pkg.sv rtl/safety/cdriscv_ecc_secded.sv \
+                     verif/block/ecc/tb_ecc.sv | $(BUILD)
+	$(IVERILOG) -g2012 -o $@ -s tb_ecc $^
+
+block-ecc: $(BUILD)/tb_ecc.vvp
+	$(VVP) $(BUILD)/tb_ecc.vvp +PATTERNS=$(ECC_PATTERNS) | tee $(BUILD)/block_ecc.log
+	@grep -q "PASS" $(BUILD)/block_ecc.log
+
+block: block-alu block-ecc
 
 # ------------------------------------------------- core co-simulation
 # Runs one program on Spike and on the RTL and compares the retired
@@ -114,6 +124,15 @@ $(BUILD)/cosim_isa.hex: $(BUILD)/cosim_isa.elf
 
 $(BUILD)/tb_cosim.vvp: $(RTL) verif/core/tb_cosim.sv | $(BUILD)
 	$(IVERILOG) -g2012 -o $@ -s tb_cosim $(RTL) verif/core/tb_cosim.sv
+
+RANDOM_SEEDS ?= 50
+RANDOM_LEN   ?= 400
+
+# Random program regression against Spike.  Failing seeds are kept in
+# build/random and the runner prints the command to reproduce one.
+cosim-random: $(BUILD)/tb_cosim.vvp
+	SPIKE=$(SPIKE) VVP=$(VVP) $(PYTHON) verif/core/random_regress.py \
+	  --seeds $(RANDOM_SEEDS) --count $(RANDOM_LEN)
 
 cosim: $(BUILD)/tb_cosim.vvp $(BUILD)/cosim_isa.hex
 	SPIKE=$(SPIKE) VVP=$(VVP) $(PYTHON) verif/core/cosim.py \
