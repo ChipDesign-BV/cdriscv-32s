@@ -116,6 +116,27 @@ First regression: **25 of 25 programs match, 11 261 instructions
 compared**, PCs and register writes. Failing seeds are kept and the
 runner prints the command to reproduce one.
 
+### Regression at scale — 500 programs, 318 486 instructions
+
+With the stop-PC fix below, the first real regression: **500 of 500
+constrained random programs match Spike, 318 486 retired instructions
+compared**, PCs and register writes, in about 15 minutes.
+
+**This is not objective O2.** O2 asks for 10^9 instructions with zero
+mismatches, and 318 486 is three and a half orders of magnitude short of
+it. The interesting part is the arithmetic: at roughly **350 compared
+instructions per second**, 10^9 would take about **33 days** of wall
+clock. The harness as it stands cannot get there.
+
+The fix is not more machines, it is the simulator. The co-simulation
+bench runs under Icarus, which interprets; Verilator compiles, and is
+typically one to two orders of magnitude faster on a design this size.
+Porting the co-simulation bench to Verilator (a C++ harness rather than
+`$display` parsing, which also removes the text I/O bottleneck) should
+bring 10^9 into the range of a day or two, and it parallelises across
+seeds trivially. That is now the next piece of infrastructure, ahead of
+more directed benches.
+
 ### V2-T1 — the bench was simulating the spin loop (bench, FIXED)
 
 The first large regression crawled at about **75 seconds per program**.

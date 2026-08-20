@@ -125,8 +125,8 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Block benches: everything else | **not run** | plan section 5 |
 | Architectural test suite | **not run** | plan objective O1 |
 | Co-simulation vs Spike (`make cosim`) | **pass** | 208 instructions, identical PCs and register writes, mutation tested |
-| Random program co-simulation (`make cosim-random`) | **pass** | constrained random RV32IM programs vs Spike |
-| Co-simulation at scale | in progress | objective O2 wants 10^9 instructions; memory write data still not compared |
+| Random program co-simulation (`make cosim-random`) | **pass** | 500/500 programs, 318 486 instructions vs Spike |
+| Co-simulation at scale | **not met** | objective O2 wants 10^9 instructions; at the current ~350 instr/s that is 33 days, so the bench needs porting to Verilator. Memory write data is also not yet compared |
 | Formal properties | **not run** | plan section 6 |
 | CI workflow | written, **never run, not installed** | [ci/github-workflow-verify.yml](ci/github-workflow-verify.yml); needs a token with GitHub's `workflow` scope to install, then a first run |
 | Coverage | **not collected** | plan objectives O6, O7 |
