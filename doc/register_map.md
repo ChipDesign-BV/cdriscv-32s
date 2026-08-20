@@ -58,7 +58,14 @@ available in the execute stage.
 | `0x18` | `INJECT` | WO | pulse the given fault bits for one cycle |
 | `0x1c` | `PIN_DIV` | RW | half period of the healthy pin toggle |
 | `0x20` | `RAW` | RO | fault inputs before the sticky stage |
-| `0x24` | `SELFTEST` | WO | [0] lockstep mismatch [1] single bit ECC error [2] double bit ECC error |
+| `0x24` | `SELFTEST` | WO | [0] lockstep mismatch [1] single bit ECC error [2] double bit ECC error [3] ECC target: 0 = D-TCM, 1 = I-TCM |
+
+Writing `SELFTEST[1]` or `[2]` *arms* the corruption; the selected TCM
+applies it to its next write and disarms itself. It cannot work any
+other way: the write to this register is an APB access and the store it
+is meant to corrupt is necessarily several cycles later, so a
+same-cycle scheme could never be triggered from software at all. See
+finding V4-F1 in `verification_findings.md`.
 
 Fault bit assignment (`STATUS`, `ENABLE`, `REACT_*`, `RAW`):
 

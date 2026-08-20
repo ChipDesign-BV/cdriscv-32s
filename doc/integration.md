@@ -72,8 +72,13 @@ what makes the check bits testable.
 
 ## 5. Software boot sequence
 
-1. Optionally run the memory BIST (or configure `MbistAuto`), and check
-   `STATUS.fail` for both TCMs.
+1. Run the memory BIST (or configure `MbistAuto`) and check
+   `STATUS.fail` for both TCMs. Treat this as mandatory rather than
+   optional: besides testing the array it writes every word, and the
+   prefetcher will fetch past the end of the program into whatever
+   follows it. An unwritten word is an arbitrary code word, and the ECC
+   check on it will most likely report an uncorrectable error. If the
+   BIST is skipped, the loader must write every TCM word instead.
 2. Load or verify the application image in the I-TCM.
 3. Zero all architectural registers before enabling the lockstep
    comparison (the example in `tb/sw/start.S` does this) so that the two
