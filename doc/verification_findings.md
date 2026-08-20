@@ -5,6 +5,47 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V7 — coverage baseline (2026-08-20)
+
+`make coverage` runs the stimulus that exists — the directed ISA
+program, eight random programs, the smoke test and the safety test —
+under Verilator with `--coverage`, merges the databases and reports.
+
+**Baseline: 62.5 % RTL line coverage** (783 of 1252 lines), test
+benches excluded because they are not the design.
+
+The value here is not the number, it is the ranking. It names what has
+never been exercised at all:
+
+| module | coverage | why |
+|--------|----------|-----|
+| `cdriscv_mbist` | 30 % | **no test ever starts the memory BIST** |
+| `cdriscv_clkmon` | 34 % | the bench half forces its registers, so the APB register path is untouched |
+| `cdriscv_wdog` | 41 % | **the watchdog has never been exercised** |
+| `cdriscv_timer` | 43 % | **the timer has never been used** |
+| `cdriscv_irq_ctrl` | 43 % | **no interrupt has ever been taken** |
+| `cdriscv_core` | 57 % | the interrupt, WFI and most trap paths |
+| `cdriscv_csr` | 57 % | most CSRs are never accessed |
+| `cdriscv_ams_if` | 68 % | only the one sequencer path the smoke test uses |
+
+Read that as a to-do list rather than a score. Four peripherals and the
+core's whole interrupt path have no test at all, and the safety manual
+lists three of them as safety mechanisms (SM4 the BIST, SM5 the
+watchdog, SM6 the clock monitor). The bench-half tests of section V4
+reach the clock monitor's *detection* logic by forcing its
+configuration, which is why the block still reports 34 %: the path
+software would actually use to configure it has never run.
+
+The well covered end is also informative. `cdriscv_bus` at 87 %,
+`cdriscv_apb_bridge` at 90 % and `cdriscv_lockstep` at 84 % are where
+the random program regression does its work — every program is
+thousands of bus transactions.
+
+Next: a peripheral and interrupt test, which should lift the timer, the
+interrupt controller, the watchdog and the core's trap paths together,
+and a BIST run.
+
+
 ## Phase V6 continued — formal, SEC-DED decoder (2026-08-20)
 
 `make formal-ecc` proves the three SEC-DED properties **over every one

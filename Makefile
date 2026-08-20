@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench formal formal-if formal-ecc cosim cosim-iverilog cosim-random
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench formal formal-if formal-ecc coverage cosim cosim-iverilog cosim-random
 
 all: lint
 
@@ -217,6 +217,50 @@ safety-sw: $(BUILD)/tb_cdriscv_subsys.vvp $(BUILD)/safety_test.hex \
 	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex \
 	  +MAX_CYCLES=20000 | tee $(BUILD)/safety.log
 	@grep -q "PASS" $(BUILD)/safety.log
+
+# -------------------------------------------------------------- coverage
+# Line coverage over the stimulus that exists: the directed ISA program,
+# a spread of random programs, and the two subsystem level tests.
+COV_SEEDS ?= 1000 1001 1002 1003 1004 1005 1006 1007
+
+$(BUILD)/obj_cov/tb_cosim_cov: $(RTL) verif/core/tb_cosim.sv | $(BUILD)
+	$(VERILATOR) --binary --timing -sv --timescale 1ns/1ps --coverage \
+	  -Wno-fatal -Wno-DECLFILENAME -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM \
+	  -Wno-SYNCASYNCNET \
+	  --top-module tb_cosim -o tb_cosim_cov -Mdir $(BUILD)/obj_cov \
+	  $(RTL) verif/core/tb_cosim.sv
+
+$(BUILD)/obj_syscov/tb_sys_cov: $(RTL) $(TB) | $(BUILD)
+	$(VERILATOR) --binary --timing -sv --timescale 1ns/1ps --coverage \
+	  -Wno-fatal -Wno-DECLFILENAME -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM \
+	  -Wno-SYNCASYNCNET -Wno-WIDTHTRUNC \
+	  --top-module $(TB_TOP) -o tb_sys_cov -Mdir $(BUILD)/obj_syscov \
+	  $(RTL) $(TB)
+
+coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
+          $(BUILD)/cosim_isa.hex $(BUILD)/safety_test.hex $(BUILD)/dtcm_zero.hex sw
+	@mkdir -p $(BUILD)/cov && rm -f $(BUILD)/cov/*.dat
+	@./$(BUILD)/obj_cov/tb_cosim_cov +HEX=$(BUILD)/cosim_isa.hex \
+	  +MAXRETIRE=100000 +QUIET > /dev/null 2>&1; \
+	  mv coverage.dat $(BUILD)/cov/cov_isa.dat
+	@for s in $(COV_SEEDS); do \
+	  if [ -f $(BUILD)/random/rand_$$s.hex ]; then \
+	    ./$(BUILD)/obj_cov/tb_cosim_cov +HEX=$(BUILD)/random/rand_$$s.hex \
+	      +MAXRETIRE=100000 +QUIET > /dev/null 2>&1; \
+	    mv coverage.dat $(BUILD)/cov/cov_r$$s.dat; \
+	  fi; done
+	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/prog.itcm.hex \
+	  +DTCM_HEX=$(BUILD)/prog.dtcm.hex +MAX_CYCLES=20000 > /dev/null 2>&1; \
+	  mv coverage.dat $(BUILD)/cov/cov_smoke.dat
+	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/safety_test.hex \
+	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=20000 > /dev/null 2>&1; \
+	  mv coverage.dat $(BUILD)/cov/cov_safety.dat
+	verilator_coverage --write $(BUILD)/cov/merged.dat $(BUILD)/cov/cov_*.dat
+	@rm -rf $(BUILD)/cov/annotated
+	verilator_coverage --annotate $(BUILD)/cov/annotated --annotate-min 1 \
+	  $(BUILD)/cov/merged.dat > /dev/null
+	@$(PYTHON) scripts/coverage_report.py $(BUILD)/cov/annotated \
+	  | tee $(BUILD)/coverage.txt
 
 # --------------------------------------------------------------- formal
 # Bounded model check of the fetch stage.  Depth is a variable because

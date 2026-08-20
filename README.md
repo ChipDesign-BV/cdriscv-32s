@@ -133,7 +133,8 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Formal: SEC-DED code (`make formal-ecc`) | **pass** | **proof** over all 2^32 data values and all error positions, mutation tested |
 | Formal: other blocks | **not run** | LSU, bus, decoder, safety controller — plan section 6 |
 | CI workflow | written, **never run, not installed** | [ci/github-workflow-verify.yml](ci/github-workflow-verify.yml); needs a token with GitHub's `workflow` scope to install, then a first run |
-| Coverage | **not collected** | plan objectives O6, O7 |
+| Line coverage (`make coverage`) | **62.5 %** baseline | objective O6 wants 100 % with reviewed waivers; the gap list is in [verification_findings.md](doc/verification_findings.md) |
+| Functional coverage | **not collected** | plan objective O7 |
 | Synthesis (`make synth`) | **pass** | yosys via slang: no latches, no combinational loops, 52 614 cells with 64-word TCMs |
 | Gate level simulation | **not run** | |
 | FMEDA / diagnostic coverage | **not started** | needs the fault injection campaign |
