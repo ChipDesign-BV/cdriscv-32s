@@ -19,6 +19,11 @@
 // assumes the lockstep configuration; CORE_PATH selects the main core.
 //
 //   +HEX=<file>       39 bit per line image (required)
+//   +STOPPC=<hex>     stop when this PC retires (the program's end
+//   +STOPPC2=<hex>    label).  Without it the bench goes on simulating
+//                     the program's final spin loop up to the retire
+//                     limit, which dominated the random regression run
+//                     time -- about a minute per program.
 //   +MAXRETIRE=<n>    stop after n retired instructions (default 5000)
 //   +MAXCYCLES=<n>    give up after n cycles (default 200000)
 //   +QUIET            do not print the trace (for timing runs)
@@ -104,7 +109,8 @@ module tb_cosim #(
 
   string       hexfile;
   int unsigned maxretire, maxcycles, nretire, cycle;
-  bit          quiet;
+  logic [31:0] stoppc, stoppc2;
+  bit          quiet, have_stop;
 
   initial begin
     fetch_enable = 1'b0;
@@ -118,6 +124,12 @@ module tb_cosim #(
     if (!$value$plusargs("MAXRETIRE=%d", maxretire)) maxretire = 5000;
     if (!$value$plusargs("MAXCYCLES=%d", maxcycles)) maxcycles = 200000;
     quiet = $test$plusargs("QUIET");
+
+    have_stop = 1'b0;
+    stoppc    = 32'hffff_ffff;
+    stoppc2   = 32'hffff_ffff;
+    if ($value$plusargs("STOPPC=%h", stoppc))   have_stop = 1'b1;
+    if ($value$plusargs("STOPPC2=%h", stoppc2)) have_stop = 1'b1;
 
     $readmemh(hexfile, dut.u_itcm.mem);
 
@@ -142,6 +154,11 @@ module tb_cosim #(
           end
         end
         nretire <= nretire + 1;
+        if (have_stop && ((retire_pc == stoppc) || (retire_pc == stoppc2))) begin
+          $display("[cosim] reached the end label at %08x after %0d instructions, %0d cycles",
+                   retire_pc, nretire + 1, cycle);
+          $finish;
+        end
         if (nretire + 1 >= maxretire) begin
           $display("[cosim] retired %0d instructions in %0d cycles", nretire + 1, cycle);
           $finish;

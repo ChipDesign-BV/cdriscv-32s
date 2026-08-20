@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc cosim cosim-random
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv cosim cosim-random
 
 all: lint
 
@@ -102,7 +102,22 @@ block-ecc: $(BUILD)/tb_ecc.vvp
 	$(VVP) $(BUILD)/tb_ecc.vvp +PATTERNS=$(ECC_PATTERNS) | tee $(BUILD)/block_ecc.log
 	@grep -q "PASS" $(BUILD)/block_ecc.log
 
-block: block-alu block-ecc
+MD_VECTORS := $(BUILD)/multdiv_vectors.hex
+MD_RANDOM  ?= 300
+
+$(MD_VECTORS): verif/block/multdiv/gen_vectors.py | $(BUILD)
+	$(PYTHON) $< $@ $(MD_RANDOM)
+
+$(BUILD)/tb_multdiv.vvp: rtl/core/cdriscv_pkg.sv rtl/core/cdriscv_multdiv.sv \
+                         verif/block/multdiv/tb_multdiv.sv | $(BUILD)
+	$(IVERILOG) -g2012 -o $@ -s tb_multdiv $^
+
+block-multdiv: $(BUILD)/tb_multdiv.vvp $(MD_VECTORS)
+	$(VVP) $(BUILD)/tb_multdiv.vvp +VEC=$(MD_VECTORS) \
+	  +NVEC=$$(wc -l < $(MD_VECTORS)) | tee $(BUILD)/block_multdiv.log
+	@grep -q "PASS" $(BUILD)/block_multdiv.log
+
+block: block-alu block-ecc block-multdiv
 
 # ------------------------------------------------- core co-simulation
 # Runs one program on Spike and on the RTL and compares the retired
