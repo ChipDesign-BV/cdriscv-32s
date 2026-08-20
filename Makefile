@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv cosim cosim-random
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv cosim cosim-iverilog cosim-random
 
 all: lint
 
@@ -140,18 +140,46 @@ $(BUILD)/cosim_isa.hex: $(BUILD)/cosim_isa.elf
 $(BUILD)/tb_cosim.vvp: $(RTL) verif/core/tb_cosim.sv | $(BUILD)
 	$(IVERILOG) -g2012 -o $@ -s tb_cosim $(RTL) verif/core/tb_cosim.sv
 
+# Verilator build of the same bench.  About 90 times faster than Icarus
+# on this design (0.19 s against 17.8 s for a 200k cycle run), which is
+# what makes a co-simulation of any real length affordable.  The lint
+# waivers do not apply here because this is a build, not a lint run.
+COSIM_RUNNER ?= $(BUILD)/obj_cosim/tb_cosim_vl
+
+$(COSIM_RUNNER): $(RTL) verif/core/tb_cosim.sv | $(BUILD)
+	$(VERILATOR) --binary --timing -sv --timescale 1ns/1ps \
+	  -Wno-fatal -Wno-DECLFILENAME -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM \
+	  -Wno-SYNCASYNCNET \
+	  --top-module tb_cosim -o $(notdir $(COSIM_RUNNER)) \
+	  -Mdir $(BUILD)/obj_cosim $(RTL) verif/core/tb_cosim.sv
+
 RANDOM_SEEDS ?= 50
 RANDOM_LEN   ?= 400
+# Each program's body is wrapped in a bounded outer loop, so a small
+# image executes many instructions.  The body is not repeated work: the
+# registers carry over, so every iteration starts from a different
+# state, and the loop exercises the fetch redirect path hard.
+RANDOM_LOOPS ?= 20
 
 # Random program regression against Spike.  Failing seeds are kept in
 # build/random and the runner prints the command to reproduce one.
-cosim-random: $(BUILD)/tb_cosim.vvp
+cosim-random: $(COSIM_RUNNER)
 	SPIKE=$(SPIKE) VVP=$(VVP) $(PYTHON) verif/core/random_regress.py \
-	  --seeds $(RANDOM_SEEDS) --count $(RANDOM_LEN)
+	  --seeds $(RANDOM_SEEDS) --count $(RANDOM_LEN) \
+	  --loops $(RANDOM_LOOPS) --vvp $(COSIM_RUNNER)
 
-cosim: $(BUILD)/tb_cosim.vvp $(BUILD)/cosim_isa.hex
+cosim: $(COSIM_RUNNER) $(BUILD)/cosim_isa.hex
 	SPIKE=$(SPIKE) VVP=$(VVP) $(PYTHON) verif/core/cosim.py \
-	  $(BUILD)/cosim_isa.elf --hex $(BUILD)/cosim_isa.hex --count 5000
+	  $(BUILD)/cosim_isa.elf --hex $(BUILD)/cosim_isa.hex \
+	  --vvp $(COSIM_RUNNER) --count 5000
+
+# The same comparison under Icarus, as an independent second opinion on
+# the simulator itself.  Slow: use it on the directed program, not on a
+# regression.
+cosim-iverilog: $(BUILD)/tb_cosim.vvp $(BUILD)/cosim_isa.hex
+	SPIKE=$(SPIKE) VVP=$(VVP) $(PYTHON) verif/core/cosim.py \
+	  $(BUILD)/cosim_isa.elf --hex $(BUILD)/cosim_isa.hex \
+	  --vvp $(BUILD)/tb_cosim.vvp --count 5000
 
 # ---------------------------------------------------------------- ecc
 ecc:

@@ -93,8 +93,14 @@ def run_spike(elf, count, base, size):
     return trace
 
 
-def run_rtl(vvp_file, hexfile, count, stops=None):
-    cmd = [VVP, vvp_file, "+HEX=" + hexfile, "+MAXRETIRE=%d" % count,
+def run_rtl(runner, hexfile, count, stops=None):
+    # Two runners are supported: a Verilator binary (executed directly)
+    # and an Icarus .vvp image (run under vvp).  Verilator is about 90
+    # times faster on this design and is the default; Icarus stays
+    # available as an independent second opinion, which has already
+    # earned its keep once by rejecting constructs Verilator accepted.
+    cmd = ([VVP, runner] if runner.endswith(".vvp") else [runner])
+    cmd += ["+HEX=" + hexfile, "+MAXRETIRE=%d" % count,
            "+MAXCYCLES=%d" % (count * 40 + 5000)]
     # Tell the bench where the program ends so it does not simulate the
     # final spin loop up to the retire limit.  That alone was costing
@@ -118,7 +124,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("elf")
     ap.add_argument("--hex", default=None)
-    ap.add_argument("--vvp", default="build/tb_cosim.vvp")
+    ap.add_argument("--vvp", dest="runner",
+                    default="build/obj_cosim/tb_cosim_vl",
+                    help="RTL runner: a Verilator binary, or a .vvp image "
+                         "to run under vvp")
     ap.add_argument("--count", type=int, default=2000)
     ap.add_argument("--base", type=lambda x: int(x, 0), default=0x80000000)
     ap.add_argument("--size", type=lambda x: int(x, 0), default=0x4000)
@@ -140,7 +149,7 @@ def main():
         return 1
     spike = spike[start:]
 
-    rtl = run_rtl(args.vvp, hexfile, args.count, stops)
+    rtl = run_rtl(args.runner, hexfile, args.count, stops)
 
     if not rtl:
         print("[cosim] FAIL: the RTL retired nothing")

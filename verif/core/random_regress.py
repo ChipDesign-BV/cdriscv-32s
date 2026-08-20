@@ -26,14 +26,15 @@ def sh(cmd, **kw):
     return subprocess.run(cmd, capture_output=True, text=True, **kw)
 
 
-def build(seed, count):
+def build(seed, count, loops):
     asm = os.path.join(BUILD, "rand_%d.S" % seed)
     elf = os.path.join(BUILD, "rand_%d.elf" % seed)
     binf = os.path.join(BUILD, "rand_%d.bin" % seed)
     hexf = os.path.join(BUILD, "rand_%d.hex" % seed)
 
     r = sh([sys.executable, os.path.join(HERE, "gen_random_prog.py"), asm,
-            "--seed", str(seed), "--count", str(count)])
+            "--seed", str(seed), "--count", str(count),
+            "--loops", str(loops)])
     if r.returncode:
         return None, "generator failed: " + r.stderr
 
@@ -60,7 +61,9 @@ def main():
     ap.add_argument("--seeds", type=int, default=20)
     ap.add_argument("--start", type=int, default=1)
     ap.add_argument("--count", type=int, default=400)
-    ap.add_argument("--vvp", default=os.path.join(ROOT, "build", "tb_cosim.vvp"))
+    ap.add_argument("--loops", type=int, default=1)
+    ap.add_argument("--vvp", dest="runner",
+                    default=os.path.join(ROOT, "build", "obj_cosim", "tb_cosim_vl"))
     ap.add_argument("--max-report", type=int, default=3)
     args = ap.parse_args()
 
@@ -68,14 +71,14 @@ def main():
 
     passed, failed, instructions = 0, [], 0
     for seed in range(args.start, args.start + args.seeds):
-        built, err = build(seed, args.count)
+        built, err = build(seed, args.count, args.loops)
         if built is None:
             print("[random] seed %d: %s" % (seed, err))
             failed.append(seed)
             continue
         elf, hexf = built
         r = sh([sys.executable, os.path.join(HERE, "cosim.py"), elf,
-                "--hex", hexf, "--vvp", args.vvp, "--count", "20000"])
+                "--hex", hexf, "--vvp", args.runner, "--count", "20000"])
         out = r.stdout.strip()
         if r.returncode == 0:
             passed += 1
