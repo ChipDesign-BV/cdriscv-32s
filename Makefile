@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety cosim cosim-iverilog cosim-random
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench cosim cosim-iverilog cosim-random
 
 all: lint
 
@@ -198,7 +198,19 @@ $(BUILD)/safety_test.bin: $(BUILD)/safety_test.elf
 $(BUILD)/dtcm_zero.bin: | $(BUILD)
 	head -c $$(( $(TCM_WORDS) * 4 )) /dev/zero > $@
 
-safety: $(BUILD)/tb_cdriscv_subsys.vvp $(BUILD)/safety_test.hex \
+$(BUILD)/tb_safety.vvp: $(RTL) verif/safety/tb_safety.sv | $(BUILD)
+	$(IVERILOG) -g2012 -o $@ -s tb_safety $(RTL) verif/safety/tb_safety.sv
+
+# Bench half: faults forced inside the checker core and a system clock
+# that misbehaves -- neither reachable from software.
+safety-bench: $(BUILD)/tb_safety.vvp $(BUILD)/safety_test.hex
+	$(VVP) $(BUILD)/tb_safety.vvp +ITCM_HEX=$(BUILD)/safety_test.hex \
+	  | tee $(BUILD)/safety_bench.log
+	@grep -q "PASS" $(BUILD)/safety_bench.log
+
+safety: safety-sw safety-bench
+
+safety-sw: $(BUILD)/tb_cdriscv_subsys.vvp $(BUILD)/safety_test.hex \
         $(BUILD)/dtcm_zero.hex
 	$(VVP) $(BUILD)/tb_cdriscv_subsys.vvp \
 	  +ITCM_HEX=$(BUILD)/safety_test.hex \
