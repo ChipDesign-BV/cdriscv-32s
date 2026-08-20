@@ -35,6 +35,12 @@ idx   spike                                   rtl
 
 Sampled at the decode level, that mutation would have passed.
 
+Regression with the strengthened comparison: **1000 of 1000 programs
+match, 16 885 968 instructions**, PCs, register writes and memory
+accesses. Together with the earlier 2000-program run that compared PCs
+and register writes over 33 760 012 instructions, that is the evidence
+behind the README status table.
+
 What is still outside the comparison: CSR state that no instruction
 reads back, and anything the program does not execute.
 
