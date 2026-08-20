@@ -128,8 +128,9 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Random program co-simulation (`make cosim-random`) | **pass** | constrained random RV32IM programs vs Spike |
 | Co-simulation at scale | in progress | objective O2 wants 10^9 instructions; memory write data still not compared |
 | Formal properties | **not run** | plan section 6 |
+| CI workflow | written, **never run, not installed** | [ci/github-workflow-verify.yml](ci/github-workflow-verify.yml); needs a token with GitHub's `workflow` scope to install, then a first run |
 | Coverage | **not collected** | plan objectives O6, O7 |
-| Synthesis | **not run** | |
+| Synthesis (`make synth`) | **pass** | yosys via slang: no latches, no combinational loops, 52 614 cells with 64-word TCMs |
 | Gate level simulation | **not run** | |
 | FMEDA / diagnostic coverage | **not started** | needs the fault injection campaign |
 | Fault injection campaign | **not started** | plan section 9 |

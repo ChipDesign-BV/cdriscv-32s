@@ -158,11 +158,35 @@ ecc:
 	$(PYTHON) scripts/gen_secded.py
 
 # --------------------------------------------------------------- synth
+# Structural check, not a real hardening run: the TCMs are cut down to
+# SYNTH_TCM_WORDS because the behavioural arrays would otherwise map to
+# a few hundred thousand flip-flops and dominate everything.  What this
+# target is for is objective O5 -- no inferred latches, no combinational
+# loops -- plus a logic area figure to track.
+SYNTH_TCM_WORDS ?= 64
+
+# yosys-slang rather than the built-in Verilog frontend: the latter
+# does not accept a package import in the module header.  slang is also
+# the strictest of the three front-ends this project uses, so it is a
+# useful third opinion after Verilator and Icarus.
 synth: | $(BUILD)
-	$(YOSYS) -p "read_verilog -sv $(RTL); \
-	             hierarchy -top $(TOP); \
+	$(YOSYS) -p "plugin -i slang; \
+	             read_slang --top $(TOP) \
+	               -G ItcmWords=$(SYNTH_TCM_WORDS) \
+	               -G DtcmWords=$(SYNTH_TCM_WORDS) \
+	               $(RTL); \
 	             synth -top $(TOP); \
 	             stat" -l $(BUILD)/synth.log
+	@echo "--- structural checks (objective O5) ---"
+	@if grep -qiE "inferring latch|combinational loop|found logic loop" $(BUILD)/synth.log; then \
+	  grep -iE "inferring latch|combinational loop|found logic loop" $(BUILD)/synth.log; \
+	  echo "FAIL: latch or loop inferred"; exit 1; fi
+	@if grep -qE '\$$_DLATCH_' $(BUILD)/synth.log; then \
+	  echo "FAIL: latch cells in the mapped netlist"; exit 1; fi
+	@echo "no latches, no combinational loops"
+	@grep -E "^ +[0-9]+ (wires|cells)$$" $(BUILD)/synth.log | tail -2
+	@grep -cE '\$$_(DFF|ALDFF)' $(BUILD)/synth.log | \
+	  xargs -I{} echo "flip-flop cell types: {}"
 
 $(BUILD):
 	mkdir -p $(BUILD)

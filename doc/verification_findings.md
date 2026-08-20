@@ -5,6 +5,37 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V0 revisited — synthesis and a third front-end (2026-08-20)
+
+### Objective O5 — **pass**
+
+`make synth` runs a generic yosys synthesis and checks the two things
+O5 asks for: **no inferred latches and no combinational loops**. Both
+clean. With the TCMs cut to 64 words (the behavioural arrays would
+otherwise map to a few hundred thousand flip-flops and drown
+everything), the subsystem maps to **52 614 cells**, of which about
+5 000 flip-flops are logic and 5 000 are the cut-down memories.
+
+Two flow findings on the way there:
+
+* **yosys' built-in Verilog frontend cannot read this RTL.** It rejects
+  a package import in the module header (`module x import pkg::*; (...)`)
+  with a syntax error. The target now uses the **yosys-slang** plugin,
+  which handles it. Worth knowing before anyone points LibreLane at
+  this design: `flow/config.json` will need the same treatment.
+* A file list with one path per line, passed into `yosys -p`, is parsed
+  as *one yosys command per line*. The symptom is a confusing "no
+  top-level modules found" followed by "No such command: rtl/...". The
+  list has to be flattened to spaces.
+
+### A third front-end agrees
+
+Standalone `slang` elaborates the whole design with **zero errors and
+zero warnings**. That is three independent front-ends now — Verilator,
+Icarus and slang — and slang is the strictest of them. It is a cheap
+check and worth keeping in CI.
+
+
 ## Phase V1/V2 continued — ECC bench and random programs (2026-08-20)
 
 ### SEC-DED encoder/decoder (`verif/block/ecc`) — **pass**
