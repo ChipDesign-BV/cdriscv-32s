@@ -11,6 +11,13 @@
 // also competes with the fetcher for the I-TCM, which is the arbitration
 // case worth exercising.
 //
+// The trace carries the register write of each retired instruction as
+// well as its PC, taken from the core's internal signals through a
+// hierarchical reference.  This is the "bind" of the verification plan
+// in its simplest form: nothing is added to the RTL, so the synthesised
+// design and the lockstep compare vector are untouched.  The path
+// assumes the lockstep configuration; CORE_PATH selects the main core.
+//
 //   +HEX=<file>       39 bit per line image (required)
 //   +MAXRETIRE=<n>    stop after n retired instructions (default 5000)
 //   +MAXCYCLES=<n>    give up after n cycles (default 200000)
@@ -18,6 +25,8 @@
 
 `default_nettype none
 `timescale 1ns/1ps
+
+`define CORE_PATH dut.g_lockstep.u_core.u_core_main
 
 module tb_cosim #(
     parameter bit Lockstep = 1'b1
@@ -122,7 +131,16 @@ module tb_cosim #(
       cycle <= cycle + 1;
 
       if (retire_valid) begin
-        if (!quiet) $display("TRACE %08x %08x", retire_pc, retire_instr);
+        // rd == x0 is suppressed so that the stream lines up with
+        // Spike's commit log, which does not report writes to x0
+        if (!quiet) begin
+          if (`CORE_PATH.rf_we && (`CORE_PATH.rd_addr != 5'd0)) begin
+            $display("TRACE %08x %08x x%0d %08x", retire_pc, retire_instr,
+                     `CORE_PATH.rd_addr, `CORE_PATH.rf_wdata);
+          end else begin
+            $display("TRACE %08x %08x", retire_pc, retire_instr);
+          end
+        end
         nretire <= nretire + 1;
         if (nretire + 1 >= maxretire) begin
           $display("[cosim] retired %0d instructions in %0d cycles", nretire + 1, cycle);

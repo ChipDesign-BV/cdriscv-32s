@@ -122,8 +122,8 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Block bench: ALU (`make block-alu`) | **pass** | 453 840 vectors vs an independent model, mutation tested |
 | Block benches: everything else | **not run** | plan section 5 |
 | Architectural test suite | **not run** | plan objective O1 |
-| Co-simulation vs Spike (`make cosim`) | **pass**, control flow only | 213 instructions, identical stream; values not yet compared |
-| Golden model co-simulation, full | **not run** | plan objective O2, needs the register and memory write comparison |
+| Co-simulation vs Spike (`make cosim`) | **pass** | 208 instructions, identical PCs and register writes, mutation tested |
+| Co-simulation with random programs | **not run** | plan objective O2; memory writes also not yet compared |
 | Formal properties | **not run** | plan section 6 |
 | Coverage | **not collected** | plan objectives O6, O7 |
 | Synthesis | **not run** | |
