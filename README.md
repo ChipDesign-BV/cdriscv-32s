@@ -129,8 +129,9 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Co-simulation vs Spike (`make cosim`) | **pass** | 208 instructions: PCs, register writes **and memory accesses** all identical, mutation tested; Verilator and Icarus agree |
 | Random program co-simulation (`make cosim-random`) | **pass** | **1000/1000 programs, 16 885 968 instructions** with memory accesses compared; an earlier 2000-program run compared 33 760 012 instructions without them |
 | Co-simulation at scale | **not met** | objective O2 wants 10^9; the above is 3.4 % of it. Throughput is now ~43 000 instr/s, so the rest is machine time rather than rework. Memory accesses are now compared; CSR state that no instruction reads back is not |
-| Formal: fetch stage (`make formal`) | **pass** | BMC to depth 20, 5 properties, mutation tested; bounded, not a proof |
-| Formal: other blocks | **not run** | plan section 6 |
+| Formal: fetch stage (`make formal-if`) | **pass** | BMC to depth 20, 5 properties, mutation tested; bounded, not a proof |
+| Formal: SEC-DED code (`make formal-ecc`) | **pass** | **proof** over all 2^32 data values and all error positions, mutation tested |
+| Formal: other blocks | **not run** | LSU, bus, decoder, safety controller — plan section 6 |
 | CI workflow | written, **never run, not installed** | [ci/github-workflow-verify.yml](ci/github-workflow-verify.yml); needs a token with GitHub's `workflow` scope to install, then a first run |
 | Coverage | **not collected** | plan objectives O6, O7 |
 | Synthesis (`make synth`) | **pass** | yosys via slang: no latches, no combinational loops, 52 614 cells with 64-word TCMs |

@@ -5,6 +5,51 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V6 continued — formal, SEC-DED decoder (2026-08-20)
+
+`make formal-ecc` proves the three SEC-DED properties **over every one
+of the 2^32 data values and every error position**, in 3 seconds. Both
+modules are combinational, so this is not a bounded result: it
+quantifies over the whole input space.
+
+| property | what it says |
+|----------|--------------|
+| clean | the word comes back unchanged, no flag |
+| one error | corrected, whatever the data and wherever the bit |
+| two errors | flagged uncorrectable, and `err_single` never set |
+
+The last one is the one the safety argument needs: a decoder that
+flagged a double error *and* also "corrected" the data would pass any
+test that only inspects flags, so the correction output is checked too.
+
+This upgrades the evidence for the ECC from what the block bench gives
+— every error position, but 268 sampled data patterns — to complete
+coverage of the data space.
+
+Mutation tested with two seeded bugs, both caught: one bit changed in
+an encoder parity mask (`p_clean_single` fails), and `err_double_o`
+tied low (`p_double_flag` fails).
+
+### The result that was not a result
+
+The first version of this run **passed in 0.3 seconds and proved
+nothing**. The properties sit in a clocked block, and a BMC depth of 1
+never reaches the clock edge, so the solver had nothing to check. It
+looked like a spectacular proof.
+
+What exposed it was the mutation test: a deliberately broken encoder
+mask *also* passed. A formal run that passes suspiciously fast deserves
+exactly that treatment, and the same applies to a simulation that runs
+suspiciously few cycles.
+
+Depth 2 is the fix, and it turned a 0.3 second non-result into a real
+one — but only after changing the engine. With yices (SMT) depth 2 did
+not finish in 240 seconds; with abc (SAT) it takes 3. The code is XOR
+heavy, which SAT handles far better than SMT. The fetch stage
+properties are the opposite case: they are about control, and yices
+converges there in ten seconds where abc gave nothing extra. Both
+choices are written into the `.sby` files with the reason.
+
 ## Phase V6 — formal, fetch stage (2026-08-20)
 
 `make formal` bounded-model-checks `cdriscv_if_stage`, the block the

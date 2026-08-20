@@ -14,6 +14,9 @@ bmc: depth 20
 prove: mode prove
 prove: depth 20
 
+# yices (SMT) for this one: the properties are about control, and it
+# converges at depth 20 in about ten seconds.  abc (SAT) was tried for
+# greater depth and does not help here.
 [engines]
 smtbmc yices
 
