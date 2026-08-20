@@ -94,7 +94,10 @@ module cdriscv_lsu
   always_comb begin
     state_d = state_q;
     unique case (state_q)
-      LSU_IDLE: if (req_i)       state_d = data_gnt_i ? LSU_DATA : LSU_ADDR;
+      LSU_IDLE: if (req_i) begin
+        if (data_gnt_i) state_d = LSU_DATA;
+        else            state_d = LSU_ADDR;
+      end
       LSU_ADDR: if (data_gnt_i)  state_d = LSU_DATA;
       LSU_DATA: if (data_rvalid_i) state_d = LSU_IDLE;
       default:                   state_d = LSU_IDLE;

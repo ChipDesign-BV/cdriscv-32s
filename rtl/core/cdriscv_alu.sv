@@ -51,10 +51,16 @@ module cdriscv_alu
 
   assign adder_result = op_a_ext + adder_in_b + {32'b0, sub};
 
-  // a < b  (in the selected signedness) <=> the extended subtraction
-  // borrowed, i.e. the carry-out is 0.
+  // a < b, in the selected signedness.  Both operands are extended to
+  // 33 bits (sign extended for a signed compare, zero extended for an
+  // unsigned one), so the difference always fits and cannot overflow;
+  // bit 32 of the 33-bit result is therefore its sign, and the sign is
+  // set exactly when a < b.
+  //
+  // Note this is the sign of the sum, not a carry-out: adder_result is
+  // 33 bits wide, so the carry out of bit 32 is not kept.
   logic cmp_lt, cmp_eq;
-  assign cmp_lt = ~adder_result[32];
+  assign cmp_lt = adder_result[32];
   assign cmp_eq = (operand_a_i == operand_b_i);
 
   // ------------------------------------------------------------------

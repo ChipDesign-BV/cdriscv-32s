@@ -26,7 +26,7 @@ CROSS      ?= riscv64-unknown-elf-
 CC         := $(CROSS)gcc
 OBJCOPY    := $(CROSS)objcopy
 OBJDUMP    := $(CROSS)objdump
-ARCH       := rv32im
+ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
 .PHONY: all lint sim sw synth ecc clean
@@ -34,15 +34,19 @@ ABI        := ilp32
 all: lint
 
 # ---------------------------------------------------------------- lint
+WAIVERS := verif/lint/waivers.vlt
+
+# No -Wno-fatal: a new warning that is not waived in $(WAIVERS) fails
+# the build.  Every waiver in that file carries its justification.
 lint:
 	$(VERILATOR) --lint-only -sv --timing -Wall \
-	  -Wno-fatal \
-	  --top-module $(TOP) $(RTL)
+	  --top-module $(TOP) $(WAIVERS) $(RTL)
 
+# The RTL carries no `timescale (the tool default applies); the bench
+# does, so the bench lint sets one globally to keep them consistent.
 lint-tb:
-	$(VERILATOR) --lint-only -sv --timing -Wall \
-	  -Wno-fatal \
-	  --top-module $(TB_TOP) $(RTL) $(TB)
+	$(VERILATOR) --lint-only -sv --timing -Wall --timescale 1ns/1ps \
+	  --top-module $(TB_TOP) $(WAIVERS) $(RTL) $(TB)
 
 # ----------------------------------------------------------------- sim
 $(BUILD)/$(TB_TOP).vvp: $(RTL) $(TB) | $(BUILD)

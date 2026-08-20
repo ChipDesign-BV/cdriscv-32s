@@ -7,19 +7,21 @@
 > [!CAUTION]
 > **NOT VERIFIED YET — DO NOT USE YET.**
 >
-> This repository is an initial implementation drop. The RTL has **not
-> been compiled, linted, simulated, synthesised or reviewed**. No test
-> has been run, no waveform has been looked at, and no flow has been
-> executed. Expect it to be wrong until proven otherwise.
+> Verification has started and is at phase V0 of
+> [doc/verification_plan.md](doc/verification_plan.md). What that means
+> concretely: the RTL lints clean and a smoke program boots and runs to
+> completion in simulation. It does **not** mean the core is correct.
+> No architectural test suite has been run, there is no comparison
+> against a golden model, no coverage has been collected, and nothing
+> has been synthesised. The first simulation already found a bug that
+> broke every signed and unsigned comparison in the core
+> ([V0-F2](doc/verification_findings.md)) — assume there are more.
 >
 > **Do not use yet** — not in a product, not in a tapeout, not as a
 > reference, and above all not in anything that has to be safe. No
 > functional safety claim of any kind is made: there is no FMEDA, no
 > diagnostic coverage figure, no fault injection campaign, and no
 > compliance with ISO 26262, IEC 61508 or any other standard.
->
-> What has to happen before that changes is written down in
-> [doc/verification_plan.md](doc/verification_plan.md).
 
 ## What it is
 
@@ -85,8 +87,11 @@ either detected by a mechanism that reports it, or bounded by one.
 * [doc/integration.md](doc/integration.md) — ports, clocking, reset, CDC, boot sequence
 * [doc/safety_manual.md](doc/safety_manual.md) — draft: mechanisms, assumptions of use, known gaps
 * [doc/verification_plan.md](doc/verification_plan.md) — what must be done before this IP may be used
+* [doc/verification_findings.md](doc/verification_findings.md) — running log of what verification has found
 
-## Building (none of this has been run)
+
+
+## Building
 
 ```sh
 make lint     # verilator --lint-only
@@ -104,13 +109,23 @@ export PATH="/foss/tools/bin:/foss/tools/verilator/bin:$PATH"
 
 ## Status
 
-| Item | State |
-|------|-------|
-| RTL written | yes |
-| Lint | **not run** |
-| Simulation | **not run** |
-| Architectural test suite | **not run** |
-| Synthesis | **not run** |
-| FMEDA / diagnostic coverage | **not started** |
-| Fault injection campaign | **not started** |
-| Safety manual | draft outline only |
+Verification progress against [doc/verification_plan.md](doc/verification_plan.md).
+Findings are logged in [doc/verification_findings.md](doc/verification_findings.md).
+
+| Item | State | Evidence |
+|------|-------|----------|
+| RTL written | yes | |
+| Lint (`make lint`) | **pass** | hard gate, no `-Wno-fatal`; waivers justified in [verif/lint/waivers.vlt](verif/lint/waivers.vlt) |
+| Bench lint (`make lint-tb`) | **pass** | |
+| Software build (`make sw`) | **pass** | `rv32im_zicsr_zifencei`, ECC encoded memory image |
+| Smoke simulation (`make sim`) | **pass** | boots, 395 cycles, lockstep active, no fault raised |
+| Block level benches | **not run** | plan section 5 |
+| Architectural test suite | **not run** | plan objective O1 |
+| Golden model co-simulation | **not run** | plan objective O2, needs the RVFI bind |
+| Formal properties | **not run** | plan section 6 |
+| Coverage | **not collected** | plan objectives O6, O7 |
+| Synthesis | **not run** | |
+| Gate level simulation | **not run** | |
+| FMEDA / diagnostic coverage | **not started** | needs the fault injection campaign |
+| Fault injection campaign | **not started** | plan section 9 |
+| Safety manual | draft outline only | |

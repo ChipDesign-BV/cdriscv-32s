@@ -34,8 +34,6 @@ module cdriscv_subsys
     parameter bit          RfParity    = 1'b1,
     parameter int unsigned ItcmWords   = 4096,
     parameter int unsigned DtcmWords   = 4096,
-    parameter string       ItcmInit    = "",
-    parameter string       DtcmInit    = "",
     parameter bit          MbistAuto   = 1'b0,
     parameter logic [31:0] ItcmBase    = 32'h0000_0000,
     parameter logic [31:0] DtcmBase    = 32'h1000_0000,
@@ -315,9 +313,12 @@ module cdriscv_subsys
   logic [31:0] dbist_addr;
   logic [38:0] dbist_wdata, dbist_rdata;
 
+  // The memory images are loaded by the bench (hierarchical $readmemh,
+  // see tb/tb_cdriscv_subsys.sv) rather than through a parameter: not
+  // every simulator binds a string parameter through a hierarchy, and
+  // the bench needs to be able to reload between runs anyway.
   cdriscv_tcm #(
-      .Depth    (ItcmWords),
-      .InitFile (ItcmInit)
+      .Depth (ItcmWords)
   ) u_itcm (
       .clk_i        (clk_i),
       .rst_ni       (rst_n_sync),
@@ -342,8 +343,7 @@ module cdriscv_subsys
   );
 
   cdriscv_tcm #(
-      .Depth    (DtcmWords),
-      .InitFile (DtcmInit)
+      .Depth (DtcmWords)
   ) u_dtcm (
       .clk_i        (clk_i),
       .rst_ni       (rst_n_sync),

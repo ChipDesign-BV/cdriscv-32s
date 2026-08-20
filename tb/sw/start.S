@@ -78,6 +78,32 @@ _start:
     li   t3, -6
     bne  t2, t3, fail
 
+    /* --- comparison smoke test ------------------------------------
+     * The first version of this program used only bne/beq, which let a
+     * polarity error in the ALU comparator (finding V0-F2) reach the
+     * first simulation undetected.  Every comparison form is checked
+     * here now, in both directions.
+     */
+    li   t0, -5
+    li   t1, 3
+    slt  t2, t0, t1             /* -5 < 3 signed -> 1 */
+    li   t3, 1
+    bne  t2, t3, fail
+    sltu t2, t0, t1             /* 0xfffffffb < 3 unsigned -> 0 */
+    bne  t2, zero, fail
+    slti t2, t0, 0              /* -5 < 0 -> 1 */
+    bne  t2, t3, fail
+    sltiu t2, t1, 4             /* 3 < 4 unsigned -> 1 */
+    bne  t2, t3, fail
+
+    blt  t1, t0, fail           /* 3 < -5 signed: must not branch */
+    bltu t1, t0, 6f             /* 3 < 0xfffffffb unsigned: must branch */
+    j    fail
+6:  bge  t0, t1, fail           /* -5 >= 3 signed: must not branch */
+    bgeu t0, t1, 7f             /* 0xfffffffb >= 3 unsigned: must branch */
+    j    fail
+7:
+
     /* --- memory smoke test ---------------------------------------- */
     la   t0, scratch
     li   t1, 0xdeadbeef

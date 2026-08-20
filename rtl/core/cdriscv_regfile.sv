@@ -34,11 +34,16 @@ module cdriscv_regfile #(
     output logic        par_err_o
 );
 
-  // Entry 0 exists but is tied off: x0 always reads as zero and is
-  // never written.  Keeping it in the array avoids an out-of-range
-  // index on the read ports.
-  logic [31:0][31:0] rf_q;
-  logic [31:0]       par_q;
+  // The storage holds entries 1..31; x0 is not implemented.  A separate
+  // read view adds the constant entry 0, so the read ports can index
+  // with the raw 5-bit address without an out-of-range access, and
+  // without one array being driven both procedurally and continuously
+  // (which not every simulator accepts).
+  logic [31:1][31:0] rf_q;
+  logic [31:1]       par_q;
+
+  logic [31:0][31:0] rf_rd;
+  logic [31:0]       par_rd;
 
   logic [31:0] we_dec;
 
@@ -48,9 +53,6 @@ module cdriscv_regfile #(
       we_dec[waddr_i] = 1'b1;
     end
   end
-
-  assign rf_q[0]  = 32'b0;
-  assign par_q[0] = 1'b1;              // odd parity of the all-zero word
 
   for (genvar i = 1; i < 32; i++) begin : g_rf
     always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -67,13 +69,22 @@ module cdriscv_regfile #(
   // ------------------------------------------------------------------
   // Read ports
   // ------------------------------------------------------------------
+  always_comb begin
+    rf_rd[0]  = 32'b0;
+    par_rd[0] = 1'b1;                  // odd parity of the all-zero word
+    for (int unsigned i = 1; i < 32; i++) begin
+      rf_rd[i]  = rf_q[i];
+      par_rd[i] = par_q[i];
+    end
+  end
+
   logic par_a, par_b;
 
-  assign rdata_a_o = rf_q[raddr_a_i];
-  assign par_a     = par_q[raddr_a_i];
+  assign rdata_a_o = rf_rd[raddr_a_i];
+  assign par_a     = par_rd[raddr_a_i];
 
-  assign rdata_b_o = rf_q[raddr_b_i];
-  assign par_b     = par_q[raddr_b_i];
+  assign rdata_b_o = rf_rd[raddr_b_i];
+  assign par_b     = par_rd[raddr_b_i];
 
   // ------------------------------------------------------------------
   // Parity check, only for the ports the current instruction consumes.
