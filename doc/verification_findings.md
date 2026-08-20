@@ -5,6 +5,43 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V1 — block level benches (2026-08-20, in progress)
+
+### ALU (`verif/block/alu`) — **pass**
+
+`gen_vectors.py` holds a reference model of the ALU written from the
+RISC-V semantics, independently of the RTL, and emits vectors as
+`{op, a, b, expected}`. `tb_alu.sv` replays them against the block.
+
+Current run: **453 840 vectors, 0 mismatches**, covering all 15
+operators against every pairing of 16 corner values (0, ±1, the signed
+and unsigned boundaries, shift amounts 31/32/33, alternating patterns),
+20 000 random operand pairs per operator, and 10 000 more with a corner
+on one side.
+
+The bench was mutation tested, mutating a scratch copy so the working
+tree is never touched:
+
+| Mutation | Result |
+|----------|--------|
+| comparator polarity inverted (the V0-F2 bug) | detected, 1024 / 3840 |
+| `sll` result taken without operand reversal | detected, 187 / 3840 |
+| `eq` polarity inverted | detected, 256 / 3840 |
+| subtract without the +1 (one's complement) | detected, 320 / 3840 |
+| no-op control mutation (`x ^ 32'h0`) | not detected, as intended |
+
+The control mutation matters: without it, a bench that always failed
+would look equally convincing.
+
+Run with `make block-alu`; the recipe checks the verdict, since `vvp`
+exits zero either way.
+
+### Tooling
+
+Spike (`riscv-isa-sim` 1.1.1-dev) built and installed at
+`/headless/verif-tools/spike`, which unblocks objectives O1 and O2.
+
+
 ## Phase V0 — lint, elaborate, smoke (2026-08-20)
 
 Status: **complete**. `make lint`, `make lint-tb`, `make sw` and
