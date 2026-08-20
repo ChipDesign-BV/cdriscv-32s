@@ -38,6 +38,18 @@ the registers carry over, so every iteration starts from a different
 state, and the loop hammers the fetch redirect path, which is where
 finding V2-P1 says the cycles are going.
 
+### Regression after the change — 2000 programs, 33.8 million instructions
+
+**2000 of 2000 constrained random programs match Spike, 33 760 012
+retired instructions compared**, PCs and register writes, in about
+fifteen minutes. That is 106 times the previous run's 318 486, from the
+same wall clock budget.
+
+Objective O2 asks for 10^9, so this is **3.4 % of the way there** and
+the objective remains open. What has changed is that the remainder is
+now a matter of leaving a machine running overnight rather than of
+rebuilding the harness.
+
 ### Where that leaves O2
 
 | | before | after |

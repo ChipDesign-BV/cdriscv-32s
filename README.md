@@ -124,9 +124,9 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Block bench: mul/div (`make block-multdiv`) | **pass** | 4800 vectors, constant 33-cycle latency asserted, V0-A1 invariant checked |
 | Block benches: everything else | **not run** | plan section 5 |
 | Architectural test suite | **not run** | plan objective O1 |
-| Co-simulation vs Spike (`make cosim`) | **pass** | 208 instructions, identical PCs and register writes, mutation tested |
-| Random program co-simulation (`make cosim-random`) | **pass** | 500/500 programs, 318 486 instructions vs Spike |
-| Co-simulation at scale | **not met** | objective O2 wants 10^9 instructions; at the current ~350 instr/s that is 33 days, so the bench needs porting to Verilator. Memory write data is also not yet compared |
+| Co-simulation vs Spike (`make cosim`) | **pass** | 208 instructions, identical PCs and register writes, mutation tested; Verilator and Icarus agree |
+| Random program co-simulation (`make cosim-random`) | **pass** | **2000/2000 programs, 33 760 012 instructions** vs Spike |
+| Co-simulation at scale | **not met** | objective O2 wants 10^9; the above is 3.4 % of it. Throughput is now ~43 000 instr/s, so the rest is machine time rather than rework. Memory write data is still not compared |
 | Formal properties | **not run** | plan section 6 |
 | CI workflow | written, **never run, not installed** | [ci/github-workflow-verify.yml](ci/github-workflow-verify.yml); needs a token with GitHub's `workflow` scope to install, then a first run |
 | Coverage | **not collected** | plan objectives O6, O7 |
