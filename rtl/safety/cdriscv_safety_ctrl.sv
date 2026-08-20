@@ -156,8 +156,29 @@ module cdriscv_safety_ctrl
   // Reactions
   // ------------------------------------------------------------------
   assign irq_o       = |(status_q & react_irq_q);
-  assign reset_req_o = |(status_q & react_rst_q);
   assign fault_any_o = |status_q;
+
+  // The reset request is a pulse per fault, not a level.
+  //
+  // It cannot be a level: the status is sticky and only software can
+  // clear it, so a level would hold the core in reset for ever and the
+  // software that was supposed to clear it would never run again.  A
+  // configured reset reaction would turn the first fault of that class
+  // into a permanently dead subsystem -- worse than having no reaction
+  // at all.  Found by V7-F1.
+  //
+  // rst_acted_q remembers which fault bits have already had their
+  // reset, and is itself cleared when software clears the status, so a
+  // later recurrence of the same fault requests a new reset.
+  logic [31:0] rst_pending, rst_acted_q;
+
+  assign rst_pending = status_q & react_rst_q;
+  assign reset_req_o = |(rst_pending & ~rst_acted_q);
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) rst_acted_q <= 32'b0;
+    else         rst_acted_q <= (rst_acted_q | rst_pending) & status_q;
+  end
 
   logic pin_fault;
   assign pin_fault = |(status_q & react_pin_q);

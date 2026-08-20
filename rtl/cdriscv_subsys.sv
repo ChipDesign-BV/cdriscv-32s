@@ -119,7 +119,28 @@ module cdriscv_subsys
     end
   end
 
-  assign core_rst_n  = rst_n_sync && (warm_cnt_q == '0);
+  // The warm reset is released through a reset synchroniser rather
+  // than combinationally.
+  //
+  // Taking core_rst_n straight from (warm_cnt_q == 0) releases it in
+  // the same delta as the clock edge that clears the counter, so every
+  // flop using it as an asynchronous reset races between seeing the old
+  // and the new value.  Icarus resolved that one way and Verilator the
+  // other: under Icarus the core restarted, under Verilator it never
+  // did.  Two simulators disagreeing on the same RTL is the signature
+  // of exactly this kind of race (V7-F2).
+  //
+  // cdriscv_rst_sync gives what a reset needs: asynchronous assertion,
+  // synchronous release, clear of the clock edge.
+  logic warm_rst_n;
+  assign warm_rst_n = rst_n_sync && (warm_cnt_q == '0);
+
+  cdriscv_rst_sync #(.Stages(3)) u_core_rst_sync (
+      .clk_i  (clk_i),
+      .rst_ni (warm_rst_n),
+      .rst_no (core_rst_n)
+  );
+
   assign reset_req_o = (warm_cnt_q != '0);
 
   // ------------------------------------------------------------------

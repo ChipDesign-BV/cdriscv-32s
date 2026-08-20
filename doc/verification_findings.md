@@ -5,6 +5,85 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V7 continued — safety reactions (2026-08-21)
+
+`make reaction` runs `verif/safety/reaction_test.S`: configuring the
+clock monitor **through its registers** rather than by forcing them,
+checking the safety controller's configuration lock, and taking a reset
+request — which restarts the core, so the program recognises its own
+second boot from a marker left in a peripheral register.
+
+All nine checks pass, and coverage went from 75.1 % to **80.0 %**. The
+clock monitor left the top of the gap table entirely.
+
+Writing it found two design bugs, both in the reset reaction, and both
+serious.
+
+### V7-F1 — a configured reset reaction bricked the subsystem (design bug, FIXED)
+
+**Severity: high.** `reset_req_o` was a *level*:
+
+```
+assign reset_req_o = |(status_q & react_rst_q);
+```
+
+The status is sticky and only software can clear it. So the first fault
+with a reset reaction asserted the request, the request held the core in
+reset, and the software that was supposed to clear the status could
+never run again. The subsystem was dead until a power cycle.
+
+That is worse than having no reaction at all, and it directly
+contradicted the safety manual, which says the warm reset "restarts the
+core but leaves the peripherals and their status registers standing, so
+the software can determine the cause after the restart". It never
+restarted.
+
+The request is now a pulse per fault, with a `rst_acted_q` register
+remembering which bits have already had their reset and clearing when
+software clears the status, so a later recurrence requests a new one.
+
+Confirmed by reverting the fix in a scratch copy: the level form times
+out, the pulse form passes.
+
+### V7-F2 — the warm reset was released in a race (design bug, FIXED)
+
+**Found by the two simulators disagreeing**, which is the whole reason
+the plan runs both. The same RTL and the same image: under Icarus the
+core restarted and the test passed; under Verilator the core never came
+back.
+
+The cause:
+
+```
+assign core_rst_n = rst_n_sync && (warm_cnt_q == '0);
+```
+
+That releases the reset in the *same delta* as the clock edge that
+clears the counter, so every flop using `core_rst_n` as an asynchronous
+reset races between the old and the new value. Two simulators are
+entitled to resolve it differently, and they did.
+
+The warm reset now goes through `cdriscv_rst_sync`, which is what that
+primitive exists for: asynchronous assertion, synchronous release,
+clear of the clock edge. Both simulators now pass, within one cycle of
+each other.
+
+Worth stating plainly: a functional test alone would not have found
+this. It took running the same test on two simulators and noticing they
+disagreed.
+
+### Two process notes
+
+* One debugging session was spent chasing a **stale `.vvp`**: after
+  patching the RTL I re-ran the simulation binary directly instead of
+  through `make`, so the fix was not in the design under test and the
+  probe binaries disagreed with the trace. Run through `make`.
+* `make coverage | head` silently truncated the run — `head` exits,
+  `make` takes SIGPIPE and dies partway, and the report that was left
+  behind was the *previous* one. The numbers looked plausible and were
+  stale. Redirect to a file and read the file.
+
+
 ## Phase V7 continued — peripheral and interrupt test (2026-08-20)
 
 `make periph` runs `verif/core/periph_test.S`, eight checks over

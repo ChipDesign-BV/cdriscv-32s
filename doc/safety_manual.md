@@ -85,7 +85,10 @@ validated.
 1. A mechanism reports a fault for at least one cycle.
 2. The safety controller latches it in `STATUS` if `ENABLE` allows.
 3. Per source, the reaction is any combination of: safety interrupt,
-   warm reset request, external error pin.
+   warm reset request, external error pin. The reset request is a pulse
+   per latched fault, not a level: a level would hold the core in reset
+   for ever, since only software can clear the sticky status and the
+   software would never run again (finding V7-F1).
 4. The warm reset restarts the core and the bus, and leaves the
    peripherals and their status registers standing so that the software
    can determine the cause after the restart.
