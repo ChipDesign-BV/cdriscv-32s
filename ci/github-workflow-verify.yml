@@ -1,0 +1,103 @@
+# SPDX-FileCopyrightText: 2026 ChipDesign B.V.
+# SPDX-License-Identifier: Apache-2.0
+#
+# cdriscv-32s continuous verification.
+#
+# INSTALLATION: this file lives in ci/ rather than .github/workflows/
+# because the credentials in use here lack GitHub's `workflow` scope and
+# the push is refused with:
+#
+#   refusing to allow a Personal Access Token to create or update
+#   workflow `.github/workflows/verify.yml` without `workflow` scope
+#
+# To enable it, copy it into .github/workflows/ and push with a token
+# that has the workflow scope:
+#
+#   mkdir -p .github/workflows
+#   cp ci/github-workflow-verify.yml .github/workflows/verify.yml
+#
+# NOTE: this workflow has never run.  It is written from the commands
+# that pass locally in the IIC-OSIC-TOOLS container, and the first run
+# on a real runner will need fixing.  Do not read a green badge into it
+# until one has actually happened.
+#
+# Cadence follows doc/verification_plan.md section 10: everything cheap
+# on every push, the expensive random regression nightly.
+
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # nightly, off the hour to avoid the crowd
+    - cron: '37 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  lint-and-block:
+    name: lint, block benches, smoke
+    runs-on: ubuntu-latest
+    container: hpretl/iic-osic-tools:2026.07
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint (hard gate, waivers in verif/lint/waivers.vlt)
+        run: make lint
+
+      - name: Lint the bench
+        run: make lint-tb
+
+      - name: Block benches
+        run: make block
+
+      - name: Build the smoke program
+        run: make sw
+
+      - name: Smoke simulation
+        run: make sim
+
+      - name: Generic synthesis, structural check
+        run: make synth
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-lint-and-block
+          path: build/*.log
+
+  cosim:
+    name: co-simulation against Spike
+    runs-on: ubuntu-latest
+    container: hpretl/iic-osic-tools:2026.07
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache the Spike build
+        id: spike-cache
+        uses: actions/cache@v4
+        with:
+          path: /opt/spike
+          key: spike-${{ runner.os }}-v1
+
+      - name: Build Spike
+        if: steps.spike-cache.outputs.cache-hit != 'true'
+        run: sh scripts/build_spike.sh /opt/spike
+
+      - name: Directed ISA program
+        run: make cosim SPIKE=/opt/spike/bin/spike
+
+      - name: Random programs (short, on every push)
+        if: github.event_name != 'schedule'
+        run: make cosim-random SPIKE=/opt/spike/bin/spike RANDOM_SEEDS=50
+
+      - name: Random programs (long, nightly)
+        if: github.event_name == 'schedule'
+        run: make cosim-random SPIKE=/opt/spike/bin/spike RANDOM_SEEDS=2000 RANDOM_LEN=800
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: failing-random-programs
+          path: build/random/
