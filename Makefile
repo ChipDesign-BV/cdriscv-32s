@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint sim sw synth ecc clean
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu
 
 all: lint
 
@@ -73,6 +73,26 @@ $(BUILD)/prog.dtcm.bin: $(BUILD)/prog.elf
 
 $(BUILD)/%.hex: $(BUILD)/%.bin
 	$(PYTHON) scripts/mkimage.py $< $@
+
+# -------------------------------------------------------- block benches
+# Each block bench prints "PASS" or "FAIL"; the recipe greps for the
+# verdict so that a failing bench fails make, which vvp itself does not.
+ALU_VECTORS := $(BUILD)/alu_vectors.hex
+ALU_RANDOM  ?= 20000
+
+$(ALU_VECTORS): verif/block/alu/gen_vectors.py | $(BUILD)
+	$(PYTHON) $< $@ $(ALU_RANDOM)
+
+$(BUILD)/tb_alu.vvp: rtl/core/cdriscv_pkg.sv rtl/core/cdriscv_alu.sv \
+                     verif/block/alu/tb_alu.sv | $(BUILD)
+	$(IVERILOG) -g2012 -o $@ -s tb_alu $^
+
+block-alu: $(BUILD)/tb_alu.vvp $(ALU_VECTORS)
+	$(VVP) $(BUILD)/tb_alu.vvp +VEC=$(ALU_VECTORS) \
+	  +NVEC=$$(wc -l < $(ALU_VECTORS)) | tee $(BUILD)/block_alu.log
+	@grep -q "PASS" $(BUILD)/block_alu.log
+
+block: block-alu
 
 # ---------------------------------------------------------------- ecc
 ecc:

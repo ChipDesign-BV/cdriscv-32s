@@ -119,7 +119,8 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Bench lint (`make lint-tb`) | **pass** | |
 | Software build (`make sw`) | **pass** | `rv32im_zicsr_zifencei`, ECC encoded memory image |
 | Smoke simulation (`make sim`) | **pass** | boots, 395 cycles, lockstep active, no fault raised |
-| Block level benches | **not run** | plan section 5 |
+| Block bench: ALU (`make block-alu`) | **pass** | 453 840 vectors vs an independent model, mutation tested |
+| Block benches: everything else | **not run** | plan section 5 |
 | Architectural test suite | **not run** | plan objective O1 |
 | Golden model co-simulation | **not run** | plan objective O2, needs the RVFI bind |
 | Formal properties | **not run** | plan section 6 |
