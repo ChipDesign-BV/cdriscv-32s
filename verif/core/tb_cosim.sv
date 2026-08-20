@@ -110,6 +110,10 @@ module tb_cosim #(
   string       hexfile;
   int unsigned maxretire, maxcycles, nretire, cycle;
   logic [31:0] stoppc, stoppc2;
+  logic [31:0] store_data, st_addr;
+  logic [3:0]  st_be;
+  logic [1:0]  st_off;
+  string       trace_line;
   bit          quiet, have_stop;
 
   initial begin
@@ -143,15 +147,48 @@ module tb_cosim #(
       cycle <= cycle + 1;
 
       if (retire_valid) begin
-        // rd == x0 is suppressed so that the stream lines up with
-        // Spike's commit log, which does not report writes to x0
+        // The line mirrors Spike's commit log: the register write if
+        // there is one (x0 is suppressed, as Spike suppresses it), then
+        // the memory access if there is one -- address only for a load,
+        // address and data for a store, with the data truncated to the
+        // access width the way Spike reports it.
         if (!quiet) begin
+          trace_line = $sformatf("TRACE %08x %08x", retire_pc, retire_instr);
           if (`CORE_PATH.rf_we && (`CORE_PATH.rd_addr != 5'd0)) begin
-            $display("TRACE %08x %08x x%0d %08x", retire_pc, retire_instr,
-                     `CORE_PATH.rd_addr, `CORE_PATH.rf_wdata);
-          end else begin
-            $display("TRACE %08x %08x", retire_pc, retire_instr);
+            trace_line = {trace_line, $sformatf(" x%0d %08x",
+                          `CORE_PATH.rd_addr, `CORE_PATH.rf_wdata)};
           end
+          // The memory access is reconstructed from the core's *bus*
+          // outputs, not from the decoded address and rs2.  That is the
+          // whole point: sampling upstream of the LSU would check the
+          // address adder and the source register but not the byte
+          // enable generation or the write data lane shifting, which is
+          // where alignment bugs live.  Byte address and size-truncated
+          // data are rebuilt from be and wdata so that the line matches
+          // what Spike reports.
+          if (`CORE_PATH.lsu_req_dec) begin
+            st_be = `CORE_PATH.data_be_o;
+            casez (st_be)
+              4'b???1: st_off = 2'd0;
+              4'b??10: st_off = 2'd1;
+              4'b?100: st_off = 2'd2;
+              default: st_off = 2'd3;
+            endcase
+            st_addr = {`CORE_PATH.data_addr_o[31:2], st_off};
+            if (`CORE_PATH.data_we_o) begin
+              store_data = `CORE_PATH.data_wdata_o >> (8 * st_off);
+              case ($countones(st_be))
+                1:       store_data = store_data & 32'h0000_00ff;
+                2:       store_data = store_data & 32'h0000_ffff;
+                default: ;
+              endcase
+              trace_line = {trace_line, $sformatf(" mem %08x %0x",
+                            st_addr, store_data)};
+            end else begin
+              trace_line = {trace_line, $sformatf(" mem %08x", st_addr)};
+            end
+          end
+          $display("%s", trace_line);
         end
         nretire <= nretire + 1;
         if (have_stop && ((retire_pc == stoppc) || (retire_pc == stoppc2))) begin

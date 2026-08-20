@@ -5,6 +5,40 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V3 continued — memory accesses in the comparison (2026-08-20)
+
+The co-simulation now compares **memory accesses as well as register
+writes**: the address of every load, and the address and data of every
+store, truncated to the access width the way Spike reports it.
+
+**Where the RTL side is sampled matters, and it is the point of this
+step.** The obvious place is the core's decoded address and its `rs2`
+value. That would be wrong — or rather, far too weak: it checks the
+address adder and the source register, but the byte enable generation
+and the write data lane shifting sit *downstream* of it, in the LSU,
+and that is exactly where alignment bugs live. The bench therefore
+reconstructs the access from the core's **bus outputs**: the byte
+address from `data_addr_o` and the low set bit of `data_be_o`, the
+store data by shifting `data_wdata_o` down by that offset and
+truncating to `$countones(data_be_o)` bytes.
+
+Mutation tested with a bug that touches no register and no control
+flow: a byte store to offset 1 writing the wrong lane
+(`{wdata[23:0],8'b0}` becomes `{wdata[15:0],16'b0}` in
+`cdriscv_lsu.sv`). The comparison fails on exactly that store:
+
+```
+idx   spike                                   rtl
+101   pc=80000194 00628223  m[800002b4]=00000055   ... matches
+102   <-- the offset 1 store, diverges
+```
+
+Sampled at the decode level, that mutation would have passed.
+
+What is still outside the comparison: CSR state that no instruction
+reads back, and anything the program does not execute.
+
+
 ## Phase V3 — co-simulation throughput (2026-08-20)
 
 The previous entry ended with the arithmetic that the harness could not
