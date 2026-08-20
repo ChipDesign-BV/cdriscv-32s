@@ -5,6 +5,42 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V7 continued — traps and illegal encodings (2026-08-21)
+
+`make trap` walks **every exception cause the core can raise** and
+checks `mcause`, `mepc` and `mtval` for each: ecall, ebreak, four
+different illegal encodings, load and store address misaligned, load
+and store access fault, instruction address misaligned, and instruction
+access fault. Fourteen checks, all passing on the first run.
+
+Coverage 80.0 % → **83.4 %**, and `cdriscv_core` left the gap table
+entirely.
+
+Two details worth keeping:
+
+* The handler returns to an address the main flow puts in `s7`
+  beforehand, rather than advancing `mepc` by four. Advancing works for
+  most causes but not for an instruction access fault, where `mepc`
+  points into unmapped memory and the next fetch would fault again for
+  ever. A test that used the obvious `mepc + 4` would hang on exactly
+  the case it was written to check.
+* The illegal encodings have to be written as `.word` constants. An
+  assembler will not emit them, which is precisely why the decoder's
+  rejection logic had never run: no valid program contains one, and the
+  random generator only emits legal instructions.
+
+Remaining gaps, in order:
+
+| module | coverage | what is missing |
+|--------|----------|-----------------|
+| `cdriscv_ams_if` | 68 % | the limit registers, the analog flag inputs, the conversion time-out — the mixed-signal half of the IP |
+| `cdriscv_csr` | 80 % | the counter CSRs and a few read-only ones |
+| `cdriscv_safety_ctrl` | 77 % | the error pin in toggle mode, `PIN_DIV`, the injection register read-back |
+| `cdriscv_decoder` | 71 % | the remaining reserved encodings |
+| `cdriscv_wdog` | 78 % | window mode, and servicing with a wrong key |
+| `cdriscv_timer` | 68 % | the prescaler and the 64-bit roll-over |
+
+
 ## Phase V7 continued — safety reactions (2026-08-21)
 
 `make reaction` runs `verif/safety/reaction_test.S`: configuring the

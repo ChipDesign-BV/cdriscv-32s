@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench periph reaction formal formal-if formal-ecc coverage cosim cosim-iverilog cosim-random
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench periph reaction trap formal formal-if formal-ecc coverage cosim cosim-iverilog cosim-random
 
 all: lint
 
@@ -187,6 +187,25 @@ cosim-iverilog: $(BUILD)/tb_cosim.vvp $(BUILD)/cosim_isa.hex
 	  $(BUILD)/cosim_isa.elf --hex $(BUILD)/cosim_isa.hex \
 	  --vvp $(BUILD)/tb_cosim.vvp --count 5000
 
+# ------------------------------------------------------- trap tests
+$(BUILD)/trap_test.elf: verif/core/trap_test.S tb/sw/link.ld | $(BUILD)
+	$(CC) -march=$(ARCH) -mabi=$(ABI) -nostdlib -nostartfiles \
+	  -T tb/sw/link.ld -o $@ verif/core/trap_test.S
+
+$(BUILD)/trap_test.bin: $(BUILD)/trap_test.elf
+	$(OBJCOPY) -O binary --only-section=.text $< $@
+
+# Every exception cause the core can raise, with mcause and mtval
+# checked for each, plus the illegal encodings a valid program never
+# contains.
+trap: $(BUILD)/tb_cdriscv_subsys.vvp $(BUILD)/trap_test.hex \
+      $(BUILD)/dtcm_zero.hex
+	$(VVP) $(BUILD)/tb_cdriscv_subsys.vvp \
+	  +ITCM_HEX=$(BUILD)/trap_test.hex \
+	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex \
+	  +MAX_CYCLES=100000 | tee $(BUILD)/trap.log
+	@grep -q "PASS" $(BUILD)/trap.log
+
 # ------------------------------------------------- reaction tests
 $(BUILD)/reaction_test.elf: verif/safety/reaction_test.S tb/sw/link.ld | $(BUILD)
 	$(CC) -march=$(ARCH) -mabi=$(ABI) -nostdlib -nostartfiles \
@@ -278,7 +297,7 @@ $(BUILD)/obj_syscov/tb_sys_cov: $(RTL) $(TB) | $(BUILD)
 coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
           $(BUILD)/cosim_isa.hex $(BUILD)/safety_test.hex \
           $(BUILD)/periph_test.hex $(BUILD)/reaction_test.hex \
-          $(BUILD)/dtcm_zero.hex sw
+          $(BUILD)/trap_test.hex $(BUILD)/dtcm_zero.hex sw
 	@mkdir -p $(BUILD)/cov && rm -f $(BUILD)/cov/*.dat
 	@./$(BUILD)/obj_cov/tb_cosim_cov +HEX=$(BUILD)/cosim_isa.hex \
 	  +MAXRETIRE=100000 +QUIET > /dev/null 2>&1; \
@@ -301,6 +320,9 @@ coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
 	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/reaction_test.hex \
 	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=500000 > /dev/null 2>&1; \
 	  mv coverage.dat $(BUILD)/cov/cov_reaction.dat
+	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/trap_test.hex \
+	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=100000 > /dev/null 2>&1; \
+	  mv coverage.dat $(BUILD)/cov/cov_trap.dat
 	verilator_coverage --write $(BUILD)/cov/merged.dat $(BUILD)/cov/cov_*.dat
 	@rm -rf $(BUILD)/cov/annotated
 	verilator_coverage --annotate $(BUILD)/cov/annotated --annotate-min 1 \
