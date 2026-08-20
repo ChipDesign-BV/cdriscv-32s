@@ -5,6 +5,77 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V4 — safety mechanisms (2026-08-20, in progress)
+
+`make safety` runs `verif/safety/safety_test.S` on the subsystem: nine
+checks over the mechanisms an application can reach through the
+register map. Each check that fails writes its own number to the exit
+register, so a failure names itself. All nine pass, and the status
+register takes exactly the values it should along the way:
+
+| status | what set it |
+|--------|-------------|
+| `0x00000001` | lockstep comparator self test |
+| `0x00000008` | D-TCM single bit error, corrected |
+| `0x00000110` | D-TCM uncorrectable error, *plus* the bus error it causes |
+| `0x00000800` | software fault trigger |
+
+Writing the test found two things.
+
+### V4-F1 — the ECC self test could never be triggered (design bug, FIXED)
+
+**Severity: medium, and squarely in the safety story.** SM10 in the
+safety manual is the fault injection that bounds the latent fault
+metric for the memory protection. It could not be used at all.
+
+`SELFTEST[1]`/`[2]` in the safety controller produced a **one cycle**
+pulse, and `cdriscv_tcm` only applied the corruption to a write
+happening in *that same cycle*. But the pulse comes from an APB write,
+and the store it is meant to corrupt is necessarily several cycles
+later — the APB transfer alone takes four. The two could never
+coincide, so no software sequence could ever corrupt a code word.
+
+The register map already documented the intended behaviour, "corrupt
+one bit of the next TCM write", so this is the RTL disagreeing with its
+own specification rather than a change of design. The TCM now *arms* on
+the pulse and applies the mask to its next functional write, clearing
+the arming as it does. Check 4/5 of the safety test is exactly this
+sequence and would have failed before the fix.
+
+While fixing it: the enable went to *both* TCMs, so arming would leave
+the I-TCM primed to corrupt whatever wrote to it next, possibly much
+later. `SELFTEST[3]` now selects the target, and the two TCMs get
+separate enables.
+
+### V4-F2 — prefetch past the end of the image meets uninitialised memory
+
+**Not a bug, but an assumption of use that was not written down.**
+
+The safety test first showed `X` in status bits 0 and 1 partway
+through. Not uninitialised *data*: a fully initialised D-TCM changed
+nothing. It was the **instruction** prefetcher, which runs one fetch
+past the last instruction of the program, into an I-TCM word that was
+never written. In simulation that is X, which propagates into both
+cores and makes the lockstep comparison and the I-TCM ECC flag X.
+
+In silicon it is worse than X, because it is *defined*: an unwritten
+memory holds some arbitrary 39-bit pattern, and the SEC-DED check on it
+will very likely report an uncorrectable error — a spurious safety
+fault, with whatever reaction is configured, before the program has
+done anything wrong.
+
+Two consequences, both recorded:
+
+* the bench now pads every image to the full memory depth, which is why
+  `make safety` is clean,
+* **the whole TCM must be written before the core is released.** The
+  start-up memory BIST already does this, and leaves every word at the
+  all-zero code word, which is a valid one — syndrome zero, no error.
+  So AoU-5 in the safety manual is stronger than it looked: running the
+  BIST is not only a test, it is also what makes the memory safe to
+  fetch from. That is now said explicitly.
+
+
 ## Phase V3 continued — memory accesses in the comparison (2026-08-20)
 
 The co-simulation now compares **memory accesses as well as register

@@ -57,7 +57,14 @@ validated.
   it only from the intended point in the control loop.
 * **AoU-5** The memory BIST is run before the application image is
   loaded, either through `MbistAuto` or from a boot routine that touches
-  neither TCM.
+  neither TCM. This is not only a test: **every TCM word must be
+  written before the core is released**, because the instruction
+  prefetcher fetches past the end of the program and an unwritten word
+  holds an arbitrary pattern that the SEC-DED check will most likely
+  call an uncorrectable error. The BIST leaves the memory at the
+  all-zero code word, which is a valid one, and so satisfies both
+  requirements at once. An image loader that writes only the program
+  must zero the rest. See finding V4-F2.
 * **AoU-6** The application periodically executes the fault injection
   self tests (SM10) to bound the latent fault metric of SM1 and SM2.
 * **AoU-7** Corrected single bit errors (fault bits 1, 3) are counted by

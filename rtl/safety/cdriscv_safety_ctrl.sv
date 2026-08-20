@@ -23,6 +23,11 @@
 //                       [0] force a lockstep comparator mismatch
 //                       [1] corrupt one bit of the next TCM write
 //                       [2] corrupt two bits of the next TCM write
+//                       [3] target: 0 = D-TCM, 1 = I-TCM
+//                       The write here only *arms* the corruption; the
+//                       TCM applies it to its next write and disarms.
+//                       Anything else could not be triggered from
+//                       software at all -- see finding V4-F1.
 //
 // External error pin protocol.  In level mode the pin is asserted while
 // a fault is latched.  In toggle mode the pin carries a square wave
@@ -62,7 +67,8 @@ module cdriscv_safety_ctrl
 
     // self test hooks driven by this block
     output logic        inj_lockstep_o,
-    output logic        inj_tcm_en_o,
+    output logic        inj_itcm_en_o,
+    output logic        inj_dtcm_en_o,
     output logic [38:0] inj_tcm_mask_o
 );
 
@@ -73,7 +79,7 @@ module cdriscv_safety_ctrl
   logic        ctrl_en_q, pin_inv_q, pin_tog_q, lock_q;
   logic [15:0] pin_div_q;
   logic [31:0] inject_q;
-  logic [2:0]  selftest_q;
+  logic [3:0]  selftest_q;
 
   logic wr, rd, cfg_wr;
   assign wr     = psel_i && penable_i &&  pwrite_i;
@@ -116,11 +122,11 @@ module cdriscv_safety_ctrl
       lock_q      <= 1'b0;
       pin_div_q   <= 16'd1023;
       inject_q    <= 32'b0;
-      selftest_q  <= 3'b0;
+      selftest_q  <= 4'b0;
     end else begin
       status_q   <= status_q | fault_latched;
       inject_q   <= 32'b0;                     // injection is a one cycle pulse
-      selftest_q <= 3'b0;
+      selftest_q <= 4'b0;
 
       if (wr) begin
         unique case (paddr_i[7:0])
@@ -139,7 +145,7 @@ module cdriscv_safety_ctrl
           end
           8'h18:   inject_q  <= pwdata_i;
           8'h1c:   if (cfg_wr) pin_div_q <= pwdata_i[15:0];
-          8'h24:   selftest_q <= pwdata_i[2:0];
+          8'h24:   selftest_q <= pwdata_i[3:0];
           default: ;
         endcase
       end
@@ -182,9 +188,13 @@ module cdriscv_safety_ctrl
   // Self test outputs
   // ------------------------------------------------------------------
   // Bit 0 of a code word is flipped for a correctable error; bits 0 and
-  // 1 for an uncorrectable one.
+  // 1 for an uncorrectable one.  The enable goes to one TCM only, so a
+  // test corrupts the memory it means to and leaves the other alone.
+  logic inj_tcm_any;
+  assign inj_tcm_any    = selftest_q[1] || selftest_q[2];
   assign inj_lockstep_o = selftest_q[0];
-  assign inj_tcm_en_o   = selftest_q[1] || selftest_q[2];
+  assign inj_itcm_en_o  = inj_tcm_any &&  selftest_q[3];
+  assign inj_dtcm_en_o  = inj_tcm_any && !selftest_q[3];
   assign inj_tcm_mask_o = selftest_q[2] ? 39'h3 : 39'h1;
 
   // ------------------------------------------------------------------

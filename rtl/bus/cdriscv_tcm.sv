@@ -46,7 +46,12 @@ module cdriscv_tcm
     output logic        ecc_cor_o,
     output logic        ecc_unc_o,
 
-    // fault injection: XOR mask applied to the next written code word
+    // Fault injection.  inj_en_i is a one cycle pulse that *arms* the
+    // injection; the mask is then applied to the next functional write
+    // and the arming clears.  It has to work that way: the pulse comes
+    // from an APB write to the safety controller and the store it is
+    // meant to corrupt is necessarily several cycles later, so a
+    // same-cycle scheme can never be triggered by software (V4-F1).
     input  logic        inj_en_i,
     input  logic [38:0] inj_mask_i,
 
@@ -82,8 +87,8 @@ module cdriscv_tcm
   logic [3:0]  be_q;
   logic [31:0] wdata_q;
   logic [AW-1:0] addr_q;
-  logic        inj_q;
-  logic [38:0] inj_mask_q;
+  logic        inj_armed_q;
+  logic [38:0] inj_arm_mask_q;
 
   logic full_word, partial_write, accept;
 
@@ -149,12 +154,12 @@ module cdriscv_tcm
       mem_addr  = addr_q;
       mem_we    = 1'b1;
       mem_re    = 1'b0;
-      mem_wdata = inj_q ? (merged_cw ^ inj_mask_q) : merged_cw;
+      mem_wdata = inj_armed_q ? (merged_cw ^ inj_arm_mask_q) : merged_cw;
     end else begin
       mem_addr  = addr_word;
       mem_we    = accept && we_i && full_word;
       mem_re    = accept && (!we_i || partial_write);
-      mem_wdata = inj_en_i ? (enc_cw ^ inj_mask_i) : enc_cw;
+      mem_wdata = inj_armed_q ? (enc_cw ^ inj_arm_mask_q) : enc_cw;
     end
   end
 
@@ -180,18 +185,26 @@ module cdriscv_tcm
       be_q       <= 4'b0;
       wdata_q    <= 32'b0;
       addr_q     <= '0;
-      inj_q      <= 1'b0;
-      inj_mask_q <= 39'b0;
+      inj_armed_q    <= 1'b0;
+      inj_arm_mask_q <= 39'b0;
     end else begin
       phase2_q <= accept && partial_write;
       rvalid_q <= accept;
+
+      // arm on the pulse, clear when a functional write consumes it
+      if (inj_en_i) begin
+        inj_armed_q    <= 1'b1;
+        inj_arm_mask_q <= inj_mask_i;
+      end else if (mem_we && !bist_en_i) begin
+        inj_armed_q    <= 1'b0;
+      end
+
       if (accept) begin
         we_q       <= we_i;
         be_q       <= be_i;
         wdata_q    <= wdata_i;
         addr_q     <= addr_word;
-        inj_q      <= inj_en_i;
-        inj_mask_q <= inj_mask_i;
+
       end
     end
   end

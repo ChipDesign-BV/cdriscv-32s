@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv cosim cosim-iverilog cosim-random
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety cosim cosim-iverilog cosim-random
 
 all: lint
 
@@ -71,8 +71,14 @@ $(BUILD)/prog.itcm.bin: $(BUILD)/prog.elf
 $(BUILD)/prog.dtcm.bin: $(BUILD)/prog.elf
 	$(OBJCOPY) -O binary --only-section=.data $< $@
 
+# Images are padded to the full memory depth.  The prefetcher runs past
+# the end of the program, and an unwritten TCM word is X in simulation
+# and a random code word in silicon -- either way the ECC check on it is
+# meaningless.  See finding V4-F2.
+TCM_WORDS ?= 4096
+
 $(BUILD)/%.hex: $(BUILD)/%.bin
-	$(PYTHON) scripts/mkimage.py $< $@
+	$(PYTHON) scripts/mkimage.py $< $@ --words $(TCM_WORDS)
 
 # -------------------------------------------------------- block benches
 # Each block bench prints "PASS" or "FAIL"; the recipe greps for the
@@ -180,6 +186,25 @@ cosim-iverilog: $(BUILD)/tb_cosim.vvp $(BUILD)/cosim_isa.hex
 	SPIKE=$(SPIKE) VVP=$(VVP) $(PYTHON) verif/core/cosim.py \
 	  $(BUILD)/cosim_isa.elf --hex $(BUILD)/cosim_isa.hex \
 	  --vvp $(BUILD)/tb_cosim.vvp --count 5000
+
+# ------------------------------------------------------ safety tests
+$(BUILD)/safety_test.elf: verif/safety/safety_test.S tb/sw/link.ld | $(BUILD)
+	$(CC) -march=$(ARCH) -mabi=$(ABI) -nostdlib -nostartfiles \
+	  -T tb/sw/link.ld -o $@ verif/safety/safety_test.S
+
+$(BUILD)/safety_test.bin: $(BUILD)/safety_test.elf
+	$(OBJCOPY) -O binary --only-section=.text $< $@
+
+$(BUILD)/dtcm_zero.bin: | $(BUILD)
+	head -c $$(( $(TCM_WORDS) * 4 )) /dev/zero > $@
+
+safety: $(BUILD)/tb_cdriscv_subsys.vvp $(BUILD)/safety_test.hex \
+        $(BUILD)/dtcm_zero.hex
+	$(VVP) $(BUILD)/tb_cdriscv_subsys.vvp \
+	  +ITCM_HEX=$(BUILD)/safety_test.hex \
+	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex \
+	  +MAX_CYCLES=20000 | tee $(BUILD)/safety.log
+	@grep -q "PASS" $(BUILD)/safety.log
 
 # ---------------------------------------------------------------- ecc
 ecc:

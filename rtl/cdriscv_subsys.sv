@@ -300,7 +300,7 @@ module cdriscv_subsys
   // ------------------------------------------------------------------
   // Tightly coupled memories
   // ------------------------------------------------------------------
-  logic        inj_tcm_en;
+  logic        inj_itcm_en, inj_dtcm_en;
   logic [38:0] inj_tcm_mask;
 
   logic        itcm_ecc_cor, itcm_ecc_unc, dtcm_ecc_cor, dtcm_ecc_unc;
@@ -333,7 +333,7 @@ module cdriscv_subsys
       .err_o        (itcm_err),
       .ecc_cor_o    (itcm_ecc_cor),
       .ecc_unc_o    (itcm_ecc_unc),
-      .inj_en_i     (inj_tcm_en),
+      .inj_en_i     (inj_itcm_en),
       .inj_mask_i   (inj_tcm_mask),
       .bist_en_i    (ibist_en),
       .bist_we_i    (ibist_we),
@@ -358,7 +358,7 @@ module cdriscv_subsys
       .err_o        (dtcm_err),
       .ecc_cor_o    (dtcm_ecc_cor),
       .ecc_unc_o    (dtcm_ecc_unc),
-      .inj_en_i     (inj_tcm_en),
+      .inj_en_i     (inj_dtcm_en),
       .inj_mask_i   (inj_tcm_mask),
       .bist_en_i    (dbist_en),
       .bist_we_i    (dbist_we),
@@ -427,7 +427,8 @@ module cdriscv_subsys
       .err_pin_o      (err_pin_o),
       .fault_any_o    (fault_any_o),
       .inj_lockstep_o (inj_lockstep),
-      .inj_tcm_en_o   (inj_tcm_en),
+      .inj_itcm_en_o  (inj_itcm_en),
+      .inj_dtcm_en_o  (inj_dtcm_en),
       .inj_tcm_mask_o (inj_tcm_mask)
   );
 
