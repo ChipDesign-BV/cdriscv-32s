@@ -124,6 +124,7 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Block bench: mul/div (`make block-multdiv`) | **pass** | 4800 vectors, constant 33-cycle latency asserted, V0-A1 invariant checked |
 | Safety mechanisms, software half (`make safety`) | **pass** | 9 checks: injection self tests, sticky status, masking, software fault |
 | Safety mechanisms, bench half (`make safety-bench`) | **pass** | 7 checks: forced faults in the checker core, clock stopped/slow/fast, each with a quiet case |
+| Peripherals and interrupts (`make periph`) | **pass** | 8 checks: timer, all three interrupt causes, WFI, watchdog serviced and timed out, D-TCM memory BIST |
 | Block benches: everything else | **not run** | plan section 5 |
 | Architectural test suite | **not run** | plan objective O1 |
 | Co-simulation vs Spike (`make cosim`) | **pass** | 208 instructions: PCs, register writes **and memory accesses** all identical, mutation tested; Verilator and Icarus agree |
@@ -133,7 +134,7 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Formal: SEC-DED code (`make formal-ecc`) | **pass** | **proof** over all 2^32 data values and all error positions, mutation tested |
 | Formal: other blocks | **not run** | LSU, bus, decoder, safety controller — plan section 6 |
 | CI workflow | written, **never run, not installed** | [ci/github-workflow-verify.yml](ci/github-workflow-verify.yml); needs a token with GitHub's `workflow` scope to install, then a first run |
-| Line coverage (`make coverage`) | **62.5 %** baseline | objective O6 wants 100 % with reviewed waivers; the gap list is in [verification_findings.md](doc/verification_findings.md) |
+| Line coverage (`make coverage`) | **75.1 %** | objective O6 wants 100 % with reviewed waivers; the gap list is in [verification_findings.md](doc/verification_findings.md) |
 | Functional coverage | **not collected** | plan objective O7 |
 | Synthesis (`make synth`) | **pass** | yosys via slang: no latches, no combinational loops, 52 614 cells with 64-word TCMs |
 | Gate level simulation | **not run** | |

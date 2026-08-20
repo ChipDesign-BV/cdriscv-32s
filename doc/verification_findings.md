@@ -5,6 +5,49 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V7 continued — peripheral and interrupt test (2026-08-20)
+
+`make periph` runs `verif/core/periph_test.S`, eight checks over
+everything the coverage baseline said had never been touched: the
+machine timer, all three interrupt causes, WFI, the interrupt
+controller, the watchdog serviced and unserviced, and a memory BIST
+sweep of the D-TCM.
+
+**All eight pass.** The core had never taken an interrupt before this
+test existed, and the interrupt path, WFI wake-up and trap return all
+work first time. The BIST sweeps 4096 words, which is why the run takes
+about 100 000 cycles against a few hundred for the other tests.
+
+Coverage moved accordingly:
+
+| module | before | after |
+|--------|--------|-------|
+| **total RTL** | **62.5 %** | **75.1 %** |
+| `cdriscv_mbist` | 30 % | 84 % |
+| `cdriscv_wdog` | 41 % | 78 % |
+| `cdriscv_irq_ctrl` | 43 % | 70 % |
+| `cdriscv_timer` | 43 % | 65 % |
+| `cdriscv_csr` | 57 % | 79 % |
+| `cdriscv_core` | 57 % | 67 % |
+| `cdriscv_ecc_secded` | — | **100 %** |
+
+One test bug worth recording, because it is the kind that hides a real
+one. Check 1 failed the first time: the timer interrupt never arrived.
+The cause was in the test, not the design — `mtimecmp` is 64 bits and I
+had written `-1` to the high word "to keep it out of the way", which
+puts the deadline centuries away. A reader of that first version would
+have concluded the timer was broken.
+
+Remaining gaps, in order:
+
+| module | coverage | what is missing |
+|--------|----------|-----------------|
+| `cdriscv_clkmon` | 34 % | still the APB configuration path: the V4 bench forces those registers instead of writing them |
+| `cdriscv_ams_if` | 68 % | the limit registers, the analog flags, the conversion time-out |
+| `cdriscv_core` | 67 % | the remaining trap causes, `fence.i`, misaligned access |
+| `cdriscv_safety_ctrl` | 64 % | the reaction paths: reset request, error pin in both modes, the lock |
+| `cdriscv_decoder` | 69 % | illegal encodings, which no valid program contains |
+
 ## Phase V7 — coverage baseline (2026-08-20)
 
 `make coverage` runs the stimulus that exists — the directed ISA
