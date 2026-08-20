@@ -7,6 +7,44 @@ from.
 
 ## Phase V2 — golden model co-simulation (2026-08-20, in progress)
 
+### Register write co-simulation — **pass**
+
+The comparison now covers the `(pc, instruction, rd, write data)`
+sequence, not just control flow. Register writes come from Spike's
+`--log-commits` and, on the RTL side, from the core's internal signals
+through a hierarchical reference in the bench. Nothing was added to the
+RTL: the synthesised design and the lockstep compare vector are
+untouched, which is the whole point of doing it as a bench-side bind.
+
+Current run: **208 retired instructions match, including every register
+write**, and both sides reach the program's `done` label rather than
+its `fail` label.
+
+Mutation tested with a bug that changes no control flow at all —
+`mulh` returning the product shifted by one bit position:
+
+```
+idx    spike                            rtl
+66     pc=80000108 02b50633 x12=80000000  pc=80000108 02b50633 x12=80000000
+67     pc=8000010c 02b516b3 x13=00000000  pc=8000010c 02b516b3 x13=00000001  <<<
+```
+
+The PC stream is identical there; only the value differs. That is the
+coverage the register write comparison adds over the control flow
+comparison, and it is why objective O2 is written the way it is.
+
+### V2-F1 — Spike's default privilege set does not match the DUT (bench, FIXED)
+
+The first value comparison diverged on `csrr t4, misa`: Spike returned
+`0x40141100`, the RTL `0x40001100`. The difference is the S and U bits.
+Spike defaults to `--priv=msu`, so it advertises supervisor and user
+mode; cdriscv-32s is machine mode only and correctly advertises neither.
+
+Not an RTL bug — a model configuration mismatch, and a good
+advertisement for comparing values rather than only control flow, since
+nothing in the program branched on `misa`. The runner now passes
+`--priv=m`.
+
 ### Instruction stream co-simulation — **pass**
 
 `make cosim` runs one program on Spike and on the RTL and compares the
@@ -29,15 +67,13 @@ Two structural notes on the setup:
 * The program ends with the HTIF `tohost` store, so Spike terminates
   the run itself. In the RTL that is an ordinary store into the TCM.
 
-**What this does and does not prove.** It compares the `(pc,
-instruction)` sequence only. Control flow is therefore well covered —
-any wrong branch, wrong target, or wrongly taken trap diverges
-immediately — but a wrong *value* that never reaches a branch is
-invisible. Closing that is objective O2 and needs the register and
-memory write information; Spike can already produce it with
-`--log-commits`, and the RTL side can be taken from the core's internal
-signals through a bench-side hierarchical reference, without touching
-the RTL. That is the next step.
+**What this does and does not prove.** Control flow and register writes
+are compared. Still outside the comparison: memory write data (a wrong
+store that is never loaded back stays invisible), CSR state that no
+instruction reads back, and anything the program does not execute — the
+program is directed, not random. Random program generation against the
+same harness is the next step, and is what turns this into objective O2
+proper.
 
 ### V2-P1 — CPI is far worse than predicted (performance, open)
 
@@ -69,12 +105,21 @@ executing, and buffer two words rather than one), which is contained
 entirely in `cdriscv_if_stage.sv`. It should be measured, not assumed:
 the cycle accounting instrumentation in the benchmark plan comes first.
 
-### Tooling note — Spike's debug mode is unusable for tracing
+### Tooling notes
+
+**Spike's debug mode is unusable for tracing.**
 
 Driving Spike with `-d` and `r <count>` took **60 seconds to retire 215
 instructions**; free-running with `-l` and the HTIF exit does the same
 work in **25 ms**, a factor of about 2000. Anything that traces Spike
 should use the HTIF protocol.
+
+**Spike notices the HTIF exit store only at its next poll**, so its
+trace carries a tail of several thousand spin-loop instructions after
+the program has finished. Both traces are therefore cut at the
+program's `done` or `fail` label, which also lets the runner report
+which of the two the program reached — the program's own verdict, on
+top of the stream comparison.
 
 
 ## Phase V1 — block level benches (2026-08-20, in progress)
