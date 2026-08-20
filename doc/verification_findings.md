@@ -5,6 +5,54 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V3 — co-simulation throughput (2026-08-20)
+
+The previous entry ended with the arithmetic that the harness could not
+reach objective O2: 10^9 instructions at 350 compared instructions per
+second is 33 days. Two changes closed most of that gap.
+
+### Verilator instead of Icarus — 90x on the simulator
+
+The same bench, verilated with `--binary --timing`, runs a 200 000
+cycle program in **0.19 s against Icarus' 17.8 s**. Nothing in the
+bench had to change: the hierarchical reference that pulls the register
+write out of the core, and the hierarchical `$readmemh` that loads the
+TCM, both work under Verilator as they do under Icarus.
+
+Verilator is now the default runner. Icarus stays wired up as
+`make cosim-iverilog`, and both produce identical results on the
+directed program. That second opinion is worth keeping: Icarus has
+already earned its place once, by rejecting four SystemVerilog
+constructs Verilator accepted (findings V0-F4 to V0-F7).
+
+### Bounded outer loop — more execution per program
+
+With the simulator no longer the bottleneck, the per-program overhead
+took over: assembling, encoding the image, and starting Spike and
+Python cost about 0.3 s regardless of how long the program runs.
+
+The generator now wraps the random body in a bounded outer loop
+(`--loops`). The image stays small — it has to fit the I-TCM — while
+the executed instruction count multiplies. This is not repeated work:
+the registers carry over, so every iteration starts from a different
+state, and the loop hammers the fetch redirect path, which is where
+finding V2-P1 says the cycles are going.
+
+### Where that leaves O2
+
+| | before | after |
+|---|---|---|
+| simulator | Icarus | Verilator |
+| instructions per program | ~650 | ~12 000 |
+| end-to-end throughput | ~350 instr/s | **~43 000 instr/s** |
+| 10^9 instructions would take | 33 days | **6.5 hours** single threaded |
+
+The regression parallelises across seeds trivially, so O2 is now a
+question of scheduling a machine for an evening rather than a
+redesign. It is still **not met**: the number to report is whatever the
+last completed regression actually compared, and nothing more.
+
+
 ## Phase V0 revisited — synthesis and a third front-end (2026-08-20)
 
 ### Objective O5 — **pass**

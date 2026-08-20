@@ -28,9 +28,10 @@
 import argparse
 import random
 
-# x5..x31 minus x8 (base pointer) and x2 (sp)
-POOL = [r for r in range(5, 32) if r not in (8,)]
+# x5..x31 minus x8 (base pointer), x31 (outer loop counter) and x2 (sp)
+POOL = [r for r in range(5, 31) if r not in (8,)]
 BASE = 8
+LOOPCNT = 31
 
 RR = ["add", "sub", "sll", "slt", "sltu", "xor", "srl", "sra", "or", "and",
       "mul", "mulh", "mulhsu", "mulhu", "div", "divu", "rem", "remu"]
@@ -48,6 +49,11 @@ def main():
     ap.add_argument("out")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--count", type=int, default=400)
+    ap.add_argument("--loops", type=int, default=1,
+                    help="wrap the body in a bounded outer loop, so that a "
+                         "small image executes many instructions.  The body "
+                         "is not repeated work: the registers carry over, so "
+                         "each iteration starts from a different state.")
     args = ap.parse_args()
 
     rng = random.Random(args.seed)
@@ -120,7 +126,13 @@ def main():
             f.write("    li      x%d, %d\n" % (r, seeds[i % len(seeds)] if i < 14
                                                else rng.randint(-2**31, 2**31 - 1)))
         f.write("\n")
+        if args.loops > 1:
+            f.write("    li      x%d, %d\n" % (LOOPCNT, args.loops))
+            f.write("outer:\n")
         f.write("\n".join(body))
+        if args.loops > 1:
+            f.write("\n    addi    x%d, x%d, -1\n" % (LOOPCNT, LOOPCNT))
+            f.write("    bne     x%d, x0, outer\n" % LOOPCNT)
         f.write("\n\ndone:\n"
                 "    la      x5, tohost\n"
                 "    li      x6, 1\n"
