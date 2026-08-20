@@ -5,6 +5,78 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V2 — golden model co-simulation (2026-08-20, in progress)
+
+### Instruction stream co-simulation — **pass**
+
+`make cosim` runs one program on Spike and on the RTL and compares the
+retired instruction streams. Current run: **213 retired instructions,
+identical**, covering the RV32IM exercise in `verif/core/cosim_isa.S`:
+every register-immediate and register-register ALU form, the shift
+family, all eight M-extension operations including `INT_MIN / -1` and
+all four divide-by-zero cases, every load and store size at every
+alignment, all six branch forms in both directions, `jal`/`jalr`/`jal
+x0`, a 20-iteration loop, and the Zicsr access forms.
+
+Two structural notes on the setup:
+
+* The I-TCM is relocated to `0x8000_0000` for this bench, because Spike
+  keeps its debug module at `[0, 0x1000)` and refuses to place memory
+  under it. That also exercises the `ItcmBase` parameterisation, and
+  putting code, data and stack in one region means the data master
+  competes with the fetcher for the I-TCM on every load and store —
+  the bus arbitration case worth running.
+* The program ends with the HTIF `tohost` store, so Spike terminates
+  the run itself. In the RTL that is an ordinary store into the TCM.
+
+**What this does and does not prove.** It compares the `(pc,
+instruction)` sequence only. Control flow is therefore well covered —
+any wrong branch, wrong target, or wrongly taken trap diverges
+immediately — but a wrong *value* that never reaches a branch is
+invisible. Closing that is objective O2 and needs the register and
+memory write information; Spike can already produce it with
+`--log-commits`, and the RTL side can be taken from the core's internal
+signals through a bench-side hierarchical reference, without touching
+the RTL. That is the next step.
+
+### V2-P1 — CPI is far worse than predicted (performance, open)
+
+**Not a correctness bug.** The co-simulation program retires **213
+instructions in 1674 cycles, CPI 7.9**. Of that, roughly 560 cycles are
+the seventeen 33-cycle multiply and divide instructions, which leaves
+about CPI 5.7 for everything else — still far above the 1.5–2.5 range
+predicted in `benchmark_plan.md` section 7.
+
+The structural cause is the single entry instruction buffer. The fetch
+stage only issues the next request in the cycle the buffer is being
+emptied, and the TCM answers one cycle later, so the sequence for two
+back-to-back ALU instructions is:
+
+```
+T    instruction A executes and retires; fetch request for B issued
+T+1  TCM returns B; the buffer fills at the end of the cycle
+T+2  instruction B executes and retires
+```
+
+— a guaranteed one cycle bubble on every instruction, so **CPI 2 is the
+floor** for straight-line code, before loads, taken branches and
+multiply/divide are added.
+
+This is the first entry in the improvement backlog that
+`benchmark_plan.md` section 8 asks for. The fix is a deeper prefetch
+(issue the next request while the current instruction is still
+executing, and buffer two words rather than one), which is contained
+entirely in `cdriscv_if_stage.sv`. It should be measured, not assumed:
+the cycle accounting instrumentation in the benchmark plan comes first.
+
+### Tooling note — Spike's debug mode is unusable for tracing
+
+Driving Spike with `-d` and `r <count>` took **60 seconds to retire 215
+instructions**; free-running with `-l` and the HTIF exit does the same
+work in **25 ms**, a factor of about 2000. Anything that traces Spike
+should use the HTIF protocol.
+
+
 ## Phase V1 — block level benches (2026-08-20, in progress)
 
 ### ALU (`verif/block/alu`) — **pass**
