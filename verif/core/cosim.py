@@ -7,11 +7,12 @@
 #
 #   python3 verif/core/cosim.py build/cosim_isa.elf --count 3000
 #
-# Compared: the (pc, instruction, rd, write data) sequence.  Register
-# writes come from Spike's --log-commits and, on the RTL side, from the
-# core's internal signals through a hierarchical reference in the bench,
-# so the RTL is not modified.  Still not compared: memory write data,
-# and CSR side effects that no instruction reads back.
+# Compared: the (pc, instruction, rd, write data, memory address, store
+# data) sequence.  Both sides come from the same places: Spike's
+# --log-commits, and on the RTL side the core's internal signals through
+# a hierarchical reference in the bench, so the RTL is not modified.
+# Still not compared: CSR state that no instruction reads back, and
+# anything the program does not execute.
 #
 # Spike's own reset vector at 0x1000 is skipped: the comparison starts
 # at the ELF entry point.
@@ -31,9 +32,11 @@ ISA = "rv32im_zicsr_zifencei"
 # and is skipped by requiring it.
 SPIKE_RE = re.compile(
     r"core\s+\d+:\s+\d\s+0x([0-9a-f]+)\s+\(0x([0-9a-f]+)\)"
-    r"(?:\s+x\s?(\d+)\s+0x([0-9a-f]+))?")
+    r"(?:\s+x\s?(\d+)\s+0x([0-9a-f]+))?"
+    r"(?:\s+mem\s+0x([0-9a-f]+)(?:\s+0x([0-9a-f]+))?)?")
 RTL_RE = re.compile(
-    r"^TRACE ([0-9a-f]+) ([0-9a-f]+)(?: x(\d+) ([0-9a-f]+))?")
+    r"^TRACE ([0-9a-f]+) ([0-9a-f]+)(?: x(\d+) ([0-9a-f]+))?"
+    r"(?: mem ([0-9a-f]+)(?: ([0-9a-f]+))?)?")
 
 
 def symbols(elf, names):
@@ -89,7 +92,10 @@ def run_spike(elf, count, base, size):
         if m:
             rd = int(m.group(3)) if m.group(3) else None
             wd = int(m.group(4), 16) if m.group(4) else None
-            trace.append((int(m.group(1), 16), int(m.group(2), 16), rd, wd))
+            ma = int(m.group(5), 16) if m.group(5) else None
+            md = int(m.group(6), 16) if m.group(6) else None
+            trace.append((int(m.group(1), 16), int(m.group(2), 16), rd, wd,
+                          ma, md))
     return trace
 
 
@@ -114,7 +120,10 @@ def run_rtl(runner, hexfile, count, stops=None):
         if m:
             rd = int(m.group(3)) if m.group(3) else None
             wd = int(m.group(4), 16) if m.group(4) else None
-            trace.append((int(m.group(1), 16), int(m.group(2), 16), rd, wd))
+            ma = int(m.group(5), 16) if m.group(5) else None
+            md = int(m.group(6), 16) if m.group(6) else None
+            trace.append((int(m.group(1), 16), int(m.group(2), 16), rd, wd,
+                          ma, md))
         elif "FAULT" in line or "TIMEOUT" in line:
             sys.stderr.write("[cosim] RTL reported: %s\n" % line.strip())
     return trace
@@ -168,13 +177,18 @@ def main():
             print("[cosim] FAIL: streams diverge at retired instruction %d" % i)
             lo = max(0, i - args.context)
             def fmt(e):
-                base = "pc=%08x %08x" % (e[0], e[1])
-                return base + (" x%-2d=%08x" % (e[2], e[3]) if e[2] is not None
-                               else "          ")
-            print("        %-6s %-30s %-30s" % ("idx", "spike", "rtl"))
+                out = "pc=%08x %08x" % (e[0], e[1])
+                out += (" x%-2d=%08x" % (e[2], e[3]) if e[2] is not None
+                        else "            ")
+                if e[4] is not None:
+                    out += " m[%08x]" % e[4]
+                    out += "=%08x" % e[5] if e[5] is not None else " rd"
+                return out
+            print("        %-5s %-46s %-46s" % ("idx", "spike", "rtl"))
             for j in range(lo, min(n, i + args.context)):
                 mark = "  <<<" if j == i else ""
-                print("        %-6d %-30s %-30s%s" % (j, fmt(spike[j]), fmt(rtl[j]), mark))
+                print("        %-5d %-46s %-46s%s"
+                      % (j, fmt(spike[j]), fmt(rtl[j]), mark))
             return 1
 
     if len(spike) != len(rtl):
@@ -197,7 +211,7 @@ def main():
               % args.count)
 
     print("[cosim] PASS: %d retired instructions match, including register "
-          "writes%s" % (n, "" if spike_label is None else
+          "and memory writes%s" % (n, "" if spike_label is None else
                         " (program reached `%s`)" % spike_label))
     return 0
 
