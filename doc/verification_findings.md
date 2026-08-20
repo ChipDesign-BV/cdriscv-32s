@@ -43,6 +43,25 @@ The third row is worth reading: a single broken correction term shows up
 in only 72 of 56 232 checks. Sampling error positions instead of
 enumerating them could easily have missed it.
 
+### Multiplier / divider (`verif/block/multdiv`) — **pass**
+
+4800 vectors against an independent model: every pairing of 15 corner
+values for all eight operations, 300 random pairs each, and 75 more with
+a small divisor where the quotient is large. Both special cases the
+specification calls out are in the corner set — division by zero for all
+four division operations, and the signed overflow `INT_MIN / -1`.
+
+Two structural claims are checked as well as the results:
+
+* **Constant latency: 33 cycles for every operation and every operand,
+  including division by zero.** The safety manual quotes data
+  independent latency as WCET evidence, so the bench asserts it rather
+  than observing it: the first vector sets the expected latency and
+  every later vector must match.
+* **`acc_q[32]` is never set** (finding V0-A1). Lint reported the bit as
+  unused and the waiver argued it from the restoring-division invariant;
+  this turns that argument into a check that runs on every vector.
+
 ### Random program co-simulation — **pass**
 
 `verif/core/gen_random_prog.py` generates constrained random RV32IM
@@ -65,6 +84,19 @@ difference found is a real one:
 First regression: **25 of 25 programs match, 11 261 instructions
 compared**, PCs and register writes. Failing seeds are kept and the
 runner prints the command to reproduce one.
+
+### V2-T1 — the bench was simulating the spin loop (bench, FIXED)
+
+The first large regression crawled at about **75 seconds per program**.
+The cause was in the bench, not the design: each program ends in a tight
+loop, and the bench went on simulating and printing that loop until it
+hit the retire limit — tens of thousands of retires per program, all of
+them worthless.
+
+The runner now reads the `done` and `fail` addresses from the ELF and
+passes them to the bench as `+STOPPC`, so the run ends when the program
+does. **0.82 seconds per program**, about 90 times faster, which is what
+makes a regression of hundreds of programs practical.
 
 
 ## Phase V2 — golden model co-simulation (2026-08-20, in progress)

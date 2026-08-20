@@ -93,9 +93,14 @@ def run_spike(elf, count, base, size):
     return trace
 
 
-def run_rtl(vvp_file, hexfile, count):
+def run_rtl(vvp_file, hexfile, count, stops=None):
     cmd = [VVP, vvp_file, "+HEX=" + hexfile, "+MAXRETIRE=%d" % count,
            "+MAXCYCLES=%d" % (count * 40 + 5000)]
+    # Tell the bench where the program ends so it does not simulate the
+    # final spin loop up to the retire limit.  That alone was costing
+    # about a minute per random program.
+    for i, addr in enumerate(sorted(stops or {})):
+        cmd.append("+STOPPC%s=%x" % ("" if i == 0 else str(i + 1), addr))
     proc = subprocess.run(cmd, capture_output=True, text=True)
     trace = []
     for line in proc.stdout.splitlines():
@@ -135,7 +140,7 @@ def main():
         return 1
     spike = spike[start:]
 
-    rtl = run_rtl(args.vvp, hexfile, args.count)
+    rtl = run_rtl(args.vvp, hexfile, args.count, stops)
 
     if not rtl:
         print("[cosim] FAIL: the RTL retired nothing")
