@@ -162,8 +162,12 @@ module bus_fv (
     if (rst_ni) begin
       // ---- environment: masters behave like the core's ports ----
 
-      // no new request while one is still in flight
-      a_instr_single: assume (!instr_req_i || !instr_out);
+      // No new request while one is still in flight.  The fetch stage
+      // may issue in the cycle its outstanding response arrives (the
+      // OBI address/response overlap it uses since V2-P1), so that case
+      // is allowed for the instruction master.  The LSU still waits for
+      // the full response, so the data master keeps the stricter rule.
+      a_instr_single: assume (!instr_req_i || !instr_out || instr_rvalid);
       a_data_single:  assume (!data_req_i  || !data_out);
 
       // ---- properties ----

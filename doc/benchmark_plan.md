@@ -205,6 +205,23 @@ dominate and hide every logic difference.
 The last row is where the extension work pays: expect 20–30 % of code
 size to be recoverable with Zca/Zcb/Zcmp.
 
+## 6.6 After the fetch fix (2026-08-21)
+
+The single-entry fetch buffer identified below has been replaced by a
+two-entry buffer with a pipelined re-request (V2-P1 in
+`verification_findings.md`). Measured on the same programs:
+
+| program | before | after |
+|---------|--------|-------|
+| ALU loop | CPI 2.20 | **CPI 1.20** |
+| RV32IM co-simulation program | CPI 4.41 | **CPI 3.41** |
+
+Straight-line code now retires one instruction per cycle. The backlog
+below is re-ordered accordingly: the fetch bubble is gone, and the two
+remaining items are the taken-branch redirect (about two cycles each,
+which is the whole of the 0.20 residual on the ALU loop) and the 33
+cycle multiply and divide.
+
 ## 6.5 First measurement (2026-08-20)
 
 Not a benchmark, but the first real cycle count from the co-simulation

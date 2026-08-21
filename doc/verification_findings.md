@@ -5,6 +5,97 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## V2-P1 — the fetch bubble, FIXED (2026-08-21)
+
+The performance finding from phase V2 is now addressed in the RTL, on
+the owner's instruction.
+
+**What was wrong.** The fetch stage buffered one instruction and only
+issued the next request when that buffer was being emptied. With a one
+cycle memory that is a bubble on every instruction — request at T, data
+at T+1, execute at T+2 — so **CPI could not go below 2** whatever the
+program did.
+
+**The fix, in two parts.** Either alone is insufficient:
+
+* A request may now be issued in the same cycle as the response to the
+  previous one arrives. That is the ordinary OBI overlap of an address
+  phase with a response phase, and it keeps **at most one transaction
+  in flight**, which is what the bus's one-owner-bit-per-slave routing
+  requires. Without this the fetcher can only issue every second cycle
+  and no buffer depth helps.
+* The buffer holds two instructions, so a response always has somewhere
+  to land. With one entry the fetcher could not safely run ahead: if
+  the execute stage stalled on a multi-cycle instruction, the arriving
+  word would overwrite the one waiting.
+
+**Measured, same programs, same bench:**
+
+| program | before | after |
+|---------|--------|-------|
+| ALU loop, dependent chain | 4405 cycles, **CPI 2.20** | 2406 cycles, **CPI 1.20** |
+| the RV32IM co-simulation program | 8823 cycles, CPI 4.41 | 6824 cycles, CPI 3.41 |
+
+Exactly **1999 cycles saved on 2000 instructions** in both: one bubble
+per instruction, removed. The residual 0.20 on the ALU loop is the
+taken-branch redirect, about two cycles each, which is the next thing
+in the backlog. The co-simulation program stays higher because it is
+seventeen 33-cycle multiplies and divides plus loads.
+
+**Cost:** 52 614 → 53 155 cells, **+1.0 %**, for the second buffer
+entry and its pointers, doubled by the lockstep pair. No latches, no
+combinational loops.
+
+### What the change broke, and what that says
+
+Three things failed as a direct result, and each was informative.
+
+**1. `p_no_outstanding_at_redirect` — failed exactly as designed.**
+That assertion was written last hour to encode why waiver W1 held: with
+a one-deep buffer no fetch can be in flight at a redirect. The waiver
+said in as many words that deepening the prefetch would make it fail.
+It did. The property is removed and **W1 is withdrawn**: those three
+lines of the redirect path are now live, not unreachable.
+
+An assumption written as an assertion is an assumption that tells you
+when it stops being true.
+
+**2. The bus formal assumption needed loosening.** `a_instr_single`
+assumed a master never requests while a transaction is outstanding.
+The fetch stage now does exactly that in the response cycle, so the
+assumption was updated to permit it — otherwise the bus proof would
+have been verifying a master that no longer exists. The data master
+keeps the stricter rule, because the LSU still waits for a full
+response.
+
+**3. A safety test was passing for the wrong reason (V4-F3, revised).**
+
+`tb_safety` check 3 injected a fault into the checker core's register
+write data and asserted it was detected. It passed, at 2 cycles, and
+that was recorded as evidence that indirect detection is prompt.
+
+**It was luck.** The check forced the value for one arbitrary cycle and
+relied on a register write happening to be in progress; when the fetch
+timing moved, the coincidence stopped. Making the injection
+deterministic — wait for `rf_we`, then corrupt — the same fault is
+**still undetected after 20 000 cycles**, because the corrupted
+register is simply never read again.
+
+That is a much stronger statement of V4-F3 than the original: a
+corrupted register write is not detected late, it may **never** be
+detected at all. The earlier "2 cycles" figure has been withdrawn from
+the safety manual.
+
+The check is now a characterisation test: it asserts the weakness, and
+is written to fail if `rd_addr` and `rf_wdata` are ever added to the
+lockstep compare vector — at which point it should be rewritten to
+assert prompt detection.
+
+**This materially changes the FTTI argument** and is the strongest
+reason yet to extend the compare vector, which remains a decision for
+the owner.
+
+
 ## Phase V6 continued — formal on the interconnect (2026-08-21)
 
 `make formal-bus` checks `cdriscv_bus`. Its risk is bookkeeping rather
