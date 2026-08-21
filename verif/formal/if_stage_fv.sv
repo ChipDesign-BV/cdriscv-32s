@@ -151,6 +151,14 @@ module if_stage_fv (
       // guarantees for IALIGN=32
       a_redirect_aligned: assume (redirect_pc_i[1:0] == 2'b00);
 
+      // The execute stage only redirects in a cycle where it holds a
+      // valid instruction: every redirect in cdriscv_core comes from a
+      // trap or a retire, and both require instr_valid.  Without this
+      // the block is checked against an input space wider than its
+      // actual use -- which is worth doing too, and is what showed the
+      // redirect path's remaining branches are reachable in general.
+      a_redirect_needs_valid: assume (!redirect_i || instr_valid);
+
       // ...and confined to the low 1 KiB, see the abstraction note
       a_redirect_range: assume (redirect_pc_i[31:10] == 22'b0);
 
@@ -171,6 +179,28 @@ module if_stage_fv (
 
       // Fetching stops when it is disabled.
       p_fetch_en: assert (fetch_en_i || !instr_req);
+
+      // No fetch is ever in flight at the moment of a redirect.
+      //
+      // This is not an obvious property, and it is the reason three
+      // lines of the redirect path are unreachable in simulation (see
+      // verif/coverage_waivers.md, W1).  It follows from the buffer
+      // being one deep: while a fetched instruction is waiting to be
+      // consumed the stage issues no new request, and in the cycle it
+      // *is* consumed -- which is the cycle a redirect can happen --
+      // any request issued is granted in that same cycle and takes the
+      // req_accepted path instead.
+      //
+      // Checking it here is what turns "we never hit those lines" into
+      // "those lines cannot be hit with this prefetch depth".  Deepen
+      // the prefetch, as finding V2-P1 proposes, and this assertion is
+      // expected to fail -- which is the point of having it.
+      //
+      // Note it holds only *in context*: without a_redirect_needs_valid
+      // the property fails in five steps, because a redirect arriving
+      // while the buffer is empty leaves a fetch in flight.  The block
+      // handles that correctly; the core simply never does it.
+      p_no_outstanding_at_redirect: assert (!redirect_i || !env_outstanding);
 
       // A redirect empties the buffer: nothing can be presented in the
       // cycle after one, because the new stream has not arrived yet.
