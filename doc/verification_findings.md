@@ -5,6 +5,74 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V19 — RISCOF, objective O1 (2026-08-21, INCOMPLETE)
+
+The architectural test suite is the one gap that mattered most: every
+conformance statement so far has rested on Spike co-simulation of the
+programs that happen to exist in this repository, which answers "does
+it agree with Spike here" rather than "does it implement the
+specification".
+
+**The infrastructure is in place and it does not yet produce a
+result.** That distinction is the whole of this entry.
+
+### What was built
+
+* `riscof` installed — it needs `cython<3` and `--no-build-isolation`,
+  because its dependency chain hits the PyYAML/Cython-3 breakage.
+* The official `riscv-arch-test` suite cloned, release
+  `ctp-release-e9514aa-2025-12-28`. 1.7 GB, so it is fetched rather
+  than vendored and is in `.gitignore`.
+* `cdriscv_isa.yaml` corrected from the template's RV32IMC to this
+  core's **RV32IM_Zicsr_Zifencei** — misa bitmask `0x1100`, not
+  `0x1104`. The template would have run compressed-instruction tests
+  against a core that has no C extension.
+* `env/model_test.h` and `env/link.ld` for the target: no console, so
+  the IO macros are empty and the signature is the only output;
+  everything at `0x8000_0000` where the co-simulation bench maps the
+  I-TCM.
+* `riscof_cdriscv.py` drives the existing Icarus bench — objcopy to a
+  flat image padded to `end_signature`, `mkimage.py` to the 39-bit ECC
+  hex, then `vvp`. Signature bounds and the `tohost` address come from
+  the ELF symbol table through `nm`, so none of them is assumed.
+* **`tb_cosim` gained a signature dump.** `+TOHOST` makes it watch for
+  the halt store; `+SIGBEGIN`/`+SIGEND`/`+SIGFILE` dump the region
+  straight out of the I-TCM array. The SEC-DED encoding is systematic,
+  `cw = {parity, data}`, so the data half is the low 32 bits. All of it
+  is plusarg gated: without `+SIGFILE` nothing happens, and the
+  existing co-simulation still passes unchanged.
+
+Two integration problems worth recording because they are not in any
+documentation:
+
+* Both plugins hardcode a `riscv32-unknown-elf-*` toolchain prefix.
+  This environment ships `riscv64-`, which targets rv32 through
+  `-march`/`-mabi`. Symlinks fix it without patching a vendor plugin.
+* **The shipped Spike plugin is a stub.** Its run command is
+  `execute += self.ref_exe + ''` — the executable name and nothing
+  else, which puts a bare `spike` on the command line and produces a
+  usage dump. It has to be filled in with
+  `--isa=... +signature=... +signature-granularity=4`.
+
+### Why there is no result
+
+**The reference model is the blocker, not the DUT.** Spike takes
+minutes per test in this environment rather than milliseconds, so a
+full run does not finish. One reference signature was produced and is
+complete — 592 words for `add-01.S` — which says the flow is right and
+the throughput is not.
+
+Whether that is a Spike build problem here, an interaction with
+`+signature-granularity`, or something in the test environment's HTIF
+handling has not been established. The DUT side has therefore never
+run end to end at all, because RISCOF runs the reference first.
+
+**So: no conformance claim can be made, and none is made.** The README
+status table says "not run" and will keep saying it until a run
+completes. Infrastructure that is 90 % built is worth exactly as much
+as infrastructure that is 0 % built, when it comes to what the IP can
+claim.
+
 ## Phase V18 — static timing, and what it actually says (2026-08-21)
 
 `make sta` runs OpenSTA against the same SG13G2 library the netlist is
