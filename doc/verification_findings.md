@@ -5,6 +5,59 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V6 continued — formal on the interconnect (2026-08-21)
+
+`make formal-bus` checks `cdriscv_bus`. Its risk is bookkeeping rather
+than arithmetic: two masters, three slaves and an error responder, with
+one owner bit per slave deciding where each response goes. **A
+misrouted response hands one master another master's data** — a value
+that looks entirely plausible and is wrong, which is precisely the
+class of fault a functional test can miss.
+
+Three properties pass to depth 20, with the slaves modelled concretely
+(grant when idle, answer one cycle later, which is what the TCM does):
+
+| property | what it says |
+|----------|--------------|
+| `p_no_spurious_instr` / `p_no_spurious_data` | a master is never handed a response it did not ask for |
+| `p_data_wins_itcm` | the data master wins I-TCM arbitration, so the fetcher cannot starve it |
+| `p_no_double_itcm` | both masters are never granted the same slave in one cycle |
+
+Mutation tested, both caught by the property meant for them:
+
+| mutation | caught by |
+|----------|-----------|
+| I-TCM response owner inverted | `p_no_spurious_instr` |
+| arbitration lets both masters through | `p_data_wins_itcm` |
+
+### One property is written, failing, and deliberately left in place
+
+A fourth property — *a granted request is always answered* — fails at
+step 4, on a sequence where the instruction master is granted the I-TCM
+and both masters then contend for it in the next cycle.
+
+**I have not established whether the property is too strong or the
+design drops a response.** The naive one-cycle model it assumes may
+simply be wrong about when the response is due.
+
+It is commented out in `verif/formal/bus_fv.sv` with that status
+written next to it, rather than deleted. A property that failed and was
+quietly removed is worse than no property, because the next reader has
+no way to know the question was ever asked. It also asks something the
+three passing properties do not: they say responses that *do* arrive go
+to the right master, and say nothing about responses that never arrive.
+
+This is an open item, and it is the first one in this log that is
+neither fixed nor waived.
+
+### A frontend note
+
+`cdriscv_bus` cannot be read by yosys' built-in Verilog frontend at all
+— it rejects the size cast in the address decode function — so the
+formal run uses yosys-slang, as synthesis already does. Three of the
+four flows in this project now depend on that plugin.
+
+
 ## Phase V7 continued — waiver W1, and a guess disproved (2026-08-21)
 
 The three unreachable lines in the fetch stage got a proper argument

@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 ChipDesign B.V.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Routing and arbitration properties for the interconnect.  Control
+# logic, so yices converges quickly.
+
+[tasks]
+bmc
+
+[options]
+mode bmc
+depth 20
+
+[engines]
+smtbmc yices
+
+[script]
+plugin -i slang
+read_slang --top bus_fv --allow-use-before-declare cdriscv_bus.sv bus_fv.sv
+prep -top bus_fv
+
+[files]
+rtl/bus/cdriscv_bus.sv
+verif/formal/bus_fv.sv

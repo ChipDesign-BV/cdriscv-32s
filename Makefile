@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench periph reaction trap ams regwalk formal formal-if formal-ecc coverage cosim cosim-iverilog cosim-stall cosim-random
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench periph reaction trap ams regwalk formal formal-if formal-ecc formal-bus coverage cosim cosim-iverilog cosim-stall cosim-random
 
 all: lint
 
@@ -410,7 +410,7 @@ coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
 FORMAL_DEPTH ?= 20
 SBY          ?= sby
 
-formal: formal-if formal-ecc
+formal: formal-if formal-ecc formal-bus
 
 formal-if: | $(BUILD)
 	$(SBY) -f -d $(BUILD)/fv_if verif/formal/if_stage.sby bmc \
@@ -421,6 +421,15 @@ formal-ecc: | $(BUILD)
 	$(SBY) -f -d $(BUILD)/fv_ecc verif/formal/ecc.sby bmc \
 	  | tee $(BUILD)/formal_ecc.log
 	@grep -q "DONE (PASS" $(BUILD)/formal_ecc.log
+
+# The interconnect's risk is bookkeeping, not arithmetic: a misrouted
+# response hands one master another's data, which looks plausible and
+# is wrong.  Read through yosys-slang, because the built-in frontend
+# cannot parse the address decode function.
+formal-bus: | $(BUILD)
+	$(SBY) -f -d $(BUILD)/fv_bus verif/formal/bus.sby bmc \
+	  | tee $(BUILD)/formal_bus.log
+	@grep -q "DONE (PASS" $(BUILD)/formal_bus.log
 
 # ---------------------------------------------------------------- ecc
 ecc:
