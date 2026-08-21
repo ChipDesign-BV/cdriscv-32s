@@ -33,6 +33,21 @@ puts "=== fanout and slew violations ==="
 report_check_types -max_fanout -max_slew -digits 3 -violators
 
 puts ""
-puts "=== summary ==="
+puts "=== summary, as synthesised ==="
+report_worst_slack -max -digits 3
+report_tns -digits 3
+
+# ---------------------------------------------------------------------
+# Second scenario: reset tree assumed built.  See ideal_reset.sdc for
+# why this is a fair question and what it costs.
+# ---------------------------------------------------------------------
+read_sdc verif/sta/ideal_reset.sdc
+
+puts ""
+puts "=== setup with the reset trees cut (logic only) ==="
+report_checks -path_delay max -digits 3 -path_group clk -group_path_count 1
+
+puts ""
+puts "=== summary, reset trees cut ==="
 report_worst_slack -max -digits 3
 report_tns -digits 3

@@ -5,6 +5,70 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V23 — separating fanout from logic depth (2026-08-22)
+
+V18 reported that setup timing could not be turned into an Fmax,
+because the reset nets swamp every path. That was true and it left the
+useful question unanswered: **would the logic meet timing once the
+trees exist?** Depth is an RTL problem that buffering cannot fix;
+fanout is a place-and-route problem that RTL cannot fix. They need
+separating before either can be acted on.
+
+`make sta` now reports two scenarios and splits the second one.
+
+### Scenario one, as synthesised
+
+Unchanged: worst slack **−65.670 ns**, dominated by a flip-flop driving
+up to 2 201 reset pins with no buffering.
+
+### Scenario two, reset trees cut
+
+`verif/sta/ideal_reset.sdc` false-paths the three reset nets, exactly
+as a clock is treated before clock tree synthesis. Worst slack improves
+to **−29.575 ns** — still nowhere near closing, and still for the same
+reason: there are *more* unbuffered high fanout nets behind the reset
+ones.
+
+This scenario has an honest cost, stated in the file: `check_rst_n` is
+not only a reset. The lockstep comparator uses it as an enable, so
+cutting it removes a real data path too. That is why both scenarios are
+reported and neither is called *the* answer.
+
+### The split, which is the actual result
+
+The worst logic path is 54 cells and 39.4 ns:
+
+| | cells | delay | share |
+|---|---|---|---|
+| unbuffered fanout | 7 | 32.408 ns | 82 % |
+| ordinary logic | 47 | 7.012 ns | 18 % |
+
+Three cells alone — an `a21oi`, an `inv` and a `nor2` in sequence —
+take 23.5 ns. The other 47 gates average **0.149 ns**, which is what a
+gate in this library should cost.
+
+**So the pipeline is not too deep.** Forty-seven levels of logic in
+7.0 ns is comfortably inside a 10 ns period once the setup time and a
+clock tree are allowed for. What stands between this netlist and
+timing closure is buffering, and buffering is a place-and-route job.
+
+### What this still is not
+
+It is not an Fmax and it is not permission to quote one. There is no
+placement, so no interconnect delay is modelled at all — every number
+here is cell delay only, and real wires will make the 7.0 ns worse by
+an amount only layout can say. It also assumes buffering fixes all
+seven of the fat cells, which is likely but not demonstrated.
+
+What it does support is a narrower claim worth having: **the design
+does not need re-pipelining.** If the logic depth had come out at
+30 ns, no amount of place-and-route would have saved it and the RTL
+would have needed splitting. It came out at 7.
+
+`scripts/sta_path_split.py` does the split, on the crude but adequate
+rule that a cell taking more than a nanosecond in this library is not
+doing logic, it is driving a crowd.
+
 ## Phase V22 — V0-F1 closed, and the fix withdrew a waiver (2026-08-21)
 
 The last open finding is closed. **`FAILDATH` at `+0x10` returns the
