@@ -124,6 +124,18 @@ module tb_cosim #(
   int unsigned maxretire, maxcycles, nretire, cycle;
   logic [31:0] stoppc, stoppc2;
   logic [31:0] store_data, st_addr;
+
+  // ---- RISCOF signature support ------------------------------------
+  // The architectural tests end by storing to `tohost` and leave their
+  // result in a signature region that the framework compares against
+  // the reference model's.  Both are plusarg driven so that every
+  // existing use of this bench is unaffected: without +SIGFILE nothing
+  // below does anything.
+  string       sigfile;
+  logic [31:0] sig_begin, sig_end, tohost_addr;
+  bit          have_sig, have_tohost;
+  integer      sig_fd;
+  int unsigned sig_i;
   logic [3:0]  st_be;
   logic [1:0]  st_off;
   string       trace_line;
@@ -148,6 +160,10 @@ module tb_cosim #(
     have_stop = 1'b0;
     stoppc    = 32'hffff_ffff;
     stoppc2   = 32'hffff_ffff;
+    have_sig    = $value$plusargs("SIGFILE=%s", sigfile);
+    if (!$value$plusargs("SIGBEGIN=%h", sig_begin)) sig_begin = 32'h0;
+    if (!$value$plusargs("SIGEND=%h",   sig_end))   sig_end   = 32'h0;
+    have_tohost = $value$plusargs("TOHOST=%h", tohost_addr);
     if ($value$plusargs("STOPPC=%h", stoppc))   have_stop = 1'b1;
     if ($value$plusargs("STOPPC2=%h", stoppc2)) have_stop = 1'b1;
 
@@ -241,6 +257,13 @@ module tb_cosim #(
           $display("%s", trace_line);
         end
         nretire <= nretire + 1;
+        if (have_tohost && `CORE_PATH.lsu_req_dec && `CORE_PATH.data_we_o
+            && (`CORE_PATH.data_addr_o[31:2] == tohost_addr[31:2])) begin
+          $display("[cosim] tohost written after %0d instructions, %0d cycles",
+                   nretire + 1, cycle);
+          dump_signature();
+          $finish;
+        end
         if (have_stop && ((retire_pc == stoppc) || (retire_pc == stoppc2))) begin
           $display("[cosim] reached the end label at %08x after %0d instructions, %0d cycles",
                    retire_pc, nretire + 1, cycle);
@@ -264,5 +287,25 @@ module tb_cosim #(
       end
     end
   end
+
+  // The TCM stores 39-bit code words and the SEC-DED encoding is
+  // systematic -- cw = {parity, data} -- so the data half is simply the
+  // low 32 bits.  Reading the array directly rather than through the
+  // bus keeps the dump out of the way of the test that has just run.
+  task automatic dump_signature;
+    if (!have_sig) return;
+    sig_fd = $fopen(sigfile, "w");
+    if (sig_fd == 0) begin
+      $display("[cosim] SIGNATURE: cannot open %s", sigfile);
+      return;
+    end
+    for (sig_i = sig_begin; sig_i < sig_end; sig_i += 4) begin
+      $fdisplay(sig_fd, "%08x",
+                dut.u_itcm.mem[(sig_i - 32'h8000_0000) >> 2][31:0]);
+    end
+    $fclose(sig_fd);
+    $display("[cosim] SIGNATURE: %0d words written to %s",
+             (sig_end - sig_begin) / 4, sigfile);
+  endtask
 
 endmodule

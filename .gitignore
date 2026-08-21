@@ -9,3 +9,9 @@ obj_dir/
 *.log
 __pycache__/
 runs/
+
+# RISCOF: the architectural test suite is ~1.7 GB and is fetched with
+# `riscof arch-test --clone`, not vendored here.  riscof_work is run
+# output.
+verif/riscof/riscv-arch-test/
+verif/riscof/riscof_work/

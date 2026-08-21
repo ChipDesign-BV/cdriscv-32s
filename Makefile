@@ -669,6 +669,20 @@ gate-subsys: $(BUILD)/gate/tb_subsys_gate.vvp $(BUILD)/prog.itcm.hex \
 
 gate: gate-alu gate-multdiv gate-ecc gate-fsm gate-subsys
 
+# ------------------------------------------------- RISCOF (O1)
+# The architectural test suite is fetched, not vendored -- see
+# verif/riscof/README.md, which also records why this does not yet
+# produce a result.
+RISCOF_SUITE := verif/riscof/riscv-arch-test/riscv-test-suite
+
+riscof: $(BUILD)/tb_cosim.vvp
+	@test -d $(RISCOF_SUITE) || { \
+	  echo "riscv-arch-test not present: see verif/riscof/README.md"; \
+	  exit 1; }
+	cd verif/riscof && riscof run --config=config.ini \
+	  --suite=riscv-arch-test/riscv-test-suite/ \
+	  --env=riscv-arch-test/riscv-test-suite/env --no-browser
+
 # ------------------------------------------------- static timing (O8)
 # OpenSTA against the same SG13G2 library the netlist is mapped to.
 #
