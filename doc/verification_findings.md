@@ -5,6 +5,91 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V20 — RISCOF: reference model working, DUT blocked on RVC padding (2026-08-21)
+
+Four blockers down, one left, and the last one is the interesting one.
+
+### Fixed: the Spike reference now runs — 128 signatures
+
+**This Spike never acts on the HTIF `tohost` write.** The test's halt
+loop spins for ever and no signature is written, which looked like "the
+reference model is slow" in V19 and was nothing of the kind. Bounding
+the run with `--instructions=500000` makes Spike stop and dump.
+
+That is safe rather than a fudge: the signature region is filled before
+the halt loop is reached, so stopping inside the loop dumps a complete
+signature. Verified on `add-01.S`, which produces the same 592 words
+bounded or not. The bound is far above any architectural test's length,
+so a test that genuinely runs away is still caught.
+
+**128 reference signatures** now generate in a few minutes.
+
+### Fixed: three DUT-side bugs, all mine
+
+* **Make ate the shell substitutions.** The plugin builds a command
+  string that is written into a Makefile, where `$(...)` is a *make*
+  variable reference, not shell command substitution. Every
+  `$(riscv32-unknown-elf-nm ...)` expanded to nothing, so `--pad-to`
+  swallowed the next argument and objcopy failed with "bad number:
+  my.elf". They need `$$(...)`. I had escaped `$$1` for awk and missed
+  this.
+* **The tests do not fit in the instruction memory.** `add-01.S` alone
+  spans 5 780 words against the 4 096 the subsystem defaults to. The
+  overflow does not announce itself — the image is truncated at load
+  and the symptom is a bus error a hundred cycles in. `tb_cosim` now
+  takes `ItcmWords` as a parameter and the RISCOF build overrides it to
+  16 384; every other run keeps the default.
+* **The bench aborted on the first safety fault.** Right for
+  co-simulation, where the DUT and the model must agree instruction by
+  instruction. Wrong for architectural tests, which take traps
+  deliberately: the core-trap bit sets, and the run has to continue to
+  its own halt because **the signature is the pass criterion**, not the
+  absence of a fault. The abort is now disabled exactly when a
+  signature is being collected, and the fault is still reported.
+
+### The remaining blocker: the suite emits compressed padding
+
+The DUT now executes the test properly and traps at `0x800002c8`:
+
+```
+800002c4:  e9840413   addi s0,s0,-360
+800002c8:  0001       nop            <-- c.nop, a 16-bit instruction
+800002ca:  00000013   nop
+```
+
+That `c.nop` is alignment padding, and it is deliberate. From
+`riscv-arch-test/riscv-test-suite/env/arch_test.h`:
+
+```
+.option rvc             // temporarily allow compress to allow c.nop alignment
+.align MTVEC_ALIGN
+.option pop
+```
+
+Three places in the released suite do this, unconditionally. The ELF's
+own attribute says `rv32i2p1` — no C extension — and the padding is
+compressed anyway.
+
+On a core that implements C this is harmless. **This core does not
+implement C**, it is RV32IM_Zicsr_Zifencei, so the padding is an
+illegal instruction — and it is not skipped over, it sits in the
+straight-line instruction stream between two test instructions and gets
+executed.
+
+So the core is behaving correctly: an RV32I core *must* trap on a
+16-bit encoding. The trap is the specification working, not a defect.
+
+**Not resolved, and deliberately not worked around.** Patching
+`arch_test.h` to emit 4-byte padding would make the run pass, and would
+also mean the result no longer came from the official suite — which is
+the entire value of running it. The options are to establish whether
+the suite offers a supported way to build for a non-C target, or to
+raise it upstream. Neither is a code change here.
+
+**So there is still no conformance result, and the README still says
+"not run".** What changed is that the blocker is now understood and is
+one line in a third-party header rather than an unexplained slowdown.
+
 ## Phase V19 — RISCOF, objective O1 (2026-08-21, INCOMPLETE)
 
 The architectural test suite is the one gap that mattered most: every
