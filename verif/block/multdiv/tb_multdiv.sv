@@ -56,9 +56,20 @@ module tb_multdiv;
   int unsigned first_latency, cycles;
   logic [31:0] expected;
 
-  // V0-A1: the top bit of the accumulator must never carry information
+  // V0-A1: the top bit of the accumulator must never carry information.
+  //
+  // This is a white box check and it cannot survive synthesis, which is
+  // the correct outcome rather than a problem: yosys reaches the same
+  // conclusion the invariant asserts, finds bit 32 carries nothing, and
+  // emits `assign acc_q[32] = 1'hx;` with flops for the other
+  // thirty-two.  Probing it at gate level then reads the don't-care.
+  // +NOWHITEBOX skips it, and the gate level run says so rather than
+  // quietly claiming the invariant still holds.
+  bit white_box;
+  initial white_box = !$test$plusargs("NOWHITEBOX");
+
   always @(posedge clk) begin
-    if (rst_n && (u_dut.acc_q[32] !== 1'b0)) begin
+    if (white_box && rst_n && (u_dut.acc_q[32] !== 1'b0)) begin
       $display("[tb_multdiv] INVARIANT acc_q[32] set at time %0t", $time);
       acc_violations++;
     end
@@ -124,8 +135,10 @@ module tb_multdiv;
     end
 
     if (errors == 0 && acc_violations == 0)
-      $display("[tb_multdiv] PASS: %0d vectors, constant latency %0d cycles, acc_q[32] never set",
-               nvec, first_latency);
+      $display("[tb_multdiv] PASS: %0d vectors, constant latency %0d cycles, %s",
+               nvec, first_latency,
+               white_box ? "acc_q[32] never set"
+                         : "invariant acc_q[32] NOT checked (white box, +NOWHITEBOX)");
     else
       $display("[tb_multdiv] FAIL: %0d result/latency errors, %0d invariant violations, over %0d vectors",
                errors, acc_violations, nvec);

@@ -511,6 +511,110 @@ coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
 	@$(PYTHON) scripts/funccov_report.py $(BUILD)/cov/merged.dat \
 	  | tee -a $(BUILD)/coverage.txt
 
+# ------------------------------------------------- gate level (O8)
+# Synthesis to real IHP SG13G2 standard cells, then the *same* block
+# benches re-run against the netlist.  Passing on the RTL and passing
+# on the gates are different claims: synthesis restructures logic,
+# re-encodes state and drops anything it can prove unreachable, and the
+# coverage waivers in verif/coverage_waivers.md are written against the
+# RTL.
+#
+# This is a **functional** gate level simulation and not a timing one.
+# Every delay in the SG13G2 Verilog models is (0.0,0.0) -- they are
+# placeholders for back-annotation -- so what this checks is that the
+# netlist computes what the RTL computed and that nothing goes X.
+# Timing needs static timing analysis against the same library, which
+# is a separate job and is not done.
+GATE_PDK   ?= /foss/pdks/ihp-sg13g2/libs.ref/sg13g2_stdcell
+GATE_LIB   ?= $(GATE_PDK)/lib/sg13g2_stdcell_typ_1p20V_25C.lib
+GATE_CELLS := $(BUILD)/gate/sg13g2_cells.v
+GATE_UDP   := $(BUILD)/gate/sg13g2_udp.v
+
+$(BUILD)/gate:
+	mkdir -p $(BUILD)/gate
+
+# Icarus rejects the models as shipped -- "ifnone with an
+# edge-sensitive path is not supported" -- and the blocks it chokes on
+# carry no information, every delay in them being zero.
+$(GATE_CELLS): $(GATE_PDK)/verilog/sg13g2_stdcell.v | $(BUILD)/gate
+	$(PYTHON) scripts/strip_specify.py $< $@
+
+$(GATE_UDP): $(GATE_PDK)/verilog/sg13g2_udp.v | $(BUILD)/gate
+	$(PYTHON) scripts/strip_specify.py $< $@
+
+GATE_PKG := rtl/core/cdriscv_pkg.sv
+
+define gate_synth
+	$(YOSYS) -p "plugin -i slang; \
+	  read_slang --top $(1) $(GATE_PKG) $(2); \
+	  synth -top $(1) -flatten; \
+	  dfflibmap -liberty $(GATE_LIB); \
+	  abc -liberty $(GATE_LIB); \
+	  opt_clean; \
+	  write_verilog -noattr $@; \
+	  stat -liberty $(GATE_LIB)" -l $(BUILD)/gate/$(1)_synth.log
+	@grep -E "Chip area for module" $(BUILD)/gate/$(1)_synth.log
+endef
+
+$(BUILD)/gate/cdriscv_alu_gate.v: $(GATE_PKG) rtl/core/cdriscv_alu.sv | $(BUILD)/gate
+	$(call gate_synth,cdriscv_alu,rtl/core/cdriscv_alu.sv)
+
+$(BUILD)/gate/cdriscv_multdiv_gate.v: $(GATE_PKG) rtl/core/cdriscv_multdiv.sv | $(BUILD)/gate
+	$(call gate_synth,cdriscv_multdiv,rtl/core/cdriscv_multdiv.sv)
+
+# The SEC-DED file holds two independent modules, encoder and decoder,
+# so each gets its own synthesis run and the bench compiles both.
+$(BUILD)/gate/cdriscv_ecc_enc_gate.v: $(GATE_PKG) rtl/safety/cdriscv_ecc_secded.sv | $(BUILD)/gate
+	$(call gate_synth,cdriscv_ecc_enc,rtl/safety/cdriscv_ecc_secded.sv)
+
+$(BUILD)/gate/cdriscv_ecc_dec_gate.v: $(GATE_PKG) rtl/safety/cdriscv_ecc_secded.sv | $(BUILD)/gate
+	$(call gate_synth,cdriscv_ecc_dec,rtl/safety/cdriscv_ecc_secded.sv)
+
+$(BUILD)/gate/tb_alu_gate.vvp: $(BUILD)/gate/cdriscv_alu_gate.v $(GATE_CELLS) \
+                               $(GATE_UDP) verif/block/alu/tb_alu.sv
+	$(IVERILOG) -g2012 -o $@ -s tb_alu $(GATE_PKG) $^
+
+$(BUILD)/gate/tb_multdiv_gate.vvp: $(BUILD)/gate/cdriscv_multdiv_gate.v $(GATE_CELLS) \
+                                   $(GATE_UDP) verif/block/multdiv/tb_multdiv.sv
+	$(IVERILOG) -g2012 -o $@ -s tb_multdiv $(GATE_PKG) $^
+
+$(BUILD)/gate/tb_ecc_gate.vvp: $(BUILD)/gate/cdriscv_ecc_enc_gate.v \
+                               $(BUILD)/gate/cdriscv_ecc_dec_gate.v $(GATE_CELLS) \
+                               $(GATE_UDP) verif/block/ecc/tb_ecc.sv
+	$(IVERILOG) -g2012 -o $@ -s tb_ecc $(GATE_PKG) $^
+
+gate-alu: $(BUILD)/gate/tb_alu_gate.vvp $(ALU_VECTORS)
+	$(VVP) $< +VEC=$(ALU_VECTORS) +NVEC=$$(wc -l < $(ALU_VECTORS)) \
+	  | tee $(BUILD)/gate/alu.log
+	@grep -q "PASS" $(BUILD)/gate/alu.log
+
+# +NOWHITEBOX: the acc_q[32] invariant is an assertion about an RTL
+# signal that synthesis is entitled to remove -- and does, having
+# reached the same conclusion the invariant states.  See V16 in
+# verification_findings.md.
+gate-multdiv: $(BUILD)/gate/tb_multdiv_gate.vvp $(MD_VECTORS)
+	$(VVP) $< +VEC=$(MD_VECTORS) +NVEC=$$(wc -l < $(MD_VECTORS)) +NOWHITEBOX \
+	  | tee $(BUILD)/gate/multdiv.log
+	@grep -q "PASS" $(BUILD)/gate/multdiv.log
+
+gate-ecc: $(BUILD)/gate/tb_ecc_gate.vvp
+	$(VVP) $< +PATTERNS=$(ECC_PATTERNS) | tee $(BUILD)/gate/ecc.log
+	@grep -q "PASS" $(BUILD)/gate/ecc.log
+
+# W2a says the state machine `default:` arms must stay because they
+# recover from an upset, and that the argument has to be re-made against
+# the netlist since synthesis may optimise an unreachable state away.
+# This is that check, on real cells.
+$(BUILD)/gate/tb_gate_fsm.vvp: $(BUILD)/gate/cdriscv_multdiv_gate.v $(GATE_CELLS) \
+                               $(GATE_UDP) verif/gate/tb_gate_fsm.sv
+	$(IVERILOG) -g2012 -o $@ -s tb_gate_fsm $(GATE_PKG) $^
+
+gate-fsm: $(BUILD)/gate/tb_gate_fsm.vvp
+	$(VVP) $< | tee $(BUILD)/gate/fsm.log
+	@grep -q "PASS" $(BUILD)/gate/fsm.log
+
+gate: gate-alu gate-multdiv gate-ecc gate-fsm
+
 # ------------------------------------------------- fault injection
 FI_RUNS ?= 300
 FI_SEED ?= 7
