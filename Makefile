@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench periph reaction trap formal formal-if formal-ecc coverage cosim cosim-iverilog cosim-random
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench periph reaction trap ams formal formal-if formal-ecc coverage cosim cosim-iverilog cosim-random
 
 all: lint
 
@@ -187,6 +187,26 @@ cosim-iverilog: $(BUILD)/tb_cosim.vvp $(BUILD)/cosim_isa.hex
 	  $(BUILD)/cosim_isa.elf --hex $(BUILD)/cosim_isa.hex \
 	  --vvp $(BUILD)/tb_cosim.vvp --count 5000
 
+# -------------------------------------------------------- AMS tests
+$(BUILD)/ams_test.elf: verif/core/ams_test.S tb/sw/link.ld | $(BUILD)
+	$(CC) -march=$(ARCH) -mabi=$(ABI) -nostdlib -nostartfiles \
+	  -T tb/sw/link.ld -o $@ verif/core/ams_test.S
+
+$(BUILD)/ams_test.bin: $(BUILD)/ams_test.elf
+	$(OBJCOPY) -O binary --only-section=.text $< $@
+
+# Limit registers, range checking, the conversion time-out, the trim
+# output and the analog test bus.  The time-out is provoked by setting
+# the limit below the bench ADC model's latency, so no bench change is
+# needed for it.
+ams: $(BUILD)/tb_cdriscv_subsys.vvp $(BUILD)/ams_test.hex \
+     $(BUILD)/dtcm_zero.hex
+	$(VVP) $(BUILD)/tb_cdriscv_subsys.vvp \
+	  +ITCM_HEX=$(BUILD)/ams_test.hex \
+	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex \
+	  +MAX_CYCLES=300000 | tee $(BUILD)/ams.log
+	@grep -q "PASS" $(BUILD)/ams.log
+
 # ------------------------------------------------------- trap tests
 $(BUILD)/trap_test.elf: verif/core/trap_test.S tb/sw/link.ld | $(BUILD)
 	$(CC) -march=$(ARCH) -mabi=$(ABI) -nostdlib -nostartfiles \
@@ -297,7 +317,8 @@ $(BUILD)/obj_syscov/tb_sys_cov: $(RTL) $(TB) | $(BUILD)
 coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
           $(BUILD)/cosim_isa.hex $(BUILD)/safety_test.hex \
           $(BUILD)/periph_test.hex $(BUILD)/reaction_test.hex \
-          $(BUILD)/trap_test.hex $(BUILD)/dtcm_zero.hex sw
+          $(BUILD)/trap_test.hex $(BUILD)/ams_test.hex \
+          $(BUILD)/dtcm_zero.hex sw
 	@mkdir -p $(BUILD)/cov && rm -f $(BUILD)/cov/*.dat
 	@./$(BUILD)/obj_cov/tb_cosim_cov +HEX=$(BUILD)/cosim_isa.hex \
 	  +MAXRETIRE=100000 +QUIET > /dev/null 2>&1; \
@@ -323,6 +344,9 @@ coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
 	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/trap_test.hex \
 	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=100000 > /dev/null 2>&1; \
 	  mv coverage.dat $(BUILD)/cov/cov_trap.dat
+	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/ams_test.hex \
+	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=300000 > /dev/null 2>&1; \
+	  mv coverage.dat $(BUILD)/cov/cov_ams.dat
 	verilator_coverage --write $(BUILD)/cov/merged.dat $(BUILD)/cov/cov_*.dat
 	@rm -rf $(BUILD)/cov/annotated
 	verilator_coverage --annotate $(BUILD)/cov/annotated --annotate-min 1 \
