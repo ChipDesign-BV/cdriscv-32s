@@ -56,14 +56,21 @@ output.
 
 ## What is not working yet
 
-The reference model works: **128 signatures** generate in a few
-minutes. It needed `--instructions=500000`, because this Spike never
-acts on the HTIF `tohost` write and the test's halt loop otherwise
-spins for ever. Bounding it is safe — the signature is written before
-the halt loop, and `add-01.S` gives the same 592 words either way.
+**The reference model traps in the same place the DUT does.** Spike on
+`add-01.S`:
 
-**The blocker is now the test suite, not either model.** The DUT
-executes the tests and traps at the first piece of alignment padding:
+```
+core 0: 0x800002c8 (0x00000001) c.nop
+core 0: exception trap_illegal_instruction, epc 0x800002c8
+```
+
+So the 128 signature files an earlier run produced are not references:
+Spike was spinning in its trap path and the `--instructions` bound was
+dumping whatever was in memory. A file being produced is not a result.
+
+**The blocker is the test suite, not either model**, and that is now
+proven from both sides rather than inferred from one. The DUT traps at
+the first piece of alignment padding, and so does the reference:
 
 ```
 800002c8:  0001       nop     <-- c.nop, 16-bit

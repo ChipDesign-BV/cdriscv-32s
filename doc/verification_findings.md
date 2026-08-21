@@ -5,11 +5,84 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V21 — the reference model traps too, and V20 needs correcting (2026-08-21)
+
+One command settled the RISCOF question, and it invalidates something I
+reported last phase.
+
+Spike, running the same test:
+
+```
+core   0: 0x800002c8 (0x00000001) c.nop
+core   0: exception trap_illegal_instruction, epc 0x800002c8
+core   0:           tval 0x00000001
+```
+
+**The reference model traps at exactly the same address, on exactly the
+same instruction, as the DUT.** Both ELFs contain 18 instructions at
+non-word-aligned addresses; the compressed padding is in both, and both
+models correctly refuse it.
+
+### Correcting V20: those 128 signatures are not references
+
+V20 reported "the Spike reference now runs — 128 signatures" as a fixed
+blocker. That was wrong, and wrong in the way that matters: Spike was
+not completing the tests. It was trapping on the padding, spinning in
+the trap path, and `--instructions=500000` was dumping whatever
+happened to be in the signature memory when the bound expired.
+
+A signature file existed, had a plausible size, and contained
+plausible-looking words. None of that made it a reference. **A file
+being produced is not the same as a result being produced**, and I
+counted the former as the latter.
+
+### What this actually establishes
+
+Positively, and it is worth something: **the DUT and the reference
+model agree.** Presented with a 16-bit encoding on a target that does
+not implement the C extension, both raise an illegal instruction
+exception at the same PC with the same `tval`. That is the
+specification working, on both sides.
+
+So the core is not at fault here, and neither is Spike. The test build
+is: `env/arch_test.h` enables `.option rvc` around its `.align`
+directives so the assembler can pad with `c.nop`, unconditionally, and
+that padding lands in the straight-line instruction stream rather than
+somewhere control flow skips.
+
+`UNROLLSZ` is a documented `#ifndef` knob and is **not** the answer —
+tried it: `-DUNROLLSZ=2` takes the count of non-word-aligned
+instructions from 18 to 3 073, because tighter alignment means more
+blocks need padding and each `c.nop` shifts everything after it. The
+obvious lever makes it worse.
+
+### Status: unchanged, and now for a well understood reason
+
+No conformance result, and the README still says "not run". What is
+established is narrower and firmer than V20 claimed:
+
+* the DUT plugin, the target environment, the signature dump and the
+  whole flow work end to end;
+* the DUT and the reference model behave identically on this suite;
+* the blocker is the suite's test build on a target without the C
+  extension, proven from both sides rather than inferred from one.
+
+Resolving it means either finding the supported way to build this suite
+for a non-C target, or raising it upstream. Patching `arch_test.h`
+locally would produce a passing run whose result no longer came from
+the official suite, which is the only reason to run the official suite.
+
 ## Phase V20 — RISCOF: reference model working, DUT blocked on RVC padding (2026-08-21)
 
 Four blockers down, one left, and the last one is the interesting one.
 
 ### Fixed: the Spike reference now runs — 128 signatures
+
+> **Wrong, corrected in V21.** Spike was not completing these tests. It
+> traps on the same compressed padding the DUT does, and the bound was
+> dumping memory from inside the trap loop. The 128 files are not
+> reference signatures. The rest of this section — why the bound is
+> needed at all — still stands.
 
 **This Spike never acts on the HTIF `tohost` write.** The test's halt
 loop spins for ever and no signature is written, which looked like "the
