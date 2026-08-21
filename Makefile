@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench periph reaction trap ams regwalk formal formal-if formal-ecc coverage cosim cosim-iverilog cosim-random
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench periph reaction trap ams regwalk formal formal-if formal-ecc coverage cosim cosim-iverilog cosim-stall cosim-random
 
 all: lint
 
@@ -166,13 +166,28 @@ RANDOM_LEN   ?= 400
 # registers carry over, so every iteration starts from a different
 # state, and the loop exercises the fetch redirect path hard.
 RANDOM_LOOPS ?= 20
+# Grants held off on this share of cycles; 0 keeps the memories always
+# ready, which is the case every other test already covers.
+RANDOM_STALL ?= 0
 
 # Random program regression against Spike.  Failing seeds are kept in
 # build/random and the runner prints the command to reproduce one.
+# The same comparison with memory grants held off on a third of cycles.
+# Back-pressure must change the timing and nothing else, and comparing
+# against Spike is what checks that.  It is also the only thing that
+# exercises the wait-for-grant paths in the LSU and the fetch stage,
+# because the TCM always grants immediately.
+COSIM_STALL ?= 35
+
+cosim-stall: $(COSIM_RUNNER) $(BUILD)/cosim_isa.hex
+	SPIKE=$(SPIKE) VVP=$(VVP) $(PYTHON) verif/core/cosim.py \
+	  $(BUILD)/cosim_isa.elf --hex $(BUILD)/cosim_isa.hex \
+	  --vvp $(COSIM_RUNNER) --count 5000 --stall $(COSIM_STALL)
+
 cosim-random: $(COSIM_RUNNER)
 	SPIKE=$(SPIKE) VVP=$(VVP) $(PYTHON) verif/core/random_regress.py \
 	  --seeds $(RANDOM_SEEDS) --count $(RANDOM_LEN) \
-	  --loops $(RANDOM_LOOPS) --vvp $(COSIM_RUNNER)
+	  --loops $(RANDOM_LOOPS) --stall $(RANDOM_STALL) --vvp $(COSIM_RUNNER)
 
 cosim: $(COSIM_RUNNER) $(BUILD)/cosim_isa.hex
 	SPIKE=$(SPIKE) VVP=$(VVP) $(PYTHON) verif/core/cosim.py \
@@ -343,6 +358,11 @@ coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
 	@./$(BUILD)/obj_cov/tb_cosim_cov +HEX=$(BUILD)/cosim_isa.hex \
 	  +MAXRETIRE=100000 +QUIET > /dev/null 2>&1; \
 	  mv coverage.dat $(BUILD)/cov/cov_isa.dat
+	@for p in 15 35 70 90; do \
+	  ./$(BUILD)/obj_cov/tb_cosim_cov +HEX=$(BUILD)/cosim_isa.hex \
+	    +MAXRETIRE=100000 +STALL=$$p +QUIET > /dev/null 2>&1; \
+	  mv coverage.dat $(BUILD)/cov/cov_isa_stall$$p.dat; \
+	done
 	@for s in $(COV_SEEDS); do \
 	  if [ -f $(BUILD)/random/rand_$$s.hex ]; then \
 	    ./$(BUILD)/obj_cov/tb_cosim_cov +HEX=$(BUILD)/random/rand_$$s.hex \

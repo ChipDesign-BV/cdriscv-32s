@@ -62,6 +62,7 @@ def main():
     ap.add_argument("--start", type=int, default=1)
     ap.add_argument("--count", type=int, default=400)
     ap.add_argument("--loops", type=int, default=1)
+    ap.add_argument("--stall", type=int, default=0)
     ap.add_argument("--vvp", dest="runner",
                     default=os.path.join(ROOT, "build", "obj_cosim", "tb_cosim_vl"))
     ap.add_argument("--max-report", type=int, default=3)
@@ -78,7 +79,8 @@ def main():
             continue
         elf, hexf = built
         r = sh([sys.executable, os.path.join(HERE, "cosim.py"), elf,
-                "--hex", hexf, "--vvp", args.runner, "--count", "20000"])
+                "--hex", hexf, "--vvp", args.runner, "--count", "20000",
+                "--stall", str(args.stall)])
         out = r.stdout.strip()
         if r.returncode == 0:
             passed += 1
