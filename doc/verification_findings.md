@@ -22,6 +22,18 @@ insensitive to memory timing, which is now demonstrated rather than
 assumed. `cdriscv_lsu` line coverage 44 % → 56 %, `cdriscv_bus` reaches
 100 %.
 
+### Regression under back-pressure
+
+**300 of 300 random programs match, 2 828 026 instructions**, with
+grants held off on 35 % of cycles. Random programs against a random
+memory schedule, checked instruction by instruction against Spike.
+
+That combination is worth more than either half alone: the random
+programs vary what the core does, the stall injector varies when the
+memory answers, and the comparison holds the result fixed. Nothing in
+the core's behaviour may depend on memory timing, and now that has been
+run rather than argued.
+
 ### The injector was wrong first, in an instructive way
 
 The first version forced the TCM's **grant output** low. Every stall
