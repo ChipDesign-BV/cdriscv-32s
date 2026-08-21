@@ -64,14 +64,36 @@ where this behaviour is exercised, not the functional tests — and the
 campaign has so far recorded no hang across 3 000 injections, which is
 the evidence that the recovery works.
 
-**Re-argued against the netlist for one of the six (2026-08-21).**
+**Re-argued against the netlist for two of the six (2026-08-22).**
 `make gate-fsm` forces the synthesised multiplier into each of the four
-encodings its two state flops allow. The unused one, `11`, returns to
-idle, none produces X, and the netlist goes on to compute correctly
-afterwards. The recovery survives synthesis for that module. The other
-five — the AMS sequencer, the APB bridge, the LSU, the BIST and the
-core — have not been checked this way, so for those the waiver still
-rests on the RTL argument alone.
+encodings its two state flops allow; the unused one returns to idle,
+none produces X, and it computes correctly afterwards. `make
+gate-fsm-apb` does the same for the APB bridge over all sixteen
+encodings of its four-bit state, and then checks it still services a
+read. Both recoveries survive synthesis.
+
+The AMS sequencer, the LSU, the BIST and the core have not been checked
+this way, so for those the waiver still rests on the RTL argument
+alone.
+
+**How this has to be done, learned the hard way.** The check must run
+against a *standalone* netlist, not the flattened subsystem. Two
+reasons, both about what synthesis does to the state register:
+
+* yosys runs `FSM_DETECT` / `FSM_EXTRACT` / `FSM_OPT`, which pulls the
+  machine out and re-encodes it. The RTL name may or may not survive as
+  a driven net, and where it does the width can differ — the
+  multiplier's state is two bits synthesised standalone and three bits
+  inside the subsystem.
+* After flattening, what survives is an escaped identifier whose *name*
+  contains dots, declared at the RTL width with constant bits optimised
+  away. So a four-bit declaration can have three flops and one
+  permanently floating bit, and a bench that compares the whole vector
+  reads X where it should read a state.
+
+A bench built on those references spends its effort on naming artefacts
+rather than on the design. An attempt to cover all six machines at once
+from the subsystem netlist was abandoned for exactly that reason.
 
 ### W2b — mux arms over selectors with no spare encodings
 
