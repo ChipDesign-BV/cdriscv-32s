@@ -29,7 +29,16 @@
 // would pad the silent count with faults that never had a chance to do
 // anything.  Each workload passes the word range of its live code.
 //
-//   +HEX= +DHEX= +TARGET= +BIT= +CYCLE= +GOLDEN= +IBASE= +ISPAN=
+// +MAXCYCLE is the give-up point for a workload that never finishes.
+// It was 400 000, about ninety times the length of any of the
+// workloads, which cost nothing until a run actually hung: at roughly
+// three thousand cycles a second a hung run took two minutes of wall
+// clock on its own, and several at once under a parallel campaign blew
+// through the driver's subprocess timeout.  Ten times the workload
+// length is ample -- a core that has not finished by then is not going
+// to.
+//
+//   +HEX= +DHEX= +TARGET= +BIT= +CYCLE= +GOLDEN= +IBASE= +ISPAN= +MAXCYCLE=
 
 `default_nettype none
 `timescale 1ns/1ps
@@ -79,7 +88,7 @@ module tb_fi;
   end
 
   string       hexfile, dhexfile;
-  int unsigned target, bitpos, injcycle, cycle, ibase, ispan;
+  int unsigned target, bitpos, injcycle, cycle, ibase, ispan, maxcycle;
   logic [31:0] golden;
   bit          injected, arm;
   int unsigned idx, b32, b39;
@@ -94,6 +103,7 @@ module tb_fi;
     if (!$value$plusargs("BIT=%d", bitpos))      bitpos   = 0;
     if (!$value$plusargs("CYCLE=%d", injcycle))  injcycle = 500;
     if (!$value$plusargs("GOLDEN=%h", golden))   golden   = 32'b0;
+    if (!$value$plusargs("MAXCYCLE=%d", maxcycle)) maxcycle = 50000;
     if (!$value$plusargs("IBASE=%d", ibase))     ibase    = 40;
     if (!$value$plusargs("ISPAN=%d", ispan))     ispan    = 45;
     $readmemh(hexfile, dut.u_itcm.mem);
@@ -113,7 +123,7 @@ module tb_fi;
 
       if (!injected && (cycle == injcycle)) arm <= 1'b1;
 
-      if (exit_seen || (cycle > 400000)) begin
+      if (exit_seen || (cycle > maxcycle)) begin
         status_at_end = dut.u_safety.status_q;
         // `inj` says whether the deposit actually happened.  An
         // injection scheduled past the end of the workload never

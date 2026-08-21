@@ -12,6 +12,8 @@
 #   SDC             no fault, and the result was WRONG -- silent data
 #                   corruption, the number that matters most
 #   hang            the workload never finished
+#   sim-timeout     the simulator itself was killed for overrunning,
+#                   which is a bench problem rather than a result
 #   not-injected    the deposit never happened, because the injection
 #                   cycle fell past the end of the workload.  Counted
 #                   separately and excluded from the percentages: it is
@@ -70,8 +72,10 @@ def main():
                     help="how many words of live code to inject into")
     ap.add_argument("--name", default="A: arithmetic and memory",
                     help="workload name, printed with the results")
-    ap.add_argument("--jobs", type=int, default=min(12, (os.cpu_count() or 2)),
+    ap.add_argument("--jobs", type=int, default=(os.cpu_count() or 2),
                     help="simulations to run at once")
+    ap.add_argument("--max-sim-cycle", type=int, default=50000,
+                    help="give-up point for a workload that never finishes")
     args = ap.parse_args()
 
     rng = random.Random(args.seed)
@@ -91,18 +95,30 @@ def main():
               for _ in range(args.runs)]
 
     def run_one(f):
+        # A run that overruns is reported, not raised.  An uncaught
+        # TimeoutExpired here takes the whole campaign down and throws
+        # away every result that had already completed, which is how
+        # a 1000 run campaign once returned nothing at all.
         t, b, c = f
-        return subprocess.run(
-            ["vvp", args.vvp, "+HEX=" + args.hex, "+DHEX=" + args.dhex,
-             "+IBASE=%d" % args.ibase, "+ISPAN=%d" % args.ispan,
-             "+TARGET=%d" % t, "+BIT=%d" % b, "+CYCLE=%d" % c,
-             "+GOLDEN=" + args.golden],
-            capture_output=True, text=True, timeout=600)
+        try:
+            return subprocess.run(
+                ["vvp", args.vvp, "+HEX=" + args.hex, "+DHEX=" + args.dhex,
+                 "+IBASE=%d" % args.ibase, "+ISPAN=%d" % args.ispan,
+                 "+MAXCYCLE=%d" % args.max_sim_cycle,
+                 "+TARGET=%d" % t, "+BIT=%d" % b, "+CYCLE=%d" % c,
+                 "+GOLDEN=" + args.golden],
+                capture_output=True, text=True, timeout=600)
+        except subprocess.TimeoutExpired:
+            return None
 
     with concurrent.futures.ThreadPoolExecutor(args.jobs) as pool:
         outcomes = list(pool.map(run_one, faults))
 
     for (t, b, c), r in zip(faults, outcomes):
+        if r is None:
+            classes["sim-timeout"] += 1
+            by_target[t]["sim-timeout"] += 1
+            continue
         m = None
         for line in r.stdout.splitlines():
             m = RE.search(line) or m
@@ -144,7 +160,8 @@ def main():
         print("  WARNING: %d runs never injected -- the cycle range runs past\n"
               "  the end of the workload.  Excluded from the counts below."
               % classes["not-injected"])
-    for cls in ("detected", "silent-ok", "SDC", "hang", "x-propagation", "no-result"):
+    for cls in ("detected", "silent-ok", "SDC", "hang", "sim-timeout",
+                "x-propagation", "no-result"):
         if classes[cls]:
             print("  %-14s %4d  %5.1f %%" % (cls, classes[cls],
                                              100.0 * classes[cls] / total))
@@ -154,7 +171,8 @@ def main():
     for t in sorted(by_target):
         c = by_target[t]
         print("  %-34s %8d %9d %5d %5d"
-              % (TARGETS[t], c["detected"], c["silent-ok"], c["SDC"], c["hang"]))
+              % (TARGETS[t], c["detected"], c["silent-ok"], c["SDC"],
+                 c["hang"] + c["sim-timeout"]))
     if mechanisms:
         print("\nWhich mechanism reported (a fault may set several):")
         for name, n in mechanisms.most_common():
