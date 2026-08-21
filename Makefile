@@ -675,7 +675,15 @@ gate: gate-alu gate-multdiv gate-ecc gate-fsm gate-subsys
 # produce a result.
 RISCOF_SUITE := verif/riscof/riscv-arch-test/riscv-test-suite
 
-riscof: $(BUILD)/tb_cosim.vvp
+# A separate build with a larger instruction memory: the architectural
+# tests do not fit in the 4096 words the subsystem defaults to.
+RISCOF_ITCM ?= 16384
+
+$(BUILD)/tb_cosim_arch.vvp: $(RTL) verif/core/tb_cosim.sv | $(BUILD)
+	$(IVERILOG) -g2012 -Ptb_cosim.ItcmWords=$(RISCOF_ITCM) -o $@ -s tb_cosim \
+	  $(RTL) verif/core/tb_cosim.sv
+
+riscof: $(BUILD)/tb_cosim_arch.vvp
 	@test -d $(RISCOF_SUITE) || { \
 	  echo "riscv-arch-test not present: see verif/riscof/README.md"; \
 	  exit 1; }

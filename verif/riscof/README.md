@@ -56,16 +56,27 @@ output.
 
 ## What is not working yet
 
-**The reference model is the blocker, not the DUT.** Spike takes far
-longer per test here than it should — minutes rather than milliseconds
-— so a full run does not complete. One reference signature was produced
-and is complete (592 words for `add-01.S`), which says the flow is
-correct and the throughput is not.
+The reference model works: **128 signatures** generate in a few
+minutes. It needed `--instructions=500000`, because this Spike never
+acts on the HTIF `tohost` write and the test's halt loop otherwise
+spins for ever. Bounding it is safe — the signature is written before
+the halt loop, and `add-01.S` gives the same 592 words either way.
 
-Not yet investigated: whether this is a Spike build issue in this
-environment, an interaction with `+signature-granularity`, or the test
-environment's HTIF handling. Until it is, **no conformance claim can be
-made from this directory**, and the README status table says so.
+**The blocker is now the test suite, not either model.** The DUT
+executes the tests and traps at the first piece of alignment padding:
 
-The DUT side has never been exercised end to end for the same reason —
-RISCOF runs the reference first.
+```
+800002c8:  0001       nop     <-- c.nop, 16-bit
+```
+
+`env/arch_test.h` does `.option rvc` in three places, unconditionally,
+so that `.align` can pad with `c.nop`. The ELF attribute says
+`rv32i2p1` and the padding is compressed regardless. On a core with the
+C extension that is harmless; **this core is RV32IM_Zicsr_Zifencei and
+must trap on a 16-bit encoding** — correctly, and the padding is in the
+straight-line stream, not skipped.
+
+Patching `arch_test.h` would make the run pass and would also mean the
+result no longer came from the official suite, which is the whole point
+of running it. So it has not been patched. **No conformance claim can
+be made from this directory** and the README status table says so.

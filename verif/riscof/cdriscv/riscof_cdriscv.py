@@ -174,23 +174,28 @@ class cdriscv(pluginTemplate):
             # The signature bounds and the tohost address come from the
             # ELF symbol table rather than being assumed: `nm` is the
             # only thing that knows where the linker put them.
+            #
+            # Note $$( and $$1 throughout.  This string is written into
+            # a Makefile, so a single $ is a *make* variable reference:
+            # `$(riscv32-unknown-elf-nm ...)` expands to the empty
+            # string and --pad-to then swallows the next argument.
             sim = (
               'riscv{0}-unknown-elf-objcopy -O binary '
               '--only-section=.text.init --only-section=.tohost '
               '--only-section=.text --only-section=.data '
               '--only-section=.data.string --only-section=.bss '
-              '--gap-fill 0 --pad-to $(riscv{0}-unknown-elf-nm {1} '
+              '--gap-fill 0 --pad-to $$(riscv{0}-unknown-elf-nm {1} '
               '| awk \'/ end_signature$$/ {{print "0x"$$1}}\') '
               '{1} my.bin && '
-              'python3 {2}/scripts/mkimage.py my.bin my.hex --words 4096 '
+              'python3 {2}/scripts/mkimage.py my.bin my.hex --words 16384 '
               '>/dev/null && '
-              'vvp {2}/build/tb_cosim.vvp +HEX=my.hex +QUIET '
+              'vvp {2}/build/tb_cosim_arch.vvp +HEX=my.hex +QUIET '
               '+MAXRETIRE=2000000 +MAXCYCLES=8000000 '
-              '+TOHOST=$(riscv{0}-unknown-elf-nm {1} '
+              '+TOHOST=$$(riscv{0}-unknown-elf-nm {1} '
               '| awk \'/ tohost$$/ {{print $$1}}\') '
-              '+SIGBEGIN=$(riscv{0}-unknown-elf-nm {1} '
+              '+SIGBEGIN=$$(riscv{0}-unknown-elf-nm {1} '
               '| awk \'/ begin_signature$$/ {{print $$1}}\') '
-              '+SIGEND=$(riscv{0}-unknown-elf-nm {1} '
+              '+SIGEND=$$(riscv{0}-unknown-elf-nm {1} '
               '| awk \'/ end_signature$$/ {{print $$1}}\') '
               '+SIGFILE={3}'
             ).format(self.xlen, elf, self.root, sig_file)

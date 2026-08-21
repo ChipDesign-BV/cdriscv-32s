@@ -43,7 +43,15 @@
 `define CORE_PATH dut.g_lockstep.u_core.u_core_main
 
 module tb_cosim #(
-    parameter bit Lockstep = 1'b1
+    parameter bit Lockstep = 1'b1,
+    // The architectural tests need more instruction memory than the
+    // co-simulation programs do: add-01.S alone spans 5 780 words
+    // against the 4 096 the subsystem defaults to.  The overflow does
+    // not announce itself -- the image is truncated at load and the
+    // symptom is a bus error a hundred cycles in -- so the RISCOF build
+    // overrides this with -Ptb_cosim.ItcmWords and everything else
+    // keeps the default.
+    parameter int unsigned ItcmWords = 4096
 );
 
   localparam time ClkPeriod    = 10ns;
@@ -76,7 +84,7 @@ module tb_cosim #(
 
   cdriscv_subsys #(
       .Lockstep  (Lockstep),
-      .ItcmWords (4096),
+      .ItcmWords (ItcmWords),
       .DtcmWords (4096),
       .ItcmBase  (32'h8000_0000),
       .MbistAuto (1'b0)
@@ -135,6 +143,7 @@ module tb_cosim #(
   logic [31:0] sig_begin, sig_end, tohost_addr;
   bit          have_sig, have_tohost;
   integer      sig_fd;
+  bit          fault_seen;
   int unsigned sig_i;
   logic [3:0]  st_be;
   logic [1:0]  st_off;
@@ -275,10 +284,19 @@ module tb_cosim #(
         end
       end
 
-      if (fault_any) begin
+      // Stopping on any safety fault is right for co-simulation, where
+      // the reference model and the DUT are meant to agree instruction
+      // by instruction.  It is wrong for the architectural tests: they
+      // take traps deliberately, the core-trap bit is then set, and the
+      // run must continue to its own halt because **the signature is
+      // the pass criterion**, not the absence of a fault.  So the abort
+      // is disabled exactly when a signature is being collected, and
+      // the fault is reported rather than swallowed.
+      if (fault_any && !fault_seen) begin
+        fault_seen <= 1'b1;
         $display("[cosim] FAULT: safety status = %08x at cycle %0d",
                  dut.u_safety.status_q, cycle);
-        $finish;
+        if (!have_sig) $finish;
       end
 
       if (cycle >= maxcycles) begin
