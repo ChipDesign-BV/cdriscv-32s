@@ -5,6 +5,103 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V18 — static timing, and what it actually says (2026-08-21)
+
+`make sta` runs OpenSTA against the same SG13G2 library the netlist is
+mapped to. This closes the caveat that has been attached to every gate
+level claim so far — "this says nothing about timing" — by going and
+finding out.
+
+**Hold is met: worst slack +0.184 ns.**
+
+**Setup is not, and the number is not what it looks like.** Worst slack
+is −65.670 ns against a 10 ns period, total negative slack −272 µs. A
+frequency cannot be read off that, because of what the path is:
+
+```
+_56826_/Q  (dfrbpq)   36.737 ns   <-- reset flop driving 1708 reset pins
+_34990_/X  (and2)     33.424 ns   <-- and the gate after it
+_35638_/X  (a21o)      3.456 ns
+_47370_/Y  (nand2)     0.137 ns
+_47377_/Y  (a21oi)     0.096 ns
+_47438_/Y  (nor3)      0.059 ns
+_47439_/Y  (a22oi)     0.106 ns
+                      ------
+                      74.016 ns arrival
+```
+
+Two cells contribute 70.2 ns. **All of the actual logic contributes
+0.4 ns.** The design is not deep; the netlist has no buffer tree.
+
+### The reset distribution is the whole problem
+
+| net | flip-flop reset pins driven |
+|-----|----------------------------|
+| `core_rst_n` | 2 201 |
+| `g_lockstep.u_core.check_rst_n` | 1 708 |
+| `rst_n_sync` | 1 475 |
+| `ref_rst_ni` | 107 |
+
+Each is a single driver into one to two thousand loads, with no
+buffering anywhere. 11 727 fanout and slew checks are violated. The
+library's own maximum fanout is 8.
+
+**This is a place and route job, not an RTL one.** A reset tree is
+built the same way a clock tree is, and no RTL change removes the need
+for it. What this analysis is therefore good for is: hold is met, the
+logic depth is not the limit, and the fanout table above is the list of
+nets that need a tree. What it cannot give is an Fmax, and quoting
+−65 ns as "the design misses timing by 65 ns" would be wrong.
+
+`check_rst_n` is worth a second look for a different reason: it is not
+only an asynchronous reset but also a data signal, since the lockstep
+comparator uses it as its enable (`assign compare_en = check_rst_n;`).
+That is why it turns up in a register-to-register data path at all. The
+behaviour is correct; the implication is that its buffer tree has a
+timing requirement as well as a skew one.
+
+### boot_addr_i has to be tied for the design to map
+
+Synthesising the subsystem standalone leaves **64 flip-flops unmapped**
+— exactly two cores' worth of 32-bit program counter. `fetch_pc_q`
+resets to `boot_addr_i`, and `boot_addr_i` is a top level *port*, so
+the flop needs a reset that loads a data value. No standard cell does
+that: a library reset is to a constant.
+
+Tying `boot_addr_i` to a constant, which is what an SoC does, maps all
+5 497. So this is a synthesis-context artifact rather than a design
+defect — but it has two consequences that had to be recorded rather
+than smoothed over:
+
+* **The V17 netlist was not fully mapped.** Sixty-four of its flops
+  were behavioural Verilog that yosys emitted because it could not map
+  them. The gate level simulation was therefore not entirely gates. The
+  claim in V17 is corrected accordingly; the cycle-identical result
+  stands, since behavioural flops simulate correctly, but "the whole
+  subsystem in cells" was an overstatement.
+* **The integration guide now says it.** `boot_addr_i` must be tied to
+  a constant at the SoC level. Driving it from a register would leave
+  the core's program counter unmappable.
+
+### Two tool limits, recorded because they cost time
+
+OpenSTA's structural Verilog reader rejects two things yosys emits by
+default: the flattened hierarchical debug wires, declared `reg`
+(`opt_clean -purge` removes them), and parameter overrides on a black
+box instance — `cdriscv_tcm #(.Depth(32'd4096), .InitFile(""))` — which
+`scripts/sta_netlist_fixup.py` strips, since neither parameter carries
+timing.
+
+The STA netlist is therefore built separately from the simulation one.
+That is a real divergence and worth being explicit about: the two
+differ in the `boot_addr_i` tie and in cosmetic net naming, nothing
+else, and both come from the same synthesis script.
+
+### Next
+
+Buffer insertion, which means OpenROAD's `repair_design` or a full
+place and route. Only after that is an Fmax number meaningful.
+
 ## Phase V17 — the whole subsystem at gate level (2026-08-21)
 
 The subsystem now goes through the gate flow, not just three blocks,
@@ -24,7 +121,15 @@ paths — not the lockstep delay, not the fetch buffer, not the trap
 sequencing.
 
 Synthesised size, memories excluded: **5 433 flip-flops, 529 175 µm²**
-in SG13G2, about 0.53 mm². That is the dual-core lockstep, the safety
+in SG13G2, about 0.53 mm².
+
+> **Corrected in V18.** Sixty-four further flops — two cores' worth of
+> program counter — did not map to library cells and were left as
+> behavioural Verilog, because `fetch_pc_q` resets to the `boot_addr_i`
+> *port* and no standard cell resets to a data value. So this netlist
+> is 5 433 mapped cells plus 64 behavioural flops, not 5 497 cells.
+> The cycle-identical result below stands; "the whole subsystem in
+> cells" was an overstatement. See V18. That is the dual-core lockstep, the safety
 controller, the watchdog, the clock monitor, the AMS interface, the
 BIST controllers, the interrupt controller and the bus.
 
