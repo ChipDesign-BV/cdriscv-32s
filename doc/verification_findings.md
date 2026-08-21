@@ -46,6 +46,29 @@ seventeen 33-cycle multiplies and divides plus loads.
 entry and its pointers, doubled by the lockstep pair. No latches, no
 combinational loops.
 
+### Evidence after the change
+
+| check | result |
+|-------|--------|
+| random regression, 30 % memory back-pressure | **400/400 programs, 5 629 928 instructions** match Spike |
+| formal, all three benches | pass, including `p_pc_stream` on the rewritten stage |
+| seven software tests | pass |
+| block benches, directed and stalled co-simulation | pass |
+| synthesis | no latches, no combinational loops |
+| line coverage | 79.9 % → **80.3 %** |
+
+`p_pc_stream` passing on the new stage is the strongest single piece of
+evidence: it says the fetch stage still delivers exactly the sequential
+stream that began at the last redirect, and it is checked against a
+reference model over every interleaving to depth 20.
+
+The withdrawn waiver closed itself by measurement rather than argument.
+`cdriscv_if_stage` now reports **27 line points covered and 0
+uncovered**, and the branch W1 used to excuse — a redirect coinciding
+with a fetch response — executes **57 217 times** in the coverage
+stimulus. It went from unreachable to one of the busiest lines in the
+block, which is exactly what the waiver predicted would happen.
+
 ### What the change broke, and what that says
 
 Three things failed as a direct result, and each was informative.
