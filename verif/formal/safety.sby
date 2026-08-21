@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 ChipDesign B.V.
+# SPDX-License-Identifier: Apache-2.0
+[tasks]
+bmc
+[options]
+mode bmc
+depth 15
+[engines]
+smtbmc yices
+[script]
+plugin -i slang
+read_slang --top safety_fv --allow-use-before-declare cdriscv_pkg.sv cdriscv_sync.sv cdriscv_safety_ctrl.sv safety_fv.sv
+prep -top safety_fv
+[files]
+rtl/core/cdriscv_pkg.sv
+rtl/common/cdriscv_sync.sv
+rtl/safety/cdriscv_safety_ctrl.sv
+verif/formal/safety_fv.sv

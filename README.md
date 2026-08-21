@@ -141,7 +141,8 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Formal: SEC-DED code (`make formal-ecc`) | **pass** | **proof** over all 2^32 data values and all error positions, mutation tested |
 | Formal: interconnect (`make formal-bus`) | **pass** | 5 routing, arbitration and no-lost-response properties, mutation tested |
 | Formal: decoder (`make formal-dec`) | **pass** | **proof** over all 2^32 encodings that a rejected instruction has no architectural effect |
-| Formal: other blocks | **not run** | LSU, safety controller — plan section 6 |
+| Formal: LSU (`make formal-lsu`) | **pass** | one access in flight, aligned addresses, byte enables vs a reference, completion only on a response |
+| Formal: safety controller (`make formal-safety`) | **pass** | faults are sticky, the lock holds, the reset request cannot sustain itself (guards V7-F1) |
 | CI workflow | written, **never run, not installed** | [ci/github-workflow-verify.yml](ci/github-workflow-verify.yml); needs a token with GitHub's `workflow` scope to install, then a first run |
 | Line coverage (`make coverage`) | **82.5 %** | objective O6 wants 100 % with reviewed waivers; gap list in [verification_findings.md](doc/verification_findings.md). Earlier entries in this table reported a mixed line+toggle figure by mistake — see V7-M1 |
 | Toggle coverage | 91.4 % | reported separately, as it should have been from the start |
