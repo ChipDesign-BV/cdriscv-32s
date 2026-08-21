@@ -5,6 +5,74 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V12 — FENCE, FENCE.I and the writable CSRs (2026-08-21)
+
+Coverage again, and again an uncomfortable gap: the core calls itself
+RV32IM_Zicsr_Zifencei in its own header and **no test had ever executed
+a FENCE or a FENCE.I**. Nor had anything written `mcause`, `mtval` or
+`msafestat`, all of which are writable. `verif/core/fence_csr_test.S`
+covers both, plus a MISCMEM encoding that is neither FENCE nor FENCE.I
+and must trap.
+
+Line coverage 84.8 → 87.1 %, `cdriscv_csr.sv` to 100 %, the decoder
+79.2 → 86.4 %.
+
+### V12-O1 — FENCE.I cannot be shown to matter on this core
+
+The obvious test is self-modifying code, and the address map allows it:
+the I-TCM is "instruction fetch and data", so a store can patch an
+instruction. Patch a routine, `fence.i`, call it, check it returns the
+new value. It passes.
+
+It also passes with the `fence.i` replaced by a `nop`, which means the
+check never depended on it. The routine was far enough away never to
+have entered the fetch buffer.
+
+Moving the patched word closer was the obvious repair and it was also
+wrong. Probing directly, with the patched word as the immediate
+successor of the store:
+
+| between store and target | result |
+|--------------------------|--------|
+| nothing | stale buffered word runs |
+| `fence.i` | patched word runs |
+| **`nop`** | **patched word runs** |
+| two `nop`s | patched word runs |
+
+The no-op control is the whole story. The window in which a stale
+instruction survives is exactly one instruction wide, and inserting the
+FENCE.I closes that window by occupying the slot — whatever the FENCE.I
+itself does. A test built on this would have been reported as proof
+that FENCE.I flushes the fetch buffer, and it would have proved
+nothing.
+
+So the honest position: **FENCE.I is not observable through
+self-modifying code on this core.** There is no instruction cache, only
+a short fetch buffer. The instruction is still doing real work — under
+bus back-pressure the fetch runs further ahead of execution, and then
+the redirect is what saves the program — but that is an argument from
+reading the RTL, not something a software test on this design
+demonstrates. The test says so in the source, at length, where the
+missing check would otherwise be.
+
+What the test does establish: FENCE and FENCE.I decode rather than
+trapping, retire, redirect without corrupting the register file, and
+the I-TCM data write path works.
+
+### The CSR checks
+
+`mcause` written with all ones must read back `0x8000001f` — only the
+interrupt flag and the low five code bits exist, and asserting the mask
+rather than the value catches a register that is wider than the
+specification allows. `mtval` round-trips a full word. `msafestat` is
+write-one-to-clear over whatever the safety logic has posted, so the
+check is that clearing never *sets* a bit that was not there, which
+stays honest whether or not an event happens to be live.
+
+Each assertion was mutation-checked: removing the store fails at check
+5, removing `csrw mtval` fails at check 8. Removing the `fence.i`
+changes nothing, as documented above.
+
 ## Phase V11 — the clock monitor (2026-08-21)
 
 Coverage put this module on the list rather than any suspicion about
