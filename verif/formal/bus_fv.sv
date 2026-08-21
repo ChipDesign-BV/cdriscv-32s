@@ -17,10 +17,7 @@
 //   p_one_outstanding_* a master never has two requests in flight
 //   p_data_wins_itcm  the data master wins I-TCM arbitration, so the
 //                     fetcher can never starve it
-//
-// One property is written but disabled: "a granted request is always
-// answered".  It fails, and whether that is the property or the design
-// is an open question -- see the comment at the end of this file.
+//   p_no_lost_*       a granted request is always answered, never dropped
 
 `default_nettype none
 
@@ -185,25 +182,18 @@ module bus_fv (
       p_no_double_itcm: assert (!(instr_gnt && data_gnt) ||
                                 !(i_hits_itcm && d_hits_itcm));
 
-      // OPEN: "a granted request is always answered".  Written as
+      // A granted request is always answered: no response is lost.
       //
-      //   assert (!$past(instr_req_i && instr_gnt) || instr_rvalid);
-      //
-      // it fails at step 4 on a sequence where the instruction master
-      // is granted the I-TCM and both masters then contend for it in
-      // the next cycle.  I have not yet established whether that is the
-      // property being too strong -- the response may legitimately be
-      // delivered a cycle later than the naive one-cycle model assumes
-      // -- or a genuinely dropped response.
-      //
-      // It is left here, disabled, rather than deleted: a property that
-      // failed and was quietly removed is worse than no property.  The
-      // liveness question it asks is not covered by the safety
-      // properties above, which only say that responses that *do*
-      // arrive go to the right master.
-      //
-      // p_no_lost_instr: assert (!$past(instr_req_i && instr_gnt) || instr_rvalid);
-      // p_no_lost_data:  assert (!$past(data_req_i  && data_gnt)  || data_rvalid);
+      // The guard matters.  An earlier version checked only rst_ni, so
+      // at the first cycle out of reset $past() reached back into the
+      // reset window, where the bus's registers were held clear while
+      // the free inputs were not -- and the property fired on a "grant"
+      // that never happened.  That produced a counterexample about the
+      // harness, not the design, and it took a second look to see it.
+      if ($past(rst_ni)) begin
+        p_no_lost_instr: assert (!$past(instr_req_i && instr_gnt) || instr_rvalid);
+        p_no_lost_data:  assert (!$past(data_req_i  && data_gnt)  || data_rvalid);
+      end
     end
   end
 
