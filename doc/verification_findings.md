@@ -5,6 +5,64 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V22 — V0-F1 closed, and the fix withdrew a waiver (2026-08-21)
+
+The last open finding is closed. **`FAILDATH` at `+0x10` returns the
+seven ECC check bits of the failing code word**, so a failure in the
+check-bit half of the array — the part only the raw test port can reach
+— can now be diagnosed. Before this, `FAILDAT` returned bits [31:0] and
+the check bits were invisible.
+
+### Why it sat open, and why the proposed fix would not have worked
+
+V0-F1 proposed exactly this register and queued it for "phase V4 when
+the BIST bench is written". Had it been implemented as proposed it
+would have been broken on arrival: each BIST controller decoded sixteen
+bytes — `psel_hit_o = psel_i && (paddr_i[7:4] == RegBase[7:4])` — so
+`+0x10` was **outside the range the controller answers to**, and the
+new register would have returned a bus error rather than the check
+bits.
+
+The claim is now thirty-two bytes, `paddr_i[7:5]`. The two controllers
+stay where they were, the I-TCM one owning `0x00..0x1f` and the D-TCM
+one `0x40..0x5f`, and they still do not overlap.
+
+Worth noting for its own sake: a proposed fix written eighteen phases
+earlier, against a decode nobody had re-read since, did not survive
+contact with the decode.
+
+### The fix withdrew waiver W2c
+
+W2c waived `cdriscv_mbist.sv:253` — the read decode's `default` — on
+the grounds that a word access could only ever produce `0x0`, `0x4`,
+`0x8` or `0xc`, all of which had arms. Widening the claim to
+thirty-two bytes makes `0x14`, `0x18` and `0x1c` reachable, so the
+justification is simply false now. The line is covered by a test rather
+than waived.
+
+W2's own "what would invalidate this waiver" section listed the decode
+changing. It was right to, and **one new register was enough to do
+it** — which is the argument for writing that section at all.
+
+Fourteen lines remain waived, down from fifteen. Line coverage 96.0 →
+**96.3 %**, still 100 % with waivers, functional coverage still 100 %.
+
+### Tests
+
+`rdback_test.S` reads `FAILDATH` after a clean BIST, which exercises
+the new decode and the new read arm, and reads `+0x14` to cover the
+default that W2c used to waive. `tb_safety` checks that the **whole**
+39-bit code word is captured on a failure — `fail_data_q ===
+39'h55_5555_5555` against the forced read data — because check bits
+sliced out of a truncated capture would be meaningless.
+
+One honest limit: no test reads `FAILDATH` through the bus *after a
+real failure*. Software cannot make a BIST fail, and the bench that can
+force one has no APB master. The two halves are covered separately —
+the register decodes and returns its slice, and the capture holds all
+39 bits — which is weaker than one end-to-end check and is said here
+rather than left to be assumed.
+
 ## Phase V21 — the reference model traps too, and V20 needs correcting (2026-08-21)
 
 One command settled the RISCOF question, and it invalidates something I
@@ -2637,7 +2695,7 @@ Two things this says about the bench rather than the design:
 * An architectural test suite would have caught this on the first run.
   It is the argument for pulling phase V2 forward.
 
-### V0-F1 — MBIST cannot read back the check bits of a failing word (open)
+### V0-F1 — MBIST cannot read back the check bits of a failing word (FIXED in V22)
 
 **Severity: low.** `cdriscv_mbist.sv` latches the full 39-bit failing
 code word in `fail_data_q` but `FAILDAT` only returns bits [31:0], so
@@ -2649,6 +2707,11 @@ Proposed fix: add `FAILDAT_HI` at `+0x10` returning
 `{25'b0, fail_data_q[38:32]}`, and update `register_map.md`. Not done
 yet because it changes the register map; queued for phase V4 when the
 BIST bench is written.
+
+> **Fixed in V22**, and the proposed fix above was wrong: `+0x10` lay
+> outside the sixteen bytes each controller decoded, so the register
+> would have answered with a bus error. The claim had to widen to
+> thirty-two bytes first. Closing it also withdrew coverage waiver W2c.
 
 ### V0-F3 — `-march=rv32im` no longer implies Zicsr (flow, FIXED)
 

@@ -22,7 +22,11 @@
 //   +0x00  CTRL    RW  [0] start (self clearing) [1] abort
 //   +0x04  STATUS  RO  [0] busy [1] done [2] fail [6:4] march element
 //   +0x08  FAILADR RO  first failing address
-//   +0x0c  FAILDAT RO  data read at the first failing address
+//   +0x0c  FAILDAT RO  data read at the first failing address, bits 31:0
+//   +0x10  FAILDATH RO the same word's seven ECC check bits, [38:32]
+//
+// Each controller decodes 32 bytes, so the two of them sit at +0x00
+// and +0x40 without overlapping.
 //
 // STATUS: NOT VERIFIED YET -- DO NOT USE YET.
 
@@ -198,13 +202,21 @@ module cdriscv_mbist #(
   // ------------------------------------------------------------------
   // APB
   // ------------------------------------------------------------------
+  // Each controller claims 32 bytes, not 16.  It used to claim 16, and
+  // that is why finding V0-F1 sat open: the fix it proposed put
+  // FAILDAT_HI at +0x10, which was outside the range the controller
+  // decoded, so the register would have answered with a bus error.
+  // Widening the claim by one address bit leaves the two controllers
+  // where they were -- the I-TCM one at +0x00 now owns 0x00..0x1f and
+  // the D-TCM one at +0x40 owns 0x40..0x5f -- and they still do not
+  // overlap.
   logic wr, rd;
-  assign psel_hit_o = psel_i && (paddr_i[7:4] == RegBase[7:4]);
+  assign psel_hit_o = psel_i && (paddr_i[7:5] == RegBase[7:5]);
   assign wr = psel_hit_o && penable_i &&  pwrite_i;
   assign rd = psel_hit_o && !pwrite_i;
 
-  logic [3:0] reg_ofs;
-  assign reg_ofs = paddr_i[3:0];
+  logic [4:0] reg_ofs;
+  assign reg_ofs = paddr_i[4:0];
 
   logic auto_start_q;
 
@@ -218,7 +230,7 @@ module cdriscv_mbist #(
       abort_q      <= 1'b0;
       auto_start_q <= 1'b0;
       if (auto_start_q) start_q <= 1'b1;
-      if (wr && (reg_ofs == 4'h0)) begin
+      if (wr && (reg_ofs == 5'h00)) begin
         start_q <= pwdata_i[0];
         abort_q <= pwdata_i[1];
       end
@@ -229,10 +241,14 @@ module cdriscv_mbist #(
     prdata_o = 32'b0;
     if (rd) begin
       unique case (reg_ofs)
-        4'h0:    prdata_o = 32'b0;
-        4'h4:    prdata_o = {25'b0, elem_q, 1'b0, fail_q, done_o, busy_o};
-        4'h8:    prdata_o = {{(32-AW){1'b0}}, fail_addr_q};
-        4'hc:    prdata_o = fail_data_q[31:0];
+        5'h00:   prdata_o = 32'b0;
+        5'h04:   prdata_o = {25'b0, elem_q, 1'b0, fail_q, done_o, busy_o};
+        5'h08:   prdata_o = {{(32-AW){1'b0}}, fail_addr_q};
+        5'h0c:   prdata_o = fail_data_q[31:0];
+        // The seven check bits of the failing code word.  Without them
+        // a failure in the check-bit half of the array -- the part only
+        // the raw test port can reach -- could not be diagnosed at all.
+        5'h10:   prdata_o = {25'b0, fail_data_q[38:32]};
         default: prdata_o = 32'b0;
       endcase
     end

@@ -10,12 +10,11 @@ current list of those is in `verification_findings.md`.
 
 ## W2 — defensive `default` arms over fully enumerated selectors (2026-08-21)
 
-Fifteen uncovered lines remain and every one of them is a `default:`
+Fourteen uncovered lines remain and every one of them is a `default:`
 arm whose selector is already fully enumerated by the arms above it.
-They fall into three groups, and the reason each is unreachable is
-different enough to be worth stating separately.
+They fall into two groups — a third, W2c, has since been withdrawn.
 
-Line coverage with this waiver applied is 100 %; without it, 96.0 %.
+Line coverage with this waiver applied is 100 %; without it, 96.3 %.
 
 ### A correction: this waiver was wrong when first written
 
@@ -93,41 +92,29 @@ every member has an arm.
 These are cheap to keep and give a defined output for an undefined
 selector, which is the same argument as W2a in combinational form.
 
-### W2c — APB decode arms the bridge makes unreachable
+### W2c — WITHDRAWN (2026-08-21)
 
-| file | line |
-|------|------|
-| `cdriscv_mbist.sv` | 237 |
+This waived `cdriscv_mbist.sv:253`, the read decode's `default`, on the
+grounds that a word access could only ever produce offsets `0x0`,
+`0x4`, `0x8` or `0xc` — each controller claimed sixteen bytes and every
+one of those had an arm.
 
-This one is worth spelling out because it *looks* reachable and is not.
-The BIST decodes `reg_ofs = paddr_i[3:0]` with arms for `0`, `4`, `8`
-and `c`. An offset of, say, `0x41` would select the default — but no
-such address ever arrives, because the APB bridge drives
+**Closing finding V0-F1 invalidated it.** Adding `FAILDATH` at `+0x10`
+required widening each controller's claim from sixteen bytes to
+thirty-two, which makes `0x14`, `0x18` and `0x1c` reachable. The line
+is now covered by a test in `rdback_test.S` rather than waived.
 
-```systemverilog
-assign paddr_o = {addr_q[11:2], 2'b00};
-```
-
-The low two address bits are forced to zero for every peripheral
-access, byte and halfword accesses included, so `reg_ofs` can only ever
-be `0`, `4`, `8` or `c`. A byte read at `0x41` reaches the BIST as a
-read of `0x40`.
-
-This was checked rather than assumed: `rdback_test.S` issues exactly
-that byte read, and the line stayed uncovered.
-
-The equivalent `default: prdata_o = 32'b0;` in every *other* peripheral
-is **not** waived and is covered, because those decode the full
-`paddr_i[7:0]` and an unmapped word offset selects them normally.
+The waiver's own "what would invalidate this" section anticipated the
+decode changing. It was right to, and it took one register to do it.
 
 ### What would invalidate this waiver
 
 * A decoder gaining an opcode or `funct3` arm, which can turn a
   "fully enumerated" claim false. That is how two lines were waived
   wrongly the first time.
-* A peripheral that decodes `paddr_i[1:0]`, or an APB bridge that stops
-  forcing them to zero — W2c would become reachable and must then be
-  tested rather than waived.
+* A peripheral widening its address decode, which is what withdrew
+  W2c: one new register at `+0x10` turned three previously impossible
+  offsets into reachable ones.
 * Any state enum gaining a value without an arm, which would turn a
   W2a default from unreachable into a live path.
 * Gate level simulation, where synthesis may encode states differently
