@@ -55,6 +55,62 @@ Which mechanism reported: lockstep 76, I-TCM ECC corrected 22, register
 file parity 18, D-TCM ECC corrected 14, bus error 13, core trap 7. A
 single fault often sets several.
 
+### Workload B: the same faults, with the trap path alive
+
+The two worst rows above were not design results, so the next step was
+to write a workload that makes those bits live and inject into it
+again. `fi_workload_trap.S` takes an `ecall` every iteration, at a
+fixed program counter, and runs the machine timer with its interrupt
+enabled. The handler folds `mepc` into the checksum and returns
+through it, and counts interrupts into the checksum too, so losing
+either changes the answer.
+
+Whether the workload really does what it claims is checked against an
+independent Python model of the checksum, which recovers the number of
+traps and interrupts from the result: **64 traps and 14 timer
+interrupts**. The same model reproduces workload A's golden value
+exactly when told to take neither, which is a pleasant cross-check on
+both.
+
+300 further upsets, same fault list, same seed:
+
+| state element | workload A | workload B |
+|---------------|-----------|-----------|
+| `mstatus.MIE` | 0 / 37 | **35 / 38** |
+| `mepc` | 0 / 41 | **12 / 34** |
+| fetch program counter | 28 / 28 | 38 / 38 |
+| I-TCM word | 22 / 28 | 28 / 28 |
+| fetch buffer word | 24 / 29 | 20 / 30 |
+| core register file word | 13 / 30 | 18 / 40 |
+| D-TCM word | 14 / 34 | 11 / 26 |
+| register file parity bit | 9 / 38 | 10 / 34 |
+| LSU address offset | 2 / 35 | 1 / 32 |
+| **total** | 112 / 300, 37.3 % | **173 / 300, 57.7 %** |
+
+Mechanisms on workload B: lockstep 134, I-TCM ECC corrected 28, bus
+error 27, register file parity 20, D-TCM ECC corrected 11, core trap 8.
+
+**Still zero silent data corruption and zero hangs**, now over 600
+injections across two workloads.
+
+`mstatus.MIE` going from 0 to 35 out of 38 settles it: the bit was
+never a hole in the safety concept, it was dead state. It is caught
+because losing the bit changes whether an interrupt is taken, which
+changes the program counter, which is compared. `mepc` improves to
+12 of 34 rather than to near-total, and that is the honest number: an
+upset in `mepc` only matters between trap entry and the `mret` that
+consumes it, perhaps a dozen cycles per trap, and outside that window
+the next trap overwrites it. Narrow exposure, not weak detection.
+
+Two rows did not move and are the ones to look at next. The register
+file sits at 45 % on workload B against 43 % on workload A — the same
+answer twice, from a workload that stresses it quite differently,
+which is V4-F3 yet again. The LSU address offset is 1 of 32, and for
+the same reason as `mepc`: those two bits are only live during an
+access. Unlike `mepc`, nothing overwrites them in between, so this one
+deserves a workload that keeps the LSU busy before it can be called
+narrow exposure rather than a gap.
+
 ### What these numbers do and do not say
 
 **They are not a diagnostic coverage figure**, and should not be quoted
@@ -64,13 +120,19 @@ as one. Three reasons, all of which have to travel with the numbers:
   are not evidence that those faults are tolerated. They are evidence
   that **this workload never activates them** — it takes no traps and
   enables no interrupts, so those bits are dead state for the whole
-  run. A workload that used them would give completely different
-  numbers. Measuring activation, not just outcome, is the missing
-  piece.
+  run. Workload B, below, confirms it: the same faults on a workload
+  that uses the trap path are detected 35 times out of 38. Measuring
+  activation, not just outcome, is the missing piece, and it is a
+  property of the workload set rather than of the design.
 * The fault list is nine named elements, not the ~5 000 flops the
   design synthesises to.
-* 300 runs on one short workload is a pilot, not a campaign. The plan
-  asks for 10^4 injections across three workloads.
+* 600 runs across two short workloads is a pilot, not a campaign. The
+  plan asks for 10^4 injections across three. The campaign driver now
+  runs simulations concurrently, which is what makes that number
+  reachable; the fault list is drawn from the seeded generator before
+  any of them start, so the results do not depend on `--jobs`. Workload
+  A was re-run through the concurrent driver and reproduced the serial
+  numbers exactly, target by target.
 
 **The register file row is the one to act on.** 13 of 30 detected,
 against 28 of 28 for the fetch PC. That is finding V4-F3 measured

@@ -23,7 +23,13 @@
 // reads as X in simulation.  That is finding V4-F2 again, met from the
 // other side.
 //
-//   +HEX= +DHEX= +TARGET= +BIT= +CYCLE= +GOLDEN=
+// The I-TCM injection window is a plusarg because it is workload
+// specific.  A fault dropped into an instruction that has already run
+// -- register initialisation, say -- is invisible by construction and
+// would pad the silent count with faults that never had a chance to do
+// anything.  Each workload passes the word range of its live code.
+//
+//   +HEX= +DHEX= +TARGET= +BIT= +CYCLE= +GOLDEN= +IBASE= +ISPAN=
 
 `default_nettype none
 `timescale 1ns/1ps
@@ -73,7 +79,7 @@ module tb_fi;
   end
 
   string       hexfile, dhexfile;
-  int unsigned target, bitpos, injcycle, cycle;
+  int unsigned target, bitpos, injcycle, cycle, ibase, ispan;
   logic [31:0] golden;
   bit          injected, arm;
   int unsigned idx, b32, b39;
@@ -88,6 +94,8 @@ module tb_fi;
     if (!$value$plusargs("BIT=%d", bitpos))      bitpos   = 0;
     if (!$value$plusargs("CYCLE=%d", injcycle))  injcycle = 500;
     if (!$value$plusargs("GOLDEN=%h", golden))   golden   = 32'b0;
+    if (!$value$plusargs("IBASE=%d", ibase))     ibase    = 40;
+    if (!$value$plusargs("ISPAN=%d", ispan))     ispan    = 45;
     $readmemh(hexfile, dut.u_itcm.mem);
     if ($value$plusargs("DHEX=%s", dhexfile)) $readmemh(dhexfile, dut.u_dtcm.mem);
     @(posedge rst_n);
@@ -121,10 +129,22 @@ module tb_fi;
   // corruption was simply overwritten, so every run looked clean.  A
   // fault injector that silently does nothing is the worst possible
   // outcome, because the campaign then reports perfect coverage.
+  // +TRACE prints the value either side of the deposit.  Without it
+  // there is no way to tell a fault that was tolerated from a fault
+  // that never landed, and those two look identical in the results.
+  bit trace_on;
+  initial trace_on = $test$plusargs("TRACE");
+
   always @(negedge clk) begin
     if (rst_n && arm && !injected) begin
       injected = 1'b1;
       arm      = 1'b0;
+      if (trace_on && (target % 9) == 3)
+        $display("TRACE mepc before=%08x", dut.g_lockstep.u_core.u_core_main.u_csr.mepc_q);
+      if (trace_on && (target % 9) == 4)
+        $display("TRACE mie before=%0d mpie=%0d",
+                 dut.g_lockstep.u_core.u_core_main.u_csr.mstatus_mie_q,
+                 dut.g_lockstep.u_core.u_core_main.u_csr.mstatus_mpie_q);
         // Deposits are written as a whole-word XOR with a computed
         // mask rather than a variable bit-select on the left hand
         // side, which not every simulator accepts as an lvalue.
@@ -148,15 +168,21 @@ module tb_fi;
           // actually touches, or they are guaranteed to be invisible
           // and would flatter the "undetected" count.  The I-TCM range
           // covers the loop body; the D-TCM range covers the scratch
-          // area the workload reads and writes at 0x10000800.
-          6: dut.u_itcm.mem[40 + ((bitpos * 7) % 45)] =
-             dut.u_itcm.mem[40 + ((bitpos * 7) % 45)] ^ (39'b1 << b39);
+          // area the workload reads and writes at 0x10000800.  The
+          // I-TCM window comes in as +IBASE/+ISPAN, see the header.
+          6: dut.u_itcm.mem[ibase + ((bitpos * 7) % ispan)] =
+             dut.u_itcm.mem[ibase + ((bitpos * 7) % ispan)] ^ (39'b1 << b39);
           7: dut.u_dtcm.mem[512 + (bitpos % 4)] =
              dut.u_dtcm.mem[512 + (bitpos % 4)] ^ (39'b1 << b39);
           8: dut.g_lockstep.u_core.u_core_main.u_regfile.par_q =
              dut.g_lockstep.u_core.u_core_main.u_regfile.par_q ^ (31'b1 << idx);
           default: ;
         endcase
+      if (trace_on && (target % 9) == 3)
+        $display("TRACE mepc after =%08x", dut.g_lockstep.u_core.u_core_main.u_csr.mepc_q);
+      if (trace_on && (target % 9) == 4)
+        $display("TRACE mie after =%0d",
+                 dut.g_lockstep.u_core.u_core_main.u_csr.mstatus_mie_q);
     end
   end
 
