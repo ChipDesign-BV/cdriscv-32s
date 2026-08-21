@@ -5,6 +5,104 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V16 — gate level simulation, objective O8 started (2026-08-21)
+
+The RTL is now synthesised to real IHP SG13G2 standard cells and the
+**same block benches re-run against the netlist**. Passing on the RTL
+and passing on the gates are different claims: synthesis restructures
+logic, re-encodes state, and deletes anything it can prove unreachable.
+
+| block | cells | area | result |
+|-------|-------|------|--------|
+| `cdriscv_alu` | combinational | 8 543 µm² | 453 840 vectors pass |
+| `cdriscv_multdiv` | 174 flops | 25 040 µm² | 4 800 vectors, constant 33-cycle latency |
+| `cdriscv_ecc_enc` | combinational | 1 132 µm² | with the decoder below |
+| `cdriscv_ecc_dec` | combinational | 2 306 µm² | 209 308 checks, all 39 single bit and all 741 double bit errors |
+
+**This is a functional gate level simulation and not a timing one.**
+Every delay in the SG13G2 Verilog models is `(0.0,0.0)` — they are
+placeholders for back-annotation. What this checks is that the netlist
+computes what the RTL computed and that nothing goes X. Timing needs
+static timing analysis against the same library and is not done.
+
+### The specify-strip that silently produced an all-X netlist
+
+Icarus rejects the cell models as shipped — "ifnone with an
+edge-sensitive path is not supported" — so the `specify` blocks have to
+go. Deleting them is not enough, and getting it wrong is silent in the
+worst way.
+
+The sequential models read their data, clock and reset from
+`delayed_D`, `delayed_CLK` and `delayed_RESET_B`, and **those nets are
+driven by the timing checks inside the specify block**. Remove the
+block and nothing drives them: every flip-flop clocks X for ever. The
+first attempt did exactly that, and all 4 800 multiplier vectors
+returned `xxxxxxxx`.
+
+`scripts/strip_specify.py` now ties each `delayed_X` to `X` as it
+removes the block, which is the standard zero-delay transformation. The
+ALU passed either way, being combinational — a design with no
+sequential logic would have hidden this completely.
+
+### Synthesis independently confirmed invariant V0-A1
+
+With the netlist computing correctly, the multiplier bench still
+reported 168 000 invariant violations. The invariant is V0-A1: the top
+bit of the accumulator never carries information.
+
+The netlist contains
+
+```verilog
+assign acc_q[32] = 1'hx;
+```
+
+with flops for the other thirty-two bits. **yosys reached the same
+conclusion the invariant asserts** — bit 32 carries nothing — and
+removed it, so the bench's white box probe was reading a don't-care.
+
+A hand-written invariant and an optimiser arriving at the same
+conclusion by different routes is about as good as confirmation gets.
+The check is now guarded by `+NOWHITEBOX`; the RTL run still makes it,
+the gate run states plainly that it did not.
+
+The general point: **a white box assertion is an assertion about the
+RTL, not about the design.** Any bench reused at gate level has to
+separate the two, and say which it checked.
+
+### W2a re-argued against the netlist, and it holds
+
+Waiver W2a keeps the state machines' `default:` arms on the grounds
+that they are unreachable in simulation but are what returns the
+machine to a defined state after an upset. The waiver itself says that
+argument has to be re-made against the netlist, because synthesis may
+notice the state is unreachable and optimise the recovery away.
+
+`verif/gate/tb_gate_fsm.sv` is that check, on real cells. The
+multiplier's three states are encoded in two flip-flops, so exactly one
+encoding is unused. Forced into each in turn:
+
+| encoding | next state |
+|----------|-----------|
+| `00` (idle) | `00` |
+| `01` (compute) | `01` |
+| `10` (finish) | `00` |
+| **`11` (unused)** | **`00`** |
+
+None produced X, the unused encoding returns to idle, and after being
+forced through the illegal state the netlist still computes 7 × 6 = 42.
+**The recovery survives synthesis**, so W2a stands at gate level for
+this module.
+
+### What is not done
+
+Three blocks, not the subsystem. The full subsystem cannot go through
+this flow as it stands: the TCMs are 4 096 × 39 arrays that synthesis
+would turn into a hundred and sixty thousand flip-flops. That needs the
+memories black-boxed and behavioural models bound in their place, which
+is the next step for O8. The other state machines named in W2a — the
+AMS sequencer, the APB bridge, the LSU, the BIST — have not been
+checked this way yet, and neither has the core.
+
 ## Phase V15 — the last three cover points, and a waiver that was wrong (2026-08-21)
 
 The three functional coverage holes left by V14 were all mechanisms

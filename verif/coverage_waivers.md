@@ -65,6 +65,15 @@ where this behaviour is exercised, not the functional tests — and the
 campaign has so far recorded no hang across 3 000 injections, which is
 the evidence that the recovery works.
 
+**Re-argued against the netlist for one of the six (2026-08-21).**
+`make gate-fsm` forces the synthesised multiplier into each of the four
+encodings its two state flops allow. The unused one, `11`, returns to
+idle, none produces X, and the netlist goes on to compute correctly
+afterwards. The recovery survives synthesis for that module. The other
+five — the AMS sequencer, the APB bridge, the LSU, the BIST and the
+core — have not been checked this way, so for those the waiver still
+rests on the RTL argument alone.
+
 ### W2b — mux arms over selectors with no spare encodings
 
 | file | line | selector |
@@ -123,7 +132,8 @@ is **not** waived and is covered, because those decode the full
   W2a default from unreachable into a live path.
 * Gate level simulation, where synthesis may encode states differently
   and the "unreachable" argument has to be re-made against the netlist
-  rather than the RTL. That is objective O8 and is not done.
+  rather than the RTL. Done for the multiplier, see above; not done for
+  the other five state machines.
 
 ## W1 — WITHDRAWN (2026-08-21)
 

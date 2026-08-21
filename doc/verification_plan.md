@@ -385,6 +385,24 @@ for the same reason — one point per source, so a source nothing
 provokes shows up as a hole instead of hiding inside an "any fault"
 point.
 
+### Gate level: what it is worth and what it is not
+
+Objective O8's flow is `make gate`. Two things about it are worth
+fixing in the plan rather than rediscovering.
+
+**It is functional, not timing.** Every delay in the SG13G2 Verilog
+models is zero. A gate level run of this kind confirms the netlist
+computes what the RTL computed and that nothing goes X. Timing is a
+separate job — static timing analysis against the same library — and
+claiming otherwise from a passing gate simulation would be wrong.
+
+**White box assertions do not survive it, and that is correct.** The
+multiplier bench asserts an invariant about an internal accumulator
+bit; synthesis reached the same conclusion and deleted the bit, so the
+probe reads a don't-care. Any bench reused at gate level has to
+separate its black box checks from its white box ones and report which
+it ran. `+NOWHITEBOX` does that here.
+
 ## 9. Fault injection campaign (L6, O9)
 
 This is what turns "we have safety mechanisms" into a diagnostic
