@@ -150,5 +150,5 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Synthesis (`make synth`) | **pass** | yosys via slang: no latches, no combinational loops, 52 614 cells with 64-word TCMs |
 | Gate level simulation | **not run** | |
 | FMEDA / diagnostic coverage | **not started** | the pilot campaign is a first input, not a coverage figure |
-| Fault injection (`make fi`) | **pilot run** | 600 upsets over two workloads, 9 named state elements: **0 silent data corruption**, 0 hangs. 37.3 % detected on the arithmetic workload, 57.7 % on the trap and interrupt one. Not a diagnostic coverage figure — see the caveats in [verification_findings.md](doc/verification_findings.md) |
+| Fault injection (`make fi`) | **pilot run** | 900 upsets over three workloads, 9 named state elements: **0 silent data corruption**, 0 hangs. 37.3 / 57.7 / 44.3 % detected on the arithmetic, trap and memory workloads — the spread is the point, detection depends on what the software makes live. Not a diagnostic coverage figure — see [verification_findings.md](doc/verification_findings.md) |
 | Safety manual | draft outline only | |

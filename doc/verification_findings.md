@@ -111,6 +111,65 @@ access. Unlike `mepc`, nothing overwrites them in between, so this one
 deserves a workload that keeps the LSU busy before it can be called
 narrow exposure rather than a gap.
 
+### Workload C: settling the LSU row
+
+The one row workload B left open was the LSU address offset, detected
+once in thirty two. Those two bits select the byte lane and are live
+only while an access is in flight, so the low number could be narrow
+exposure — or a real gap, since unlike `mepc` nothing overwrites them
+in between. The two cases are told apart by raising the exposure and
+seeing whether detection follows.
+
+`fi_workload_mem.S` is almost nothing but loads and stores, at every
+width and alignment the ISA allows, in both sign extending and zero
+extending forms. Its checksum is reproduced exactly by an independent
+Python model of the memory, which is a free cross-check on the LSU's
+sub-word paths as well as a golden value.
+
+| state element | A: arithmetic | B: traps | C: memory |
+|---------------|--------------|----------|-----------|
+| **LSU address offset** | 2 / 35 (6 %) | 1 / 32 (3 %) | **10 / 39 (26 %)** |
+| I-TCM word | 22 / 28 | 28 / 28 | 34 / 34 |
+| fetch program counter | 28 / 28 | 38 / 38 | 31 / 32 |
+| core register file word | 13 / 30 (43 %) | 18 / 40 (45 %) | 19 / 36 (53 %) |
+| register file parity bit | 9 / 38 | 10 / 34 | 11 / 37 |
+| fetch buffer word | 24 / 29 | 20 / 30 | 18 / 32 |
+| D-TCM word | 14 / 34 | 11 / 26 | 10 / 23 |
+| `mepc` | 0 / 41 | 12 / 34 | 0 / 30 |
+| `mstatus.MIE` | 0 / 37 | 35 / 38 | 0 / 37 |
+| **total** | 112 / 300 (37.3 %) | 173 / 300 (57.7 %) | 133 / 300 (44.3 %) |
+
+Detection on the LSU offset rises roughly eightfold when the workload
+keeps the LSU busy, so that row is narrow exposure and not a gap.
+`mepc` and `mstatus.MIE` drop back to zero on C, which takes no traps
+and enables no interrupts — the same effect as on A, now seen a second
+time and from a workload written for an unrelated reason.
+
+**900 injections across three workloads, still zero silent data
+corruption and zero hangs.**
+
+That leaves exactly one row that does not respond to what the software
+does: the core register file, at 43, 45 and 53 per cent across three
+workloads that stress it very differently. Three independent
+measurements and a characterisation test now say the same thing, and
+they say it about the one piece of state that is not in the lockstep
+compare vector.
+
+### A trap the campaign setup was one bound away from
+
+Workload C runs for 2 416 cycles. The injection window was initially
+set to 3 300, so roughly a quarter of the runs would have scheduled
+their deposit after the workload had already exited — no injection at
+all, result correct, no fault reported, filed as silent-ok. The
+campaign would have reported a *lower* detection rate and called it a
+result.
+
+The bench now reports whether the deposit actually happened, and the
+driver counts a run that never injected separately, excludes it from
+the percentages, and prints a warning. A campaign that silently counts
+faults it never injected is worse than no campaign, because the number
+still looks like a number.
+
 ### What these numbers do and do not say
 
 **They are not a diagnostic coverage figure**, and should not be quoted
@@ -126,8 +185,8 @@ as one. Three reasons, all of which have to travel with the numbers:
   property of the workload set rather than of the design.
 * The fault list is nine named elements, not the ~5 000 flops the
   design synthesises to.
-* 600 runs across two short workloads is a pilot, not a campaign. The
-  plan asks for 10^4 injections across three. The campaign driver now
+* 900 runs across three short workloads is a pilot, not a campaign. The
+  plan asks for 10^4 injections per workload. The campaign driver now
   runs simulations concurrently, which is what makes that number
   reachable; the fault list is drawn from the seeded generator before
   any of them start, so the results do not depend on `--jobs`. Workload

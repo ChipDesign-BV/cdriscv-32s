@@ -12,6 +12,10 @@
 #   SDC             no fault, and the result was WRONG -- silent data
 #                   corruption, the number that matters most
 #   hang            the workload never finished
+#   not-injected    the deposit never happened, because the injection
+#                   cycle fell past the end of the workload.  Counted
+#                   separately and excluded from the percentages: it is
+#                   a hole in the campaign setup, not a result.
 #
 # The fault list is a named set of state elements, not every flop in the
 # design; the report says so, because a diagnostic coverage figure means
@@ -27,7 +31,7 @@ import subprocess
 import sys
 
 RE = re.compile(r"FI target=(\d+) bit=(\d+) cycle=(\d+) exit=([0-9a-fx]+) "
-                r"golden=([0-9a-f]+) exited=(\d) status=([0-9a-fX]+)")
+                r"golden=([0-9a-f]+) exited=(\d) status=([0-9a-fX]+) inj=(\d)")
 
 TARGETS = {
     0: "core register file word",
@@ -109,6 +113,10 @@ def main():
         exit_v, golden, exited, status = m.group(4), m.group(5), m.group(6), m.group(7)
         st = int(status, 16) if "X" not in status.upper() else -1
 
+        if m.group(8) == "0":
+            classes["not-injected"] += 1
+            continue
+
         if st > 0:
             cls = "detected"
             for bit, name in MECHANISM.items():
@@ -127,11 +135,15 @@ def main():
         classes[cls] += 1
         by_target[t][cls] += 1
 
-    total = sum(classes.values())
+    total = sum(classes.values()) - classes["not-injected"]
     print("Fault injection campaign: %d single event upsets" % total)
     print("Workload: %s" % args.name)
     print("Fault list: %d named state elements (not every flop -- see tb_fi.sv)\n"
           % len(TARGETS))
+    if classes["not-injected"]:
+        print("  WARNING: %d runs never injected -- the cycle range runs past\n"
+              "  the end of the workload.  Excluded from the counts below."
+              % classes["not-injected"])
     for cls in ("detected", "silent-ok", "SDC", "hang", "x-propagation", "no-result"):
         if classes[cls]:
             print("  %-14s %4d  %5.1f %%" % (cls, classes[cls],

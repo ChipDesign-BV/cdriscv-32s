@@ -392,7 +392,7 @@ was run:
 |----------|--------------------|------|
 | A: arithmetic and memory | ALU, register file, LSU, both TCMs | `verif/fi/fi_workload.S` |
 | B: traps and interrupts | `mepc`, `mstatus.MIE`, `mcause`, the trap path, the machine timer | `verif/fi/fi_workload_trap.S` |
-| C: control loop | *not written yet* | |
+| C: dense sub-word memory traffic | LSU byte lane select, sub-word load and store paths, D-TCM | `verif/fi/fi_workload_mem.S` |
 
 Each workload declares the I-TCM word range of its live code
 (`--ibase`/`--ispan`), because a fault dropped into an instruction that

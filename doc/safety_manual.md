@@ -104,11 +104,11 @@ used yet.
 
 * No FMEDA, no diagnostic coverage figures, no single point fault
   metric, no latent fault metric.
-* A **pilot** fault injection campaign has been run: 600 single event
-  upsets over a named list of nine state elements, across two
+* A **pilot** fault injection campaign has been run: 900 single event
+  upsets over a named list of nine state elements, across three
   workloads. No silent data corruption and no hangs; 37 % detected on
-  the arithmetic and memory workload, 58 % on the trap and interrupt
-  one. This is not a diagnostic coverage figure and must not be quoted
+  the arithmetic workload, 58 % on the trap and interrupt one, 44 % on
+  the memory one. This is not a diagnostic coverage figure and must not be quoted
   as one: the fault list is nine elements rather than the flop list,
   and the spread between the two workloads is the point — detection
   depends on what the software makes live, so any figure quoted has to
