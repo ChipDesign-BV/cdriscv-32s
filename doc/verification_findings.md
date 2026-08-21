@@ -5,6 +5,67 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V7 continued — memory back-pressure (2026-08-21)
+
+The TCM always grants immediately, so **the wait-for-grant paths in the
+LSU and the fetch stage had never run in any test**. Every load, store
+and fetch in every program so far took the fast path.
+
+`make cosim-stall` holds memory grants off on a configurable share of
+cycles. Putting the injector in the co-simulation bench is the point:
+back-pressure must change the **timing and nothing else**, and
+comparing against Spike is what checks that.
+
+**Result: identical retired streams at 0, 10, 30, 60 and 90 % stall
+rates** — PCs, register writes and memory accesses. The core is
+insensitive to memory timing, which is now demonstrated rather than
+assumed. `cdriscv_lsu` line coverage 44 % → 56 %, `cdriscv_bus` reaches
+100 %.
+
+### The injector was wrong first, in an instructive way
+
+The first version forced the TCM's **grant output** low. Every stall
+rate then produced an apparent core deadlock: the RTL retired five
+instructions and stopped.
+
+That was not a design bug. An output port and the net connected to it
+are distinct, and a `force` on one need not follow to the other, so the
+*bus* saw a grant while the TCM did not accept — the access was issued
+and then lost, and the master waited for a response that could never
+come. The design was fine; the bench had manufactured a protocol
+violation.
+
+Forcing the memory's **request input** low instead keeps both sides
+consistent: the TCM does not accept, and its grant falls out low
+through the ordinary port connection.
+
+Worth keeping as a general point: a bench that drives a signal in the
+middle of a handshake can break the protocol it is trying to test, and
+the failure looks exactly like a design bug. The tell was that *every*
+stall rate failed, including 10 % — a real deadlock corner would be
+rare, not universal.
+
+### W1 — the first coverage waiver
+
+Three lines in `cdriscv_if_stage` remain unreachable in simulation: the
+branch taken when a redirect coincides with a fetch response. The TCM
+answers one cycle after a grant and the core needs at least two cycles
+per instruction, so an outstanding fetch has always completed before
+the next redirect. Delaying grants moves the response as a block but
+never lands it on the redirect cycle; that needs variable *response*
+latency, which the bench does not model. Four stall rates from 15 % to
+90 % were tried.
+
+Bounded model checking does cover it — `p_pc_stream` explores exactly
+those interleavings to depth 20, and its mutation test kills the
+matching bug at step 6. So it is written up in the new
+`verif/coverage_waivers.md` as covered-by-formal, with a to-do for a
+variable-latency memory model.
+
+That file is the start of the O6 sign-off argument. Its rule: a waiver
+states what covers the line instead, or it is not a waiver.
+
+
 ## Phase V7 continued — a correction, and the register walk (2026-08-21)
 
 ### V7-M1 — the coverage figure was mislabelled (measurement error, CORRECTED)

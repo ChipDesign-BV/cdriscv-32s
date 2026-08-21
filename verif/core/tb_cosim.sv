@@ -27,6 +27,15 @@
 //   +MAXRETIRE=<n>    stop after n retired instructions (default 5000)
 //   +MAXCYCLES=<n>    give up after n cycles (default 200000)
 //   +QUIET            do not print the trace (for timing runs)
+//   +STALL=<n>        hold off memory grants on roughly n % of cycles
+//
+// The stall injector exists because the TCM always grants immediately,
+// so the wait-for-grant paths in the LSU and the fetch stage had never
+// run in any test.  It drives the TCM grant outputs low from the bench,
+// which is protocol legal -- the TCM's own accept is derived from the
+// same signal, so nothing starts -- and it must not change the
+// architectural result, only the timing.  Since this bench compares
+// against Spike, that invariance is exactly what gets checked.
 
 `default_nettype none
 `timescale 1ns/1ps
@@ -107,6 +116,10 @@ module tb_cosim #(
       .retire_instr_o (retire_instr)
   );
 
+  int unsigned stall_pct;
+  int unsigned lfsr;
+  bit          stall_i, stall_d;
+
   string       hexfile;
   int unsigned maxretire, maxcycles, nretire, cycle;
   logic [31:0] stoppc, stoppc2;
@@ -129,6 +142,9 @@ module tb_cosim #(
     if (!$value$plusargs("MAXCYCLES=%d", maxcycles)) maxcycles = 200000;
     quiet = $test$plusargs("QUIET");
 
+    if (!$value$plusargs("STALL=%d", stall_pct)) stall_pct = 0;
+    lfsr = 32'h1234_5678;
+
     have_stop = 1'b0;
     stoppc    = 32'hffff_ffff;
     stoppc2   = 32'hffff_ffff;
@@ -140,6 +156,27 @@ module tb_cosim #(
     @(posedge rst_n);
     repeat (5) @(posedge clk);
     fetch_enable = 1'b1;
+  end
+
+  // Pseudo-random grant back-pressure, independent per memory.
+  always @(posedge clk) begin
+    if (!rst_n) begin
+      lfsr <= 32'h1234_5678;
+    end else if (stall_pct != 0) begin
+      lfsr <= {lfsr[30:0], lfsr[31] ^ lfsr[21] ^ lfsr[1] ^ lfsr[0]};
+      stall_i = ((lfsr[15:8]  % 100) < stall_pct);
+      stall_d = ((lfsr[23:16] % 100) < stall_pct);
+      // Force the memory's *request input* low, not its grant output.
+      // Forcing gnt_o does not reliably reach the wire the bus reads --
+      // an output port and the net connected to it are distinct, and a
+      // force on one need not follow to the other -- so the bus saw a
+      // grant while the TCM did not accept, and the access was lost.
+      // That looked exactly like a core deadlock.  Holding req_i low
+      // keeps both sides consistent: the TCM does not accept, and its
+      // own gnt_o falls out low through the ordinary port connection.
+      if (stall_i) force dut.u_itcm.req_i = 1'b0; else release dut.u_itcm.req_i;
+      if (stall_d) force dut.u_dtcm.req_i = 1'b0; else release dut.u_dtcm.req_i;
+    end
   end
 
   always @(posedge clk) begin

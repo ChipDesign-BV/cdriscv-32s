@@ -99,7 +99,7 @@ def run_spike(elf, count, base, size):
     return trace
 
 
-def run_rtl(runner, hexfile, count, stops=None):
+def run_rtl(runner, hexfile, count, stops=None, stall=0):
     # Two runners are supported: a Verilator binary (executed directly)
     # and an Icarus .vvp image (run under vvp).  Verilator is about 90
     # times faster on this design and is the default; Icarus stays
@@ -107,6 +107,7 @@ def run_rtl(runner, hexfile, count, stops=None):
     # earned its keep once by rejecting constructs Verilator accepted.
     cmd = ([VVP, runner] if runner.endswith(".vvp") else [runner])
     cmd += ["+HEX=" + hexfile, "+MAXRETIRE=%d" % count,
+            "+STALL=%d" % stall,
            "+MAXCYCLES=%d" % (count * 40 + 5000)]
     # Tell the bench where the program ends so it does not simulate the
     # final spin loop up to the retire limit.  That alone was costing
@@ -141,6 +142,11 @@ def main():
     ap.add_argument("--base", type=lambda x: int(x, 0), default=0x80000000)
     ap.add_argument("--size", type=lambda x: int(x, 0), default=0x4000)
     ap.add_argument("--context", type=int, default=8)
+    ap.add_argument("--stall", type=int, default=0,
+                    help="percentage of cycles on which memory grants are "
+                         "held off; must not change the result, only the "
+                         "timing, which is what comparing against Spike "
+                         "checks")
     args = ap.parse_args()
 
     hexfile = args.hex or args.elf.replace(".elf", ".hex")
@@ -158,7 +164,7 @@ def main():
         return 1
     spike = spike[start:]
 
-    rtl = run_rtl(args.runner, hexfile, args.count, stops)
+    rtl = run_rtl(args.runner, hexfile, args.count, stops, args.stall)
 
     if not rtl:
         print("[cosim] FAIL: the RTL retired nothing")
