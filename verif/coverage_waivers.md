@@ -8,6 +8,19 @@ covers it — not a note that nobody got round to it.
 Anything not listed here is a gap to be closed by a test, and the
 current list of those is in `verification_findings.md`.
 
+## W1 — WITHDRAWN (2026-08-21)
+
+The prefetch was deepened (V2-P1), and as this waiver predicted, the
+three lines it covered became reachable: the fetcher now runs ahead, so
+a redirect routinely finds a transaction in flight. The invariant
+assertion that justified the waiver failed on the very first run after
+the change, which is what it was written for.
+
+Nothing is waived here any more. The original text is kept below,
+because a withdrawn waiver is part of the argument's history.
+
+### Original text
+
 ## W1 — `cdriscv_if_stage.sv:87-89`, redirect coincident with a response
 
 ```systemverilog

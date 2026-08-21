@@ -37,7 +37,9 @@ either detected by a mechanism that reports it, or bounded by one.
 * **Core** — RV32IM_Zicsr_Zifencei, machine mode only, two stages, one
   instruction in the execute stage at a time. No forwarding, no
   speculation, no caches: every instruction has a statically known
-  worst-case latency.
+  worst-case latency. Straight-line code retires one instruction per
+  cycle (measured CPI 1.20 on a dependent ALU loop, the residual being
+  the taken-branch redirect).
 * **Dual core lockstep (DCLS)** — a checker core runs the same program
   delayed by a configurable number of cycles, and every output is
   compared. The delay makes the pair diverse in time, so a disturbance

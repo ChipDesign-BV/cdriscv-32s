@@ -30,7 +30,7 @@ could take over.
 | # | Mechanism | Covers | Reaction |
 |---|-----------|--------|----------|
 | SM1 | Dual core lockstep with `LockstepDly` cycle delay | permanent and transient faults in core logic | fault bit 0 |
-| | *measured*: a fault on a compared signal is detected in 2 cycles; a fault on the register write port is detected indirectly, in 2 cycles in the test program, but the latency there is program dependent — see finding V4-F3 | | |
+| | *measured*: a fault on a compared signal is detected in 2 cycles. A fault on the **register write port may never be detected**: it is not compared, so it is only caught if the corrupted value later reaches an address, a branch or a store, and a dead register write is invisible. Measured undetected after 20 000 cycles. An earlier figure of "2 cycles" here was an artefact of test timing and has been withdrawn — see finding V4-F3 | | |
 | SM2 | SEC-DED on the I-TCM and D-TCM | single bit errors (corrected), double bit errors (detected) | fault bits 1..4, bus error on uncorrectable |
 | SM3 | Odd parity on the register file | single bit errors in architectural registers | fault bit 5 |
 | SM4 | March C- memory BIST on the raw code words | memory manufacturing and latent faults | fault bit 9 |
@@ -109,9 +109,13 @@ used yet.
   comparator can mask a core fault. Only the injection self test bounds
   this, and only if the software runs it. The self test is now known to
   work: `make safety` exercises it.
-* Detection latency for a register file fault is program dependent, not
-  bounded by the hardware (finding V4-F3). The FTTI argument needs one
-  of the two resolutions recorded there.
+* A register file fault may be **undetected indefinitely**, not merely
+  detected late (finding V4-F3): the lockstep compare vector does not
+  carry the register write port, and a corrupted value that is never
+  read again never reaches a compared signal. The FTTI argument cannot
+  rest on indirect detection. Adding `rd_addr` and `rf_wdata` to the
+  compare vector — 37 bits — makes detection unconditional and single
+  cycle, and is the recommended resolution.
 * The safety controller's status registers are not themselves protected
   by ECC or parity.
 * The bus interconnect is not protected: address and data are unprotected

@@ -171,8 +171,13 @@ module if_stage_fv (
       // all violate this.
       p_pc_stream: assert (!instr_valid || (instr_pc == exp_pc));
 
-      // Never two transactions in flight.
-      p_single_outstanding: assert (!instr_req || !env_outstanding);
+      // Never two transactions in flight.  A request may be issued in
+      // the same cycle as the response to the previous one -- that is
+      // the OBI pipelining the fetch stage relies on since V2-P1 -- so
+      // the exclusion is against an outstanding transaction that is
+      // *not* completing this cycle.
+      p_single_outstanding: assert (!instr_req || !env_outstanding ||
+                                    instr_rvalid_i);
 
       // Fetch addresses are word aligned.
       p_addr_aligned: assert (instr_addr[1:0] == 2'b00);
@@ -180,27 +185,17 @@ module if_stage_fv (
       // Fetching stops when it is disabled.
       p_fetch_en: assert (fetch_en_i || !instr_req);
 
-      // No fetch is ever in flight at the moment of a redirect.
+      // p_no_outstanding_at_redirect used to live here: with a
+      // one-deep buffer no fetch could be in flight at a redirect, and
+      // that made three lines of the redirect path unreachable
+      // (waiver W1).  The assertion was written down precisely so that
+      // deepening the prefetch would break it rather than silently
+      // invalidating the waiver.
       //
-      // This is not an obvious property, and it is the reason three
-      // lines of the redirect path are unreachable in simulation (see
-      // verif/coverage_waivers.md, W1).  It follows from the buffer
-      // being one deep: while a fetched instruction is waiting to be
-      // consumed the stage issues no new request, and in the cycle it
-      // *is* consumed -- which is the cycle a redirect can happen --
-      // any request issued is granted in that same cycle and takes the
-      // req_accepted path instead.
-      //
-      // Checking it here is what turns "we never hit those lines" into
-      // "those lines cannot be hit with this prefetch depth".  Deepen
-      // the prefetch, as finding V2-P1 proposes, and this assertion is
-      // expected to fail -- which is the point of having it.
-      //
-      // Note it holds only *in context*: without a_redirect_needs_valid
-      // the property fails in five steps, because a redirect arriving
-      // while the buffer is empty leaves a fetch in flight.  The block
-      // handles that correctly; the core simply never does it.
-      p_no_outstanding_at_redirect: assert (!redirect_i || !env_outstanding);
+      // V2-P1 deepened the prefetch, the assertion did its job, and the
+      // property is now false by design: the fetcher runs ahead, so a
+      // redirect routinely finds a transaction in flight.  Removed
+      // here, and W1 withdrawn in verif/coverage_waivers.md.
 
       // A redirect empties the buffer: nothing can be presented in the
       // cycle after one, because the new stream has not arrived yet.

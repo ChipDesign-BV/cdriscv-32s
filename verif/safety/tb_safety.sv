@@ -162,14 +162,27 @@ module tb_safety;
     repeat (200) @(posedge clk);
 
     // ---- 3: a fault on a signal that is not directly compared ------
+    // CHARACTERISATION TEST.  This locks in a known weakness, and is
+    // written to fail if the weakness is ever fixed.
+    //
     // The compare vector carries the bus, the fault flags and the
     // retire information, but not the register file write port.  A
-    // corrupted register is therefore detected *indirectly*, once the
-    // value reaches an address, a branch or a store -- so what matters
-    // is not whether it is caught but how long that takes, because
-    // detection latency is what feeds the fault tolerant time interval.
-    // Measured here rather than assumed.  See finding V4-F3.
-    @(posedge clk);
+    // corrupted register write is therefore only detected if and when
+    // the wrong value reaches an address, a branch or a store.  If the
+    // register is dead, it is never detected at all.
+    //
+    // An earlier version of this check asserted that detection *did*
+    // happen, and passed at 2 cycles.  That was luck: the fetch stage
+    // change of V2-P1 moved the timing, the corrupted register stopped
+    // being one the program went on to read, and the same injection now
+    // goes undetected for at least 20 000 cycles.  See V4-F3.
+    //
+    // If rd_addr and rf_wdata are added to the lockstep compare vector,
+    // this check will fail -- correctly -- and should then be rewritten
+    // to assert prompt detection instead.
+    do_reset();
+    repeat (200) @(posedge clk);
+    while (dut.g_lockstep.u_core.u_core_check.rf_we !== 1'b1) @(posedge clk);
     force dut.g_lockstep.u_core.u_core_check.rf_wdata = 32'hdead_beef;
     @(posedge clk);
     release dut.g_lockstep.u_core.u_core_check.rf_wdata;
@@ -182,13 +195,13 @@ module tb_safety;
         end
       end
       begin
-        repeat (500) @(posedge clk);
+        repeat (20000) @(posedge clk);
       end
     join_any
     disable wait_indirect;
-    report("lockstep: corrupted register write detected indirectly",
-           (dut.u_safety.status_q[0] === 1'b1),
-           $sformatf("detected after %0d cycles (indirect: via a compared signal)",
+    report("lockstep: corrupted register write goes undetected (V4-F3)",
+           (dut.u_safety.status_q[0] === 1'b0),
+           $sformatf("still undetected after %0d cycles -- the register write port is not compared",
                      latency));
 
     // ---- 4: clock monitor, nominal ---------------------------------
