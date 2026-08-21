@@ -5,6 +5,99 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V14 — functional coverage, objective O7 (2026-08-21)
+
+Line and toggle coverage say which of the RTL ran. They cannot say
+which *situations* were reached, and that is what a verification plan
+is actually asking. A design can sit at 100 % line coverage having
+never taken an interrupt, never seen a bus error and never run a
+division by zero.
+
+`verif/cover/cdriscv_cover.sv` is 65 cover points over the core, the
+fetch stage, the TCMs, the safety controller and the watchdog. They are
+`cover` statements rather than covergroups because Verilator implements
+those and merges them into the same database as line and toggle
+coverage, so one `make coverage` measures all three — reported
+separately, which is the standing correction from V7-M1.
+
+Everything attaches with `bind`. A bind port expression is elaborated
+in the scope of the target module, so `retire`, `trap_cause` and
+`fault_latched` can be sampled without adding a single port to the RTL.
+
+### What it found immediately: four unexercised safety mechanisms
+
+**Functional coverage 92.3 % on the first run, 60 of 65 points.** The
+five misses were the interesting part, and four of them were safety
+mechanisms no test had ever provoked:
+
+| point | meaning |
+|-------|---------|
+| `cp_flt_itcm_cor` | I-TCM single bit ECC error never reported |
+| `cp_flt_itcm_unc` | I-TCM double bit ECC error never reported |
+| `cp_flt_rf_parity` | register file parity fault never provoked |
+| `cp_flt_bist` | memory BIST has never failed |
+| `cp_wdog_reset` | watchdog has never requested a reset |
+
+The two I-TCM points are the clearest miss. The ECC self-test has a
+target select bit — `SELFTEST[3]`, added when V4-F1 was fixed — and
+every test had exercised it with that bit clear. **Half the mechanism
+was unverified**, and nothing in the line coverage could show it,
+because the D-TCM tests execute exactly the same RTL lines.
+
+`safety_test.S` now runs both self-tests against the I-TCM as well,
+corrupting two words of data that live in instruction memory and are
+never executed. Retargeting either injection back to the D-TCM fails
+the new checks, so they are not passing by accident.
+
+**Functional coverage 92.3 → 95.4 %.** Three points remain uncovered
+and each is a real hole: register file parity, BIST failure and
+watchdog reset. All three need a fault the software cannot inject
+itself, so each needs bench support.
+
+### V4-F3 has now been asserted wrongly in both directions
+
+Adding two checks to `safety_test.S` broke the lockstep characterisation
+test in `tb_safety`, and the way it broke is worth recording.
+
+That check injects a corrupted register write into the checker core and
+measures how long the mismatch takes to surface. It originally asserted
+detection *did* happen and passed at 2 cycles. V2-P1 moved the timing,
+the corrupted register stopped being one the program went on to read,
+and the same injection went undetected for 20 000 cycles — so it was
+rewritten to assert the opposite. Now two extra checks in the software
+shifted the injection onto a register the program reads almost at once,
+and detection came back at 14 cycles.
+
+**Both versions were asserting an accident.** What is invariant is
+neither outcome but the mechanism: the register write port is not in
+the compare vector, so detection can only be indirect — it waits for
+the wrong value to reach an address, a branch or a store. Fourteen
+cycles or never, depending entirely on the program.
+
+The check now asserts that detection is **not immediate**: a direct
+comparison would flag the corruption in the same cycle or the next, so
+any latency of two or more is indirect by definition, and never
+detected at all is the same finding in its worst form. The measured
+latency is printed either way, because that is the characterisation.
+Add `rd_addr` and `rf_wdata` to the compare vector and the latency
+drops to 0 or 1 and this check fails, correctly.
+
+A second bench bug came out of the same failure: the measurement
+started 200 cycles after reset, which had quietly landed on top of
+`safety_test.S`'s own lockstep self-test. The status bit was already
+set before the corruption was injected, and the bench was measuring the
+previous test's leftovers. It now clears the status, checks the clear
+took, and injects during register initialisation where the software has
+provoked nothing.
+
+### Coverage now stands at
+
+| metric | value |
+|--------|-------|
+| line | 94.4 %, 100 % with reviewed waivers (O6 met) |
+| toggle | 92.3 % |
+| functional | 95.4 %, 62 of 65 points (O7 model in place) |
+
 ## Phase V13 — peripheral read-back, and objective O6 reached (2026-08-21)
 
 Coverage showed a whole class of lines that had never executed: the

@@ -171,17 +171,56 @@ module tb_safety;
     // the wrong value reaches an address, a branch or a store.  If the
     // register is dead, it is never detected at all.
     //
-    // An earlier version of this check asserted that detection *did*
-    // happen, and passed at 2 cycles.  That was luck: the fetch stage
-    // change of V2-P1 moved the timing, the corrupted register stopped
-    // being one the program went on to read, and the same injection now
-    // goes undetected for at least 20 000 cycles.  See V4-F3.
+    // This check has now been wrong twice in opposite directions, and
+    // the second time is the more instructive.
     //
-    // If rd_addr and rf_wdata are added to the lockstep compare vector,
-    // this check will fail -- correctly -- and should then be rewritten
-    // to assert prompt detection instead.
+    // It first asserted that detection *did* happen, and passed at 2
+    // cycles.  That was luck: V2-P1 moved the timing, the corrupted
+    // register stopped being one the program went on to read, and the
+    // same injection went undetected for 20 000 cycles.  So it was
+    // rewritten to assert the opposite -- that detection does *not*
+    // happen.  Then two checks were added to safety_test.S, the
+    // injection landed on a register the program reads almost
+    // immediately, and detection came back at 14 cycles.
+    //
+    // Both versions were asserting an accident.  What is actually
+    // invariant is neither outcome but the *mechanism*: the register
+    // write port is not in the compare vector, so detection can only be
+    // indirect -- it waits for the wrong value to reach an address, a
+    // branch or a store.  Sometimes that is fourteen cycles, sometimes
+    // it is never, and which one you get depends on the program.
+    //
+    // So the assertion is that detection is not immediate.  A direct
+    // comparison of the write port would flag the corruption in the
+    // cycle it happens or the one after; anything slower is indirect by
+    // definition, and a workload where it never happens at all is the
+    // same finding in its worst form.
+    //
+    // If rd_addr and rf_wdata are added to the compare vector, latency
+    // drops to 0 or 1 and this check fails -- correctly -- and should
+    // then be rewritten to assert prompt detection instead.
     do_reset();
-    repeat (200) @(posedge clk);
+    // Inject during the workload's register initialisation, which is
+    // the one stretch where the register file is written every cycle
+    // and the software has not yet provoked any fault of its own.
+    // Waiting 200 cycles instead put this on top of safety_test.S's own
+    // lockstep self-test, whose mismatch re-set status[0] as fast as
+    // the bench could clear it.
+    repeat (40) @(posedge clk);
+    // Start from a known-clean status.  Without this the measurement
+    // silently depends on what the *software* happens to be doing 200
+    // cycles in: adding two checks to safety_test.S moved its lockstep
+    // self-test under this window, status[0] was already set before the
+    // corruption was injected, and the check reported detection "after
+    // 1 cycle" that had nothing to do with the corruption.  A
+    // characterisation test that measures the previous test's leftovers
+    // is worse than no measurement.
+    dut.u_safety.status_q = 32'b0;
+    @(posedge clk);
+    if (dut.u_safety.status_q[0] !== 1'b0) begin
+      $display("[tb_safety] FAIL: could not clear the safety status before injecting");
+      errors++;
+    end
     while (dut.g_lockstep.u_core.u_core_check.rf_we !== 1'b1) @(posedge clk);
     force dut.g_lockstep.u_core.u_core_check.rf_wdata = 32'hdead_beef;
     @(posedge clk);
@@ -199,9 +238,15 @@ module tb_safety;
       end
     join_any
     disable wait_indirect;
-    report("lockstep: corrupted register write goes undetected (V4-F3)",
-           (dut.u_safety.status_q[0] === 1'b0),
-           $sformatf("still undetected after %0d cycles -- the register write port is not compared",
+    if (dut.u_safety.status_q[0] === 1'b1)
+      $display("[tb_safety] characterisation: corrupted register write detected indirectly after %0d cycles (V4-F3)",
+               latency);
+    else
+      $display("[tb_safety] characterisation: corrupted register write still undetected after %0d cycles (V4-F3)",
+               latency);
+    report("lockstep: corrupted register write is not detected directly (V4-F3)",
+           (dut.u_safety.status_q[0] === 1'b0) || (latency >= 2),
+           $sformatf("detected in %0d cycles -- that is direct comparison, so the write port must now be in the compare vector",
                      latency));
 
     // ---- 4: clock monitor, nominal ---------------------------------

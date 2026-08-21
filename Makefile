@@ -390,19 +390,23 @@ safety-sw: $(BUILD)/tb_cdriscv_subsys.vvp $(BUILD)/safety_test.hex \
 # a spread of random programs, and the two subsystem level tests.
 COV_SEEDS ?= 1000 1001 1002 1003 1004 1005 1006 1007
 
-$(BUILD)/obj_cov/tb_cosim_cov: $(RTL) verif/core/tb_cosim.sv | $(BUILD)
+COVER_SV := verif/cover/cdriscv_cover.sv
+
+$(BUILD)/obj_cov/tb_cosim_cov: $(RTL) verif/core/tb_cosim.sv $(COVER_SV) | $(BUILD)
 	$(VERILATOR) --binary --timing -sv --timescale 1ns/1ps --coverage \
+	  --coverage-user \
 	  -Wno-fatal -Wno-DECLFILENAME -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM \
 	  -Wno-SYNCASYNCNET \
 	  --top-module tb_cosim -o tb_cosim_cov -Mdir $(BUILD)/obj_cov \
-	  $(RTL) verif/core/tb_cosim.sv
+	  $(RTL) verif/core/tb_cosim.sv $(COVER_SV)
 
-$(BUILD)/obj_syscov/tb_sys_cov: $(RTL) $(TB) | $(BUILD)
+$(BUILD)/obj_syscov/tb_sys_cov: $(RTL) $(TB) $(COVER_SV) | $(BUILD)
 	$(VERILATOR) --binary --timing -sv --timescale 1ns/1ps --coverage \
+	  --coverage-user \
 	  -Wno-fatal -Wno-DECLFILENAME -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM \
 	  -Wno-SYNCASYNCNET -Wno-WIDTHTRUNC \
 	  --top-module $(TB_TOP) -o tb_sys_cov -Mdir $(BUILD)/obj_syscov \
-	  $(RTL) $(TB)
+	  $(RTL) $(TB) $(COVER_SV)
 
 # Every simulation below is joined to its `mv` with && rather than `;`.
 # With a semicolon the recipe keeps the coverage of a run that failed:
@@ -486,6 +490,9 @@ coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
 	@echo "" | tee -a $(BUILD)/coverage.txt
 	@$(PYTHON) scripts/coverage_report.py $(BUILD)/cov/ann_tog \
 	  "toggle coverage" | head -3 | tee -a $(BUILD)/coverage.txt
+	@echo "" | tee -a $(BUILD)/coverage.txt
+	@$(PYTHON) scripts/funccov_report.py $(BUILD)/cov/merged.dat \
+	  | tee -a $(BUILD)/coverage.txt
 
 # ------------------------------------------------- fault injection
 FI_RUNS ?= 300

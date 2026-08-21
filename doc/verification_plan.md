@@ -370,6 +370,21 @@ have reached. Two lessons for the rest of the plan:
   to the merge the report went on showing tested lines as uncovered. A
   report that understates is no more useful than one that overstates.
 
+### Functional coverage is where an unexercised mechanism shows up
+
+Objective O7's model is `verif/cover/cdriscv_cover.sv`. Its first run
+paid for itself: it showed that the ECC self-test had only ever been
+exercised against one of its two target memories. No amount of line
+coverage could have shown that, because the D-TCM tests execute exactly
+the same RTL lines as the I-TCM ones would.
+
+The rule that follows: **a mechanism with a target select, a mode bit or
+a source index needs a cover point per value**, not one point for the
+mechanism. The safety controller's fault sources are modelled that way
+for the same reason — one point per source, so a source nothing
+provokes shows up as a hole instead of hiding inside an "any fault"
+point.
+
 ## 9. Fault injection campaign (L6, O9)
 
 This is what turns "we have safety mechanisms" into a diagnostic

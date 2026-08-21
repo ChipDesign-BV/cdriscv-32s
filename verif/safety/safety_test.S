@@ -28,6 +28,8 @@
 
     /* fault bit numbers, from cdriscv_pkg */
     .equ FLT_LOCKSTEP,    0
+    .equ FLT_ITCM_ECC_COR, 1
+    .equ FLT_ITCM_ECC_UNC, 2
     .equ FLT_DTCM_ECC_COR, 3
     .equ FLT_DTCM_ECC_UNC, 4
     .equ FLT_SW,          11
@@ -143,6 +145,55 @@ _start:
     li   t0, -1
     sw   t0, SFT_STATUS(s0)
 
+    /* ---- 20/21/22/23: the same two checks against the I-TCM --------
+     * The functional coverage model (objective O7) put these here.  It
+     * showed the I-TCM ECC fault bits had never been set by any test,
+     * only the D-TCM ones -- the self-test had been exercised through
+     * one of its two targets and the other half of the mechanism was
+     * unverified.  SELFTEST[3] selects the I-TCM.
+     *
+     * The word corrupted is data that happens to live in instruction
+     * memory and is never executed, so corrupting it cannot derail the
+     * test that is running out of the same memory.
+     */
+    la   s10, itcm_scratch
+
+    li   t0, 0xa                /* SELFTEST[1], target I-TCM */
+    sw   t0, SFT_SELFTEST(s0)
+    li   t2, 0x5a5a1234
+    sw   t2, 0(s10)             /* this write gets one bit flipped */
+    lw   t3, 0(s10)             /* ... and the read must correct it */
+    li   a0, 20
+    bne  t3, t2, fail
+
+    lw   t0, SFT_STATUS(s0)
+    srli t1, t0, FLT_ITCM_ECC_COR
+    andi t1, t1, 1
+    li   a0, 21
+    beqz t1, fail
+
+    li   t0, -1
+    sw   t0, SFT_STATUS(s0)
+
+    li   s11, 0
+    li   t0, 0xc                /* SELFTEST[2], target I-TCM */
+    sw   t0, SFT_SELFTEST(s0)
+    li   t2, 0x0f0f0f0f
+    sw   t2, 4(s10)             /* two bits flipped */
+    lw   t3, 4(s10)             /* uncorrectable: load access fault */
+
+    li   a0, 22
+    beqz s11, fail
+
+    lw   t0, SFT_STATUS(s0)
+    srli t1, t0, FLT_ITCM_ECC_UNC
+    andi t1, t1, 1
+    li   a0, 23
+    beqz t1, fail
+
+    li   t0, -1
+    sw   t0, SFT_STATUS(s0)
+
     /* ---- 8: software fault trigger --------------------------------- */
     csrwi 0x7c1, 2              /* msafectrl[1] */
     nop
@@ -197,6 +248,12 @@ trap_handler:
     addi t6, t6, 4
     csrw mepc, t6
     mret
+
+    /* Two words of data living in the instruction memory, never
+     * executed, used as the target of the I-TCM ECC self-test. */
+    .align 2
+itcm_scratch:
+    .word 0, 0
 
     .section .data
     .align 4
