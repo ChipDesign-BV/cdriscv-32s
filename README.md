@@ -7,21 +7,34 @@
 > [!CAUTION]
 > **NOT VERIFIED YET — DO NOT USE YET.**
 >
-> Verification has started and is at phase V0 of
-> [doc/verification_plan.md](doc/verification_plan.md). What that means
-> concretely: the RTL lints clean and a smoke program boots and runs to
-> completion in simulation. It does **not** mean the core is correct.
-> No architectural test suite has been run, there is no comparison
-> against a golden model, no coverage has been collected, and nothing
-> has been synthesised. The first simulation already found a bug that
-> broke every signed and unsigned comparison in the core
-> ([V0-F2](doc/verification_findings.md)) — assume there are more.
+> This banner said "phase V0, no coverage collected, nothing
+> synthesised" for far longer than it was true. It is now accurate as
+> of phase V18 of [doc/verification_plan.md](doc/verification_plan.md),
+> and the status table below is generated from runs that are in the
+> repository.
+>
+> **What has been done.** The RTL lints clean and is co-simulated
+> against Spike over millions of instructions; there are block benches,
+> six formal property benches, seventeen simulation targets, 96 % line
+> coverage (100 % with reviewed waivers), 100 % functional coverage
+> over 65 cover points, 3 000 fault injections with no silent data
+> corruption, synthesis to IHP SG13G2 cells with the software tests
+> re-run on the netlist, and static timing. **Nine functional defects
+> have been found and fixed**, several of which broke a safety
+> mechanism outright.
+>
+> **Why it still says do not use.** No architectural test suite
+> (RISCOF) has been run, so conformance to the RISC-V specification
+> rests on Spike co-simulation of the programs that happen to exist. No
+> FMEDA and no diagnostic coverage figure. No timing closure — static
+> timing runs, but the reset nets have no buffer tree and no Fmax can
+> be quoted. Nothing has been laid out and nothing has been near
+> silicon. One finding is still open ([V0-F1](doc/verification_findings.md)).
 >
 > **Do not use yet** — not in a product, not in a tapeout, not as a
 > reference, and above all not in anything that has to be safe. No
-> functional safety claim of any kind is made: there is no FMEDA, no
-> diagnostic coverage figure, no fault injection campaign, and no
-> compliance with ISO 26262, IEC 61508 or any other standard.
+> functional safety claim of any kind is made, and no compliance with
+> ISO 26262, IEC 61508 or any other standard.
 
 ## What it is
 
