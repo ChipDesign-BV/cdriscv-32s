@@ -142,7 +142,7 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Formal: interconnect (`make formal-bus`) | **pass** | 5 routing, arbitration and no-lost-response properties, mutation tested |
 | Formal: other blocks | **not run** | LSU, decoder, safety controller — plan section 6 |
 | CI workflow | written, **never run, not installed** | [ci/github-workflow-verify.yml](ci/github-workflow-verify.yml); needs a token with GitHub's `workflow` scope to install, then a first run |
-| Line coverage (`make coverage`) | **79.9 %** | objective O6 wants 100 % with reviewed waivers; gap list in [verification_findings.md](doc/verification_findings.md). Earlier entries in this table reported a mixed line+toggle figure by mistake — see V7-M1 |
+| Line coverage (`make coverage`) | **80.3 %** | objective O6 wants 100 % with reviewed waivers; gap list in [verification_findings.md](doc/verification_findings.md). Earlier entries in this table reported a mixed line+toggle figure by mistake — see V7-M1 |
 | Toggle coverage | 91.4 % | reported separately, as it should have been from the start |
 | Functional coverage | **not collected** | plan objective O7 |
 | Synthesis (`make synth`) | **pass** | yosys via slang: no latches, no combinational loops, 52 614 cells with 64-word TCMs |
