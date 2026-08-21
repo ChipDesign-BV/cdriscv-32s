@@ -5,6 +5,71 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V7 continued — a correction, and the register walk (2026-08-21)
+
+### V7-M1 — the coverage figure was mislabelled (measurement error, CORRECTED)
+
+**The numbers reported in this log for the last four entries — 62.5 %,
+75.1 %, 80.0 %, 83.4 %, 86.0 % — were not line coverage.** They were a
+mixture of line and toggle coverage, and the toggle points dominated.
+
+Verilator's `--coverage` enables line *and* toggle points, and
+`--annotate` marks a source line uncovered if **any** point attached to
+it is uncovered. Declaration lines carry toggle points, so
+`output logic pslverr_o` — a signal legitimately tied to zero, which
+therefore never toggles — counted as an uncovered "line". Adding up
+declarations and statements together produces a number that is neither
+metric.
+
+What tipped me off was reading the actual uncovered lines instead of
+the totals: the list was full of port declarations, which are not
+statements and cannot be "executed".
+
+Corrected, with `--filter-type` splitting the database:
+
+| metric | value |
+|--------|-------|
+| line coverage | **70.3 %** at the point the mixed figure said 86.0 % |
+| toggle coverage | 90.2 % |
+
+Both are now reported separately, by `make coverage`, with their proper
+names. The *trend* across the last four entries was real — every test
+did close real gaps — but the absolute number was wrong and was
+published in the README for several hours. The README now carries both
+figures.
+
+The lesson generalises past this project: a coverage tool will happily
+add up whatever points it has, and the label on the total is the
+reader's assumption, not the tool's promise. Read the uncovered list,
+not the percentage.
+
+### Register walk — **pass**
+
+`make regwalk` touches the registers and modes the functional tests
+never reach: the timer's prescaler and 64-bit roll-over, the interrupt
+controller's edge mode, pending latch and claim, the watchdog's window
+mode and a wrong service key, the safety controller's reaction and pin
+registers including toggle mode, and the CSRs no program happens to
+read. Sixteen checks, all passing.
+
+**Line coverage 70.3 % → 79.6 %.**
+
+Remaining, and now genuinely small:
+
+| module | line coverage | what is left |
+|--------|---------------|--------------|
+| `cdriscv_decoder` | 66 % | reserved encodings in the remaining opcodes |
+| `cdriscv_clkmon` | 68 % | the reference-domain saturation path |
+| `cdriscv_lsu` | 44 % | back-pressure on `gnt`, which the TCM never applies |
+| `cdriscv_mbist` | 77 % | abort, and the I-TCM instance |
+| `cdriscv_if_stage` | 0 of 3 | worth a look: the stage clearly runs, so its three points are probably attributed oddly by inlining |
+
+The `cdriscv_lsu` entry is the interesting one: the TCM always grants
+immediately, so the LSU's wait-for-grant path has never run in any
+test. That needs a memory model that stalls, which is a bench feature
+rather than a program.
+
+
 ## Phase V7 continued — AMS interface (2026-08-21)
 
 `make ams` covers the mixed-signal half of the IP: the limit registers
