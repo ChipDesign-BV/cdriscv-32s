@@ -20,7 +20,23 @@ import os
 import sys
 
 
+def rtl_basenames(root="rtl"):
+    # A file counts as RTL if and only if it is in the repository's rtl
+    # tree.  Matching on the name alone is not enough: the annotated
+    # directory is flat and picks up whatever the simulator compiled,
+    # including Verilator's own verilated_std.sv, which was silently
+    # counted as design code and dragged the reported figure down by six
+    # points the first time a bench pulled it in.
+    names = set()
+    for dirpath, _, files in os.walk(root):
+        for name in files:
+            if name.endswith((".sv", ".v")):
+                names.add(name)
+    return names
+
+
 def main():
+    rtl = rtl_basenames()
     root = sys.argv[1] if len(sys.argv) > 1 else "build/cov/annotated"
     label = sys.argv[2] if len(sys.argv) > 2 else "coverage"
     rows = []
@@ -40,7 +56,7 @@ def main():
                         cov += 1
             if cov + unc == 0:
                 continue
-            is_tb = name.startswith("tb_") or "/verif/" in path
+            is_tb = name not in rtl
             rows.append((name, cov, unc, is_tb))
             if not is_tb:
                 tot_cov += cov

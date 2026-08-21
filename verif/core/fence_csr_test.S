@@ -175,6 +175,29 @@ _start:
     li   a0, 10
     li   t0, 2                  /* mcause 2: illegal instruction */
     bne  s6, t0, fail
+
+    /* ---- 5: two more encodings that must be rejected ---------------
+     * Both came from the coverage waiver review: they had been listed
+     * as unreachable defaults and they are nothing of the kind.  A
+     * SYSTEM instruction with funct3 = 100 leaves csr_op undecodable,
+     * and an opcode the decoder knows nothing about has to fall through
+     * to the top level default.  Neither had ever been executed.
+     */
+    li   s6, 0
+    la   s7, 2f
+    .word 0x00004073            /* SYSTEM, funct3 = 100 */
+2:
+    li   a0, 11
+    li   t0, 2
+    bne  s6, t0, fail
+
+    li   s6, 0
+    la   s7, 3f
+    .word 0x0000000b            /* opcode 0001011, not decoded at all */
+3:
+    li   a0, 12
+    li   t0, 2
+    bne  s6, t0, fail
     la   s7, unexpected
 
     /* ---- done ----------------------------------------------------- */

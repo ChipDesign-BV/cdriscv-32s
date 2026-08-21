@@ -10,13 +10,36 @@ current list of those is in `verification_findings.md`.
 
 ## W2 — defensive `default` arms over fully enumerated selectors (2026-08-21)
 
-After the read-back and fence tests, seventeen uncovered lines remain
-and **every one of them is a `default:` arm** whose selector is already
-fully enumerated by the arms above it. They fall into three groups, and
-the reason each is unreachable is different enough to be worth stating
-separately.
+Fifteen uncovered lines remain and every one of them is a `default:`
+arm whose selector is already fully enumerated by the arms above it.
+They fall into three groups, and the reason each is unreachable is
+different enough to be worth stating separately.
 
-Line coverage with this waiver applied is 100 %; without it, 94.4 %.
+Line coverage with this waiver applied is 100 %; without it, 96.0 %.
+
+### A correction: this waiver was wrong when first written
+
+It originally claimed seventeen lines and said "every one of them" was
+an unreachable default. Its own tables only accounted for fourteen.
+The three unlisted lines were the decoder's illegal-instruction
+defaults, and checking them properly gave three different answers:
+
+* `cdriscv_decoder.sv:252` really is unreachable — the OP-IMM `funct3`
+  case lists all eight values — and is now waived under W2b below.
+* `cdriscv_decoder.sv:322` is **reachable**: a SYSTEM instruction with
+  `funct3 = 100` leaves `csr_op` undecodable.
+* `cdriscv_decoder.sv:327` is **reachable**: the top level opcode
+  default, which any unknown opcode falls through to.
+
+Two lines had been waived as unreachable without anyone checking, in a
+document whose entire purpose is to be that check. Both are now covered
+by `fence_csr_test.S`, which executes `0x00004073` and `0x0000000b` and
+requires each to trap as an illegal instruction.
+
+The lesson is the obvious one and it is recorded here rather than
+quietly fixed: a waiver list that does not reconcile against the actual
+uncovered count is not a review, and the arithmetic is the cheapest
+part of it.
 
 ### W2a — state machine recovery arms
 
@@ -47,6 +70,7 @@ the evidence that the recovery works.
 | file | line | selector |
 |------|------|----------|
 | `cdriscv_alu.sv` | 124 | ALU operation enum |
+| `cdriscv_decoder.sv` | 252 | OP-IMM `funct3`, all eight values listed |
 | `cdriscv_core.sv` | 197, 206 | operand select enum |
 | `cdriscv_core.sv` | 479 | writeback select enum |
 | `cdriscv_lsu.sv` | 80, 142 | `addr[1:0]`, all four values listed |
@@ -89,6 +113,9 @@ is **not** waived and is covered, because those decode the full
 
 ### What would invalidate this waiver
 
+* A decoder gaining an opcode or `funct3` arm, which can turn a
+  "fully enumerated" claim false. That is how two lines were waived
+  wrongly the first time.
 * A peripheral that decodes `paddr_i[1:0]`, or an APB bridge that stops
   forcing them to zero — W2c would become reachable and must then be
   tested rather than waived.

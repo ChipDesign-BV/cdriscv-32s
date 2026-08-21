@@ -19,6 +19,10 @@
 
 module tb_safety;
 
+  // safety controller fault bit positions (see doc/register_map.md)
+  localparam int FLT_RF_PARITY = 5;
+  localparam int FLT_BIST      = 9;
+
   // ------------------------------------------------------------------
   // Clocks, with a runtime-variable system period so the clock monitor
   // can be given something to complain about
@@ -298,6 +302,124 @@ module tb_safety;
     release dut.u_clkmon.min_q;
     release dut.u_clkmon.max_q;
     release dut.u_clkmon.enable_q;
+
+    // The three checks below exist because the functional coverage
+    // model (objective O7) reported their cover points as never hit.
+    // Each is a safety mechanism that no software test could provoke:
+    // software cannot corrupt its own register file parity, cannot make
+    // a passing BIST fail, and cannot watch the reset it is about to be
+    // given.  They are mechanism tests -- does the fault reach the
+    // safety controller at all -- not fault characterisations, which is
+    // why they use a held `force` rather than the single cycle deposit
+    // the injection campaign uses.
+
+    // ---- 8: register file parity ------------------------------------
+    do_reset();
+    repeat (80) @(posedge clk);
+    dut.u_safety.status_q = 32'b0;
+    @(posedge clk);
+    // t0 is written and read constantly by the workload.  The parity
+    // bit is held wrong rather than flipped once, so that a rewrite of
+    // the register cannot repair it before any read observes it.
+    force dut.g_lockstep.u_core.u_core_main.u_regfile.par_q[5] =
+          ~dut.g_lockstep.u_core.u_core_main.u_regfile.par_q[5];
+    latency = 0;
+    fork : wait_par
+      begin
+        while (dut.u_safety.status_q[FLT_RF_PARITY] !== 1'b1) begin
+          @(posedge clk);
+          latency++;
+        end
+      end
+      begin repeat (2000) @(posedge clk); end
+    join_any
+    disable wait_par;
+    release dut.g_lockstep.u_core.u_core_main.u_regfile.par_q[5];
+    report("register file: a bad parity bit reaches the safety controller",
+           (dut.u_safety.status_q[FLT_RF_PARITY] === 1'b1),
+           $sformatf("no parity fault after %0d cycles", latency));
+
+    // ---- 9: memory BIST reporting a failure -------------------------
+    // The BIST compares what it reads against the pattern it wrote.
+    // Holding its read data wrong is the one way to make a healthy
+    // memory look faulty, and it is the only path by which fail_q and
+    // the BIST fault bit can ever be exercised.
+    do_reset();
+    repeat (80) @(posedge clk);         // let the software arm the safety controller
+    dut.u_safety.status_q = 32'b0;
+    force dut.u_mbist_d.bist_rdata_i = 39'h55_5555_5555;
+    @(negedge clk);
+    dut.u_mbist_d.start_q = 1'b1;
+    latency = 0;
+    fork : wait_bist
+      begin
+        while (dut.u_mbist_d.fail_q !== 1'b1) begin
+          @(posedge clk);
+          latency++;
+        end
+      end
+      begin repeat (5000) @(posedge clk); end
+    join_any
+    disable wait_bist;
+    release dut.u_mbist_d.bist_rdata_i;
+    report("memory BIST: a mismatch is latched and reported",
+           (dut.u_mbist_d.fail_q === 1'b1),
+           $sformatf("BIST did not fail after %0d cycles", latency));
+
+    // The fault is `done && fail`, not `fail`: a failing BIST runs to
+    // completion and reports at the end rather than stopping at the
+    // first bad word.  So the wait here is for the whole march to
+    // finish, which is why it is long.  The read data is released above
+    // -- the rest of the memory is healthy and the sticky fail bit is
+    // what carries the result to the end.
+    fork : wait_bist_done
+      begin while (dut.u_mbist_d.done_o !== 1'b1) @(posedge clk); end
+      begin repeat (400000) @(posedge clk); end
+    join_any
+    disable wait_bist_done;
+    // status_q latches on the edge *after* the fault input asserts, so
+    // sampling it in the cycle the wait loop exits reads it one cycle
+    // early -- which is how this check first reported a clean status
+    // with done and fail both set.
+    repeat (5) @(posedge clk);
+    report("memory BIST: the failure reaches the safety controller",
+           (dut.u_safety.status_q[FLT_BIST] === 1'b1),
+           $sformatf("done=%0b fail=%0b safety status = %08x",
+                     dut.u_mbist_d.done_o, dut.u_mbist_d.fail_q,
+                     dut.u_safety.status_q));
+
+    // ---- 10: watchdog requesting a reset ----------------------------
+    // reset_req_o is a pulse and it resets the core that would
+    // otherwise be observing it, which is exactly why software cannot
+    // test this and the bench must.
+    do_reset();
+    repeat (20) @(posedge clk);
+    force dut.u_wdog.period_q = 32'd40;
+    force dut.u_wdog.rst_en_q = 1'b1;
+    force dut.u_wdog.enable_q = 1'b1;
+    // count_q resets to 0xffff_ffff, so enabling the watchdog and
+    // waiting is a four billion cycle proposition.  Deposit a small
+    // count and let it run down from there; the reload from period_q
+    // only happens after the first time-out.
+    @(negedge clk);
+    dut.u_wdog.count_q = 32'd6;
+    latency = 0;
+    fork : wait_wdog
+      begin
+        while (dut.u_wdog.reset_req_o !== 1'b1) begin
+          @(posedge clk);
+          latency++;
+        end
+      end
+      begin repeat (2000) @(posedge clk); end
+    join_any
+    disable wait_wdog;
+    report("watchdog: a time-out with reset enabled requests a reset",
+           (dut.u_wdog.reset_req_o === 1'b1),
+           $sformatf("no reset request after %0d cycles", latency));
+    release dut.u_wdog.period_q;
+    release dut.u_wdog.rst_en_q;
+    release dut.u_wdog.enable_q;
 
     if (errors == 0) $display("[tb_safety] PASS: %0d checks", checks);
     else             $display("[tb_safety] FAIL: %0d of %0d checks", errors, checks);

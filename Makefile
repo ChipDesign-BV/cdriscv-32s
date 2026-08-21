@@ -428,12 +428,27 @@ $(BUILD)/obj_cmcov/tb_clkmon_cov: rtl/common/cdriscv_sync.sv \
 	  rtl/common/cdriscv_sync.sv rtl/safety/cdriscv_clkmon.sv \
 	  verif/block/clkmon/tb_clkmon.sv
 
+# The safety bench is where the mechanisms live that software cannot
+# provoke -- register file parity, a failing BIST, a watchdog reset.  It
+# runs under Icarus like the other benches, so without a Verilator build
+# of it those cover points read as never hit even though they are
+# tested.  Same argument as the clock monitor bench.
+$(BUILD)/obj_sftycov/tb_safety_cov: $(RTL) verif/safety/tb_safety.sv $(COVER_SV) | $(BUILD)
+	$(VERILATOR) --binary --timing -sv --timescale 1ns/1ps --coverage \
+	  --coverage-user \
+	  -Wno-fatal -Wno-DECLFILENAME -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM \
+	  -Wno-SYNCASYNCNET -Wno-WIDTHTRUNC \
+	  --top-module tb_safety -o tb_safety_cov -Mdir $(BUILD)/obj_sftycov \
+	  $(RTL) verif/safety/tb_safety.sv $(COVER_SV)
+
 coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
+          $(BUILD)/obj_sftycov/tb_safety_cov \
           $(BUILD)/obj_cmcov/tb_clkmon_cov \
           $(BUILD)/cosim_isa.hex $(BUILD)/safety_test.hex \
           $(BUILD)/periph_test.hex $(BUILD)/reaction_test.hex \
           $(BUILD)/trap_test.hex $(BUILD)/ams_test.hex \
           $(BUILD)/fence_csr_test.hex $(BUILD)/rdback_test.hex \
+          $(BUILD)/safety_test.hex \
           $(BUILD)/regwalk_test.hex $(BUILD)/dtcm_zero.hex sw
 	@mkdir -p $(BUILD)/cov && rm -f $(BUILD)/cov/*.dat
 	@./$(BUILD)/obj_cov/tb_cosim_cov +HEX=$(BUILD)/cosim_isa.hex \
@@ -479,6 +494,8 @@ coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
 	  mv coverage.dat $(BUILD)/cov/cov_regwalk.dat
 	@./$(BUILD)/obj_cmcov/tb_clkmon_cov > /dev/null 2>&1 && \
 	  mv coverage.dat $(BUILD)/cov/cov_clkmon.dat
+	@./$(BUILD)/obj_sftycov/tb_safety_cov +ITCM_HEX=$(BUILD)/safety_test.hex \
+	  > /dev/null 2>&1 && mv coverage.dat $(BUILD)/cov/cov_safetybench.dat
 	verilator_coverage --write $(BUILD)/cov/merged.dat $(BUILD)/cov/cov_*.dat
 	@rm -rf $(BUILD)/cov/ann_line $(BUILD)/cov/ann_tog
 	verilator_coverage --filter-type line --annotate $(BUILD)/cov/ann_line \
