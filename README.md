@@ -137,7 +137,8 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Co-simulation at scale | **not met** | objective O2 wants 10^9; the above is 3.4 % of it. Throughput is now ~43 000 instr/s, so the rest is machine time rather than rework. Memory accesses are now compared; CSR state that no instruction reads back is not |
 | Formal: fetch stage (`make formal-if`) | **pass** | BMC to depth 20, 5 properties, mutation tested; bounded, not a proof |
 | Formal: SEC-DED code (`make formal-ecc`) | **pass** | **proof** over all 2^32 data values and all error positions, mutation tested |
-| Formal: other blocks | **not run** | LSU, bus, decoder, safety controller — plan section 6 |
+| Formal: interconnect (`make formal-bus`) | **pass** | 3 routing and arbitration properties, mutation tested; a fourth is written, failing and open |
+| Formal: other blocks | **not run** | LSU, decoder, safety controller — plan section 6 |
 | CI workflow | written, **never run, not installed** | [ci/github-workflow-verify.yml](ci/github-workflow-verify.yml); needs a token with GitHub's `workflow` scope to install, then a first run |
 | Line coverage (`make coverage`) | **79.9 %** | objective O6 wants 100 % with reviewed waivers; gap list in [verification_findings.md](doc/verification_findings.md). Earlier entries in this table reported a mixed line+toggle figure by mistake — see V7-M1 |
 | Toggle coverage | 91.4 % | reported separately, as it should have been from the start |
