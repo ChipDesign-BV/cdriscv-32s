@@ -101,3 +101,12 @@ what makes the check bits testable.
 | `rtl/common/` | synchronisers |
 | `scripts/gen_secded.py` | generates the ECC RTL |
 | `scripts/mkimage.py` | builds a 39-bit memory image from a binary |
+
+## boot_addr_i must be tied to a constant
+
+Not a recommendation: `fetch_pc_q` resets to `boot_addr_i`, and a
+flip-flop whose reset loads a data value has no standard cell
+equivalent. Tie the port to a constant at the SoC level and every flop
+maps; drive it from a register and the program counter cannot be
+synthesised. Synthesising the subsystem standalone, with `boot_addr_i`
+left as a port, leaves 64 flops unmapped — see finding V18.

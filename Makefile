@@ -669,6 +669,37 @@ gate-subsys: $(BUILD)/gate/tb_subsys_gate.vvp $(BUILD)/prog.itcm.hex \
 
 gate: gate-alu gate-multdiv gate-ecc gate-fsm gate-subsys
 
+# ------------------------------------------------- static timing (O8)
+# OpenSTA against the same SG13G2 library the netlist is mapped to.
+#
+# The STA netlist is built separately from the simulation one for two
+# reasons, both of them about what OpenSTA's structural Verilog reader
+# will accept: `opt_clean -purge` removes the flattened hierarchical
+# debug wires it cannot parse, and boot_addr_i is tied to a constant so
+# that every flop maps to a library cell.  See V18 in
+# verification_findings.md for why that tie is needed and what it means.
+$(BUILD)/gate/cdriscv_subsys_sta.v: $(RTL) verif/gate/cdriscv_tcm_bb.sv | $(BUILD)/gate
+	$(YOSYS) -p "plugin -i slang; \
+	  read_slang --top $(TOP) verif/gate/cdriscv_tcm_bb.sv $(GATE_RTL); \
+	  connect -set boot_addr_i 32'h00000000; \
+	  synth -top $(TOP) -flatten; \
+	  dfflibmap -liberty $(GATE_LIB); \
+	  abc -liberty $(GATE_LIB); \
+	  opt_clean -purge; \
+	  write_verilog -noattr $@" -l $(BUILD)/gate/subsys_sta_synth.log
+	@grep -E "cells to .sg13g2_dfrbpq" $(BUILD)/gate/subsys_sta_synth.log
+	@if grep -q "^  reg " $@; then \
+	  echo "STA netlist still has behavioural registers -- not fully mapped"; \
+	  exit 1; fi
+
+$(BUILD)/gate/cdriscv_subsys_sta_fix.v: $(BUILD)/gate/cdriscv_subsys_sta.v
+	$(PYTHON) scripts/sta_netlist_fixup.py $< $@
+
+sta: $(BUILD)/gate/cdriscv_subsys_sta_fix.v verif/sta/cdriscv_subsys.sdc
+	GATE_LIB=$(GATE_LIB) GATE_NETLIST=$< \
+	  sta -no_splash -exit verif/sta/run_sta.tcl 2>&1 \
+	  | grep -v "^Warning 198" | tee $(BUILD)/gate/sta.log
+
 # ------------------------------------------------- fault injection
 FI_RUNS ?= 300
 FI_SEED ?= 7
