@@ -300,18 +300,18 @@ depth of 20–30 cycles is enough for all of these.
 | `cdriscv_if_stage` | at most one outstanding fetch at any time — **done** |
 | | after a redirect, no instruction is delivered whose PC does not belong to the new stream — **done**, as `p_pc_stream` |
 | | a discarded response never sets `instr_valid_o` — **done**, covered by `p_pc_stream` |
-| `cdriscv_lsu` | at most one outstanding data access |
-| | `addr`/`we`/`be`/`wdata` are stable from request to grant |
-| | `valid_o` pulses exactly once per accepted access |
-| `cdriscv_bus` | every accepted request produces exactly one response, to the master that issued it |
+| `cdriscv_lsu` | at most one outstanding data access — **done** |
+| | `addr`/`we`/`be`/`wdata` are stable from request to grant — **done**, as an assumption on the core plus a byte-enable reference check |
+| | `valid_o` pulses exactly once per accepted access — **done** |
+| `cdriscv_bus` | every accepted request produces exactly one response, to the master that issued it — **done** |
 | | a response is never produced for a master with no outstanding request |
 | `cdriscv_core` | `rf_we` is never asserted for `x0` |
 | | a trap and a retire never occur in the same cycle |
 | | the FSM never leaves a wait state without the corresponding completion |
 | `cdriscv_ecc_dec` | for any data and any single bit flip: output equals input — **done** |
 | | for any data and any double bit flip: `err_double_o` and no correction — **done** |
-| `cdriscv_decoder` | `illegal_instr_o` implies no enable is set |
-| `cdriscv_safety_ctrl` | a status bit, once set, only clears through a write of 1 to it |
+| `cdriscv_decoder` | `illegal_instr_o` implies no enable is set — **done**, proven over all 2^32 encodings |
+| `cdriscv_safety_ctrl` | a status bit, once set, only clears through a write of 1 to it — **done**, plus the lock and the reset request |
 
 ## 7. Safety mechanism matrix (L3, O4)
 

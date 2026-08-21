@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 ChipDesign B.V.
+# SPDX-License-Identifier: Apache-2.0
+[tasks]
+bmc
+[options]
+mode bmc
+depth 20
+[engines]
+smtbmc yices
+[script]
+plugin -i slang
+read_slang --top lsu_fv --allow-use-before-declare cdriscv_pkg.sv cdriscv_lsu.sv lsu_fv.sv
+prep -top lsu_fv
+[files]
+rtl/core/cdriscv_pkg.sv
+rtl/core/cdriscv_lsu.sv
+verif/formal/lsu_fv.sv

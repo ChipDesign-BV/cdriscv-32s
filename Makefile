@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench periph reaction trap ams regwalk formal formal-if formal-ecc formal-bus formal-dec coverage cosim cosim-iverilog cosim-stall cosim-random
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench periph reaction trap ams regwalk formal formal-if formal-ecc formal-bus formal-dec formal-lsu formal-safety coverage cosim cosim-iverilog cosim-stall cosim-random
 
 all: lint
 
@@ -410,7 +410,7 @@ coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
 FORMAL_DEPTH ?= 20
 SBY          ?= sby
 
-formal: formal-if formal-ecc formal-bus formal-dec
+formal: formal-if formal-ecc formal-bus formal-dec formal-lsu formal-safety
 
 formal-if: | $(BUILD)
 	$(SBY) -f -d $(BUILD)/fv_if verif/formal/if_stage.sby bmc \
@@ -439,6 +439,22 @@ formal-dec: | $(BUILD)
 	$(SBY) -f -d $(BUILD)/fv_dec verif/formal/decoder.sby bmc \
 	  | tee $(BUILD)/formal_dec.log
 	@grep -q "DONE (PASS" $(BUILD)/formal_dec.log
+
+# The LSU drives its bus outputs combinationally from the core's
+# request, so the core owes it stability.  That obligation is an
+# assumption in the wrapper, stated rather than implied.
+formal-lsu: | $(BUILD)
+	$(SBY) -f -d $(BUILD)/fv_lsu verif/formal/lsu.sby bmc \
+	  | tee $(BUILD)/formal_lsu.log
+	@grep -q "DONE (PASS" $(BUILD)/formal_lsu.log
+
+# A latched fault does not go away by itself, and a locked
+# configuration stays locked.  Both are claims the safety manual makes;
+# this is where they are checked.
+formal-safety: | $(BUILD)
+	$(SBY) -f -d $(BUILD)/fv_safety verif/formal/safety.sby bmc \
+	  | tee $(BUILD)/formal_safety.log
+	@grep -q "DONE (PASS" $(BUILD)/formal_safety.log
 
 # ---------------------------------------------------------------- ecc
 ecc:

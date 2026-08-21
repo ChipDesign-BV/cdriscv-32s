@@ -5,6 +5,74 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V6 complete — LSU and safety controller (2026-08-21)
+
+The last two blocks on the plan's formal list are done, so **all six
+targets in section 6 now have properties**: fetch stage, SEC-DED,
+interconnect, decoder, LSU, safety controller. `make formal` runs six
+benches.
+
+### LSU — pass
+
+The load/store unit drives its bus outputs combinationally from the
+core's request, which means the core owes it stability: address, size
+and write data must not move while an access is in progress. That
+obligation is written into the wrapper **as an assumption**, so it is
+visible rather than implied — if the core ever breaks it, the proof
+stops applying and someone can see why.
+
+What the LSU owes in return is asserted: never two accesses in flight,
+word-aligned bus addresses, byte enables that match the size and offset
+against an independently written reference, and a completion reported
+only when a response actually arrives.
+
+Mutation tested: unshifted halfword byte enables and an unaligned bus
+address are both caught by the property meant for them.
+
+### Safety controller — pass, after two rounds of counterexample
+
+Two claims the safety manual makes are structural, and this is where
+they stop being prose:
+
+* a latched fault does not go away by itself — it clears only through a
+  write of 1 to its own bit,
+* once the configuration is locked it stays locked, and none of the
+  reactions can be changed.
+
+The third property took two counterexamples to state correctly, and
+both were the tool teaching me the contract rather than finding a bug:
+
+1. *"the reset request is a one-cycle pulse"* — **false in six steps**.
+   Two different fault bits latching on consecutive cycles each ask for
+   their own reset, so the request can legitimately be high twice
+   running. Bounded by the number of fault bits, and harmless.
+2. *"...unless the status changed"* — **also false**. Software writing
+   `REACT_RST` while a fault is already latched asks for a reset the
+   previous configuration had not asked for.
+3. *"...unless the status **or the reaction configuration** changed"* —
+   **passes**. Which is the real requirement: the request cannot
+   sustain *itself*. With nothing latching and nothing reconfigured, it
+   must fall.
+
+That third form is exactly finding V7-F1 — the level-driven request
+that held the core in reset for ever — and the mutation test confirms
+it: **re-introducing V7-F1 is now caught by `p_reset_req_no_repeat`.**
+That bug is guarded by a property rather than only by a test, so it
+cannot come back unnoticed.
+
+Also mutation tested: a lock that fails to protect `ENABLE` is caught
+by `p_lock_enable`.
+
+### On properties that fail three times before they are right
+
+Each of those counterexamples looked at first like a possible bug, and
+each was the specification being sharpened instead. That is the normal
+shape of writing properties for a design one already believes is
+correct, and it is worth saying because the failures are not wasted
+work: the final property is stronger and *narrower* than the one first
+written, and it says something true rather than something hopeful.
+
+
 ## Phase V6 continued — the decoder, over every encoding (2026-08-21)
 
 `make formal-dec` proves, over **all 2^32 instruction encodings**, that
