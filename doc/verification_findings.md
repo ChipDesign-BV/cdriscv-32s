@@ -5,6 +5,65 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V7 continued — AMS interface (2026-08-21)
+
+`make ams` covers the mixed-signal half of the IP: the limit registers
+and range checking, the conversion time-out, the trim output and the
+analog test bus. Twelve checks, all passing.
+
+Coverage 83.4 % → **86.0 %**, with `cdriscv_ams_if` going from 68 % to
+90.4 %.
+
+One nice property of the setup: the **conversion time-out is provoked
+by setting the limit below the bench ADC model's latency** — the model
+answers after 20 cycles, the test allows 2 — so a stuck analog block is
+exercised without touching the bench at all.
+
+Mutation tested, all three caught:
+
+| mutation | result |
+|----------|--------|
+| range checking disabled | fails at check 6 |
+| the time-out is never reported | the sequencer poll expires, check 8 |
+| the captured result is off by one | fails at check 2 |
+
+The middle one exposed a weakness in the test rather than the design:
+the poll bound was so large that a stuck sequencer ran the *bench* out
+of cycles before the test's own check could fire, so the failure showed
+up as a bench time-out instead of naming its check. The bounds are now
+tight enough that the test reports itself. A test should fail with its
+own voice.
+
+## Coverage, where it stands
+
+| | |
+|---|---|
+| baseline, before any peripheral test | 62.5 % |
+| after peripherals and interrupts | 75.1 % |
+| after the safety reactions | 80.0 % |
+| after traps and illegal encodings | 83.4 % |
+| after the AMS interface | **86.0 %** |
+
+No single module dominates the remainder any more; the largest gap is
+20 lines. What is left is a tail:
+
+| module | coverage | what is missing |
+|--------|----------|-----------------|
+| `cdriscv_csr` | 80 % | the counter CSRs and the read-only ID registers |
+| `cdriscv_safety_ctrl` | 77 % | the error pin in toggle mode, `PIN_DIV` |
+| `cdriscv_decoder` | 70 % | the remaining reserved encodings |
+| `cdriscv_mbist` | 84 % | the I-TCM instance, abort, the fail address path |
+| `cdriscv_wdog` | 78 % | window mode and a wrong service key |
+| `cdriscv_timer` | 68 % | the prescaler and the 64-bit roll-over |
+
+Objective O6 asks for 100 % with reviewed waivers. Some of this tail is
+genuinely unreachable in the shipped configuration — generate branches
+for parameter values that are not used — and those need waivers rather
+than tests. Separating the two is the next job, and it is the point at
+which the coverage number stops being a to-do list and starts being a
+sign-off argument.
+
+
 ## Phase V7 continued — traps and illegal encodings (2026-08-21)
 
 `make trap` walks **every exception cause the core can raise** and
