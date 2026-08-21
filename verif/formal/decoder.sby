@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2026 ChipDesign B.V.
+# SPDX-License-Identifier: Apache-2.0
+#
+# The decoder is combinational, so depth 2 quantifies over every one of
+# the 2^32 instruction encodings.  Depth 2, not 1: the properties sit in
+# a clocked block and depth 1 never reaches the clock edge, which passes
+# without checking anything.
+#
+# abc (SAT) rather than yices: the decoder is a wide case tree, and SAT
+# handles it better.
+
+[tasks]
+bmc
+
+[options]
+mode bmc
+depth 2
+
+[engines]
+abc bmc3
+
+[script]
+plugin -i slang
+read_slang --top decoder_fv --allow-use-before-declare cdriscv_pkg.sv cdriscv_decoder.sv decoder_fv.sv
+prep -top decoder_fv
+
+[files]
+rtl/core/cdriscv_pkg.sv
+rtl/core/cdriscv_decoder.sv
+verif/formal/decoder_fv.sv

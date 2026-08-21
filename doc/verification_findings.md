@@ -5,6 +5,66 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V6 continued — the decoder, over every encoding (2026-08-21)
+
+`make formal-dec` proves, over **all 2^32 instruction encodings**, that
+an instruction the decoder rejects has no architectural effect: no
+register write, no memory access, no control transfer, no CSR access,
+no system side effect. The decoder is combinational, so depth 2
+quantifies over the whole input space, and it takes 0.3 seconds.
+
+This is the property that matters for safety. If a reserved encoding
+raised `illegal_instr_o` *and* set `rf_we`, the core would take an
+illegal instruction trap and corrupt a register on the way — a silent
+data corruption reachable by a bit flip the ECC miscorrected, or by a
+wild jump into data. No simulation can rule that out across the whole
+encoding space; this does.
+
+Two further properties: a memory access is never also a multiply, and a
+branch is never also a jump.
+
+### Mutation testing, and an equivalent mutant
+
+| mutation | result |
+|----------|--------|
+| illegal no longer clears `rf_we` | caught by `p_illegal_no_rf` |
+| illegal no longer clears `csr_access` | caught by `p_illegal_no_csr` |
+| the `instr[1:0] != 2'b11` check removed | **not caught — and correctly so** |
+
+The third is an *equivalent mutant*, not a gap. Every valid RISC-V
+opcode has bits [1:0] = 11, so an encoding that fails that test also
+fails to match any case item and lands on the opcode `default`, which
+already reports illegal. Removing the explicit check does not change
+the function.
+
+Worth knowing rather than just noting: that check is **redundant
+defensive code** today. It is kept because it states the intent, and
+because it becomes load-bearing the moment compressed instructions are
+added — at which point 16-bit encodings must be *accepted* rather than
+rejected, and that line is where the change starts.
+
+### Reserved encodings in simulation too
+
+`make trap` now also executes one reserved encoding per opcode group —
+BRANCH, LOAD, STORE, OP-IMM, OP and MISC-MEM — plus a **negative
+control**: a legal `ORI` that must *not* trap. Without the negative
+control, a decoder that rejected everything would pass the whole
+illegal-instruction section.
+
+Decoder line coverage 57 % → 79 %, total **80.3 % → 82.5 %**.
+
+### A process note: check that a new gate actually runs
+
+I added `formal-dec` to the `formal` target's dependencies, but the
+edit that was supposed to add the target *itself* did not apply — the
+anchor text I matched on had changed. `make formal` then quietly ran
+three of the four sub-targets, and my check counted three passes.
+
+I nearly wrote "four formal runs pass" on the strength of an edit I had
+not verified landed. Counting the gates that actually ran, rather than
+the gates I meant to add, is the check that caught it.
+
+
 ## V2-P1 — the fetch bubble, FIXED (2026-08-21)
 
 The performance finding from phase V2 is now addressed in the RTL, on
