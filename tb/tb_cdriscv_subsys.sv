@@ -76,12 +76,22 @@ module tb_cdriscv_subsys;
   logic        core_sleep, retire_valid;
   logic [31:0] retire_pc, retire_instr;
 
+  // A gate level netlist is one *configuration*, not a parameterisable
+  // module -- synthesis has already resolved the parameters -- so the
+  // overrides have to go away for that build.  They are the RTL
+  // defaults in any case, which is what makes the two runs comparable;
+  // if they ever diverge, the gate flow must pass matching -G options
+  // to synthesis rather than the testbench overriding here.
+`ifdef GATE_LEVEL
+  cdriscv_subsys dut (
+`else
   cdriscv_subsys #(
       .Lockstep  (1'b1),
       .ItcmWords (4096),
       .DtcmWords (4096),
       .MbistAuto (1'b0)
   ) dut (
+`endif
       .clk_i          (clk),
       .rst_ni         (rst_n),
       .ref_clk_i      (ref_clk),
@@ -197,7 +207,15 @@ module tb_cdriscv_subsys;
       $display("[TRACE] %8t pc=%08x instr=%08x", $time, retire_pc, retire_instr);
     end
     if (fault_any) begin
+`ifdef GATE_LEVEL
+      // The safety status register is inside the flattened netlist and
+      // has no hierarchical path any more.  The memories still do --
+      // they are black boxes, so the real module is bound in their
+      // place and the program preload above works unchanged.
+      $display("[TB] fault reported (safety status not reachable at gate level)");
+`else
       $display("[TB] fault reported, safety status = %08x", dut.u_safety.status_q);
+`endif
     end
   end
 

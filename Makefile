@@ -613,7 +613,61 @@ gate-fsm: $(BUILD)/gate/tb_gate_fsm.vvp
 	$(VVP) $< | tee $(BUILD)/gate/fsm.log
 	@grep -q "PASS" $(BUILD)/gate/fsm.log
 
-gate: gate-alu gate-multdiv gate-ecc gate-fsm
+# ---- the whole subsystem, memories black-boxed -------------------
+# The TCMs are 4096 x 39 arrays.  Synthesised as logic they become a
+# third of a million flip-flops -- a first attempt mapped 325107 before
+# it was killed -- and in silicon they are compiled SRAM macros that a
+# netlist instantiates rather than contains.  So synthesis reads a
+# black box stub in place of the real module, and simulation binds the
+# real one back: memory behaves as at RTL, everything around it is
+# gates.
+#
+# Marking the real module `blackbox` inside yosys does not work: the
+# slang front end specialises parameterised modules, so the instances
+# are $paramod\cdriscv_tcm\... and the command matches nothing.
+# Silently -- which is why the first run looked slow rather than wrong.
+GATE_RTL := $(filter-out rtl/bus/cdriscv_tcm.sv,$(RTL))
+
+$(BUILD)/gate/cdriscv_subsys_gate.v: $(RTL) verif/gate/cdriscv_tcm_bb.sv | $(BUILD)/gate
+	$(YOSYS) -p "plugin -i slang; \
+	  read_slang --top $(TOP) verif/gate/cdriscv_tcm_bb.sv $(GATE_RTL); \
+	  synth -top $(TOP) -flatten; \
+	  dfflibmap -liberty $(GATE_LIB); \
+	  abc -liberty $(GATE_LIB); \
+	  opt_clean; \
+	  write_verilog -noattr $@; \
+	  stat -liberty $(GATE_LIB)" -l $(BUILD)/gate/subsys_synth.log
+	@grep -E "Chip area for module|cells to .sg13g2_dfrbpq" $(BUILD)/gate/subsys_synth.log
+
+# -DGATE_LEVEL drops the parameter overrides (a netlist is one
+# configuration, not a parameterisable module) and the one white box
+# reference the bench makes into the safety controller.  The memory
+# preload still works: the TCMs are black boxes, so dut.u_itcm.mem is
+# still a real hierarchical path.
+$(BUILD)/gate/tb_subsys_gate.vvp: $(BUILD)/gate/cdriscv_subsys_gate.v $(GATE_CELLS) \
+                                  $(GATE_UDP) $(TB) rtl/bus/cdriscv_tcm.sv
+	$(IVERILOG) -g2012 -DGATE_LEVEL -o $@ -s $(TB_TOP) \
+	  $(GATE_PKG) rtl/bus/cdriscv_tcm.sv rtl/safety/cdriscv_ecc_secded.sv \
+	  $(BUILD)/gate/cdriscv_subsys_gate.v $(GATE_UDP) $(GATE_CELLS) $(TB)
+
+gate-subsys: $(BUILD)/gate/tb_subsys_gate.vvp $(BUILD)/prog.itcm.hex \
+             $(BUILD)/safety_test.hex $(BUILD)/trap_test.hex \
+             $(BUILD)/fence_csr_test.hex $(BUILD)/dtcm_zero.hex
+	@rm -f $(BUILD)/gate/subsys.log
+	@for t in "prog.itcm 20000" "safety_test 20000" "trap_test 100000" \
+	          "fence_csr_test 100000"; do \
+	  set -- $$t; \
+	  if [ "$$1" = "prog.itcm" ]; then d=$(BUILD)/prog.dtcm.hex; \
+	  else d=$(BUILD)/dtcm_zero.hex; fi; \
+	  echo "--- $$1 ---" | tee -a $(BUILD)/gate/subsys.log; \
+	  $(VVP) $< +ITCM_HEX=$(BUILD)/$$1.hex +DTCM_HEX=$$d \
+	    +MAX_CYCLES=$$2 2>/dev/null | grep -E "^\[TB\] (PASS|FAIL)" \
+	    | tee -a $(BUILD)/gate/subsys.log || exit 1; \
+	done
+	@if grep -q FAIL $(BUILD)/gate/subsys.log; then \
+	  echo "gate-subsys: FAIL"; exit 1; else echo "gate-subsys: all programs pass"; fi
+
+gate: gate-alu gate-multdiv gate-ecc gate-fsm gate-subsys
 
 # ------------------------------------------------- fault injection
 FI_RUNS ?= 300

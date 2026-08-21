@@ -5,6 +5,78 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V17 — the whole subsystem at gate level (2026-08-21)
+
+The subsystem now goes through the gate flow, not just three blocks,
+and **the software tests run on the netlist with the same cycle counts
+as on the RTL**:
+
+| program | RTL | gate |
+|---------|-----|------|
+| smoke | 301 | 301 |
+| `safety_test` | 267 | 267 |
+| `trap_test` | 397 | 397 |
+| `fence_csr_test` | 193 | 193 |
+
+Cycle-identical is a stronger statement than functionally equivalent.
+It says synthesis changed no sequential behaviour anywhere on those
+paths — not the lockstep delay, not the fetch buffer, not the trap
+sequencing.
+
+Synthesised size, memories excluded: **5 433 flip-flops, 529 175 µm²**
+in SG13G2, about 0.53 mm². That is the dual-core lockstep, the safety
+controller, the watchdog, the clock monitor, the AMS interface, the
+BIST controllers, the interrupt controller and the bus.
+
+### The memories have to be black boxes, and saying so in yosys is not enough
+
+The TCMs are 4 096 × 39 arrays. Synthesised as logic they are a third
+of a million flip-flops: a first attempt mapped **325 107** before it
+was killed. In silicon they are compiled SRAM macros that a netlist
+instantiates rather than contains.
+
+The obvious move — `blackbox cdriscv_tcm` inside yosys — does nothing,
+and does it quietly. The slang front end specialises parameterised
+modules, so the instances are `$paramod\cdriscv_tcm\Depth=...` and the
+command matches no module at all. No error, no warning; the run simply
+carried on synthesising the memories, and the only symptom was that it
+was slow. **A no-op that looks like a long-running job is a bad failure
+mode**, and the reason this is written down rather than quietly fixed.
+
+`verif/gate/cdriscv_tcm_bb.sv` is a stub with identical ports,
+substituted for the real file at read time, which cannot silently miss.
+Simulation binds the real module back in its place, so the memory
+behaves exactly as at RTL while everything around it is gates — and
+`dut.u_itcm.mem` is still a valid path, which is what lets the existing
+testbench preload the program unchanged.
+
+### What a netlist cannot be asked to do
+
+Two testbench assumptions broke, both of them reasonable at RTL and
+both wrong against a netlist:
+
+* **Parameter overrides.** The bench instantiates the subsystem with
+  `#(.Lockstep(1'b1), .ItcmWords(4096), ...)`. A netlist is one
+  configuration; synthesis has already resolved those. The overrides
+  are now compiled out under `GATE_LEVEL`. They happen to be the RTL
+  defaults, which is what makes the two runs comparable — if they ever
+  diverge, the gate flow has to pass matching `-G` options to synthesis
+  rather than the bench overriding anything.
+* **One white box reference.** `dut.u_safety.status_q` has no
+  hierarchical path after flattening. The memories keep theirs only
+  because they are black boxes. Same lesson as V16's `acc_q[32]`: a
+  bench reused at gate level has to know which of its checks are about
+  the RTL and which are about the design.
+
+### Still not done
+
+No timing, as before — the models are zero-delay and this says nothing
+about whether the netlist closes. The longer programs (`periph`, `ams`,
+`regwalk`, `reaction`) are not in the gate run; they take up to two
+million cycles at RTL and the gate netlist is far slower per cycle.
+And the five state machines other than the multiplier's still have
+their W2a recovery argument resting on the RTL alone.
+
 ## Phase V16 — gate level simulation, objective O8 started (2026-08-21)
 
 The RTL is now synthesised to real IHP SG13G2 standard cells and the
