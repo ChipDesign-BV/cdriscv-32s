@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench periph reaction trap ams regwalk formal formal-if formal-ecc formal-bus coverage cosim cosim-iverilog cosim-stall cosim-random
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench periph reaction trap ams regwalk formal formal-if formal-ecc formal-bus formal-dec coverage cosim cosim-iverilog cosim-stall cosim-random
 
 all: lint
 
@@ -410,7 +410,7 @@ coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
 FORMAL_DEPTH ?= 20
 SBY          ?= sby
 
-formal: formal-if formal-ecc formal-bus
+formal: formal-if formal-ecc formal-bus formal-dec
 
 formal-if: | $(BUILD)
 	$(SBY) -f -d $(BUILD)/fv_if verif/formal/if_stage.sby bmc \
@@ -430,6 +430,15 @@ formal-bus: | $(BUILD)
 	$(SBY) -f -d $(BUILD)/fv_bus verif/formal/bus.sby bmc \
 	  | tee $(BUILD)/formal_bus.log
 	@grep -q "DONE (PASS" $(BUILD)/formal_bus.log
+
+# The decoder is combinational, so this quantifies over every one of the
+# 2^32 instruction encodings: an instruction the decoder rejects must
+# have no architectural effect at all -- no register write, no memory
+# access, no control transfer, no CSR access, no system side effect.
+formal-dec: | $(BUILD)
+	$(SBY) -f -d $(BUILD)/fv_dec verif/formal/decoder.sby bmc \
+	  | tee $(BUILD)/formal_dec.log
+	@grep -q "DONE (PASS" $(BUILD)/formal_dec.log
 
 # ---------------------------------------------------------------- ecc
 ecc:

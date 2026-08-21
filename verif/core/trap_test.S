@@ -115,6 +115,57 @@ r6: li   a0, 7
     li   t0, CAUSE_ILLEGAL
     bne  s8, t0, fail
 
+/* --- 6b: the reserved encodings inside each opcode ------------------
+ * One per opcode group, to reach the per-opcode default arms of the
+ * decoder.  These are the branches no valid program can reach and the
+ * random generator never emits, so only a directed test gets there.
+ */
+    la   s7, r6b1
+    .word 0x00002063            /* BRANCH, funct3 = 010 reserved */
+r6b1: li a0, 20
+    li   t0, CAUSE_ILLEGAL
+    bne  s8, t0, fail
+
+    la   s7, r6b2
+    .word 0x00003003            /* LOAD, funct3 = 011 reserved */
+r6b2: li a0, 21
+    li   t0, CAUSE_ILLEGAL
+    bne  s8, t0, fail
+
+    la   s7, r6b3
+    .word 0x00003023            /* STORE, funct3 = 011 reserved */
+r6b3: li a0, 22
+    li   t0, CAUSE_ILLEGAL
+    bne  s8, t0, fail
+
+    la   s7, r6b4
+    .word 0x40001013            /* SLLI with a reserved funct7 */
+r6b4: li a0, 23
+    li   t0, CAUSE_ILLEGAL
+    bne  s8, t0, fail
+
+    la   s7, r6b5
+    .word 0x40001033            /* SLL with a reserved funct7 */
+r6b5: li a0, 24
+    li   t0, CAUSE_ILLEGAL
+    bne  s8, t0, fail
+
+    la   s7, r6b6
+    .word 0x0000200f            /* MISC-MEM, funct3 = 010 reserved */
+r6b6: li a0, 25
+    li   t0, CAUSE_ILLEGAL
+    bne  s8, t0, fail
+
+    li   s8, -1                 /* clear the captured cause */
+    la   s7, r6b7
+    .word 0x00006013            /* OP-IMM, funct3 = 110 is ORI: legal,
+                                 * kept as a negative control -- if this
+                                 * one traps, the decoder is rejecting a
+                                 * valid instruction */
+r6b7: li a0, 26
+    li   t0, CAUSE_ILLEGAL
+    beq  s8, t0, fail
+
 /* --- 7: load address misaligned ------------------------------------ */
     la   s7, r7
     la   t1, scratch
