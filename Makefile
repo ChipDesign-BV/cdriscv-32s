@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench periph reaction trap ams regwalk formal formal-if formal-ecc formal-bus formal-dec formal-lsu formal-safety coverage cosim cosim-iverilog cosim-stall cosim-random
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench periph reaction trap ams regwalk formal formal-if formal-ecc formal-bus formal-dec formal-lsu formal-safety coverage fi cosim cosim-iverilog cosim-stall cosim-random
 
 all: lint
 
@@ -401,6 +401,28 @@ coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
 	@echo "" | tee -a $(BUILD)/coverage.txt
 	@$(PYTHON) scripts/coverage_report.py $(BUILD)/cov/ann_tog \
 	  "toggle coverage" | head -3 | tee -a $(BUILD)/coverage.txt
+
+# ------------------------------------------------- fault injection
+FI_RUNS ?= 300
+FI_SEED ?= 7
+
+$(BUILD)/fi_workload.elf: verif/fi/fi_workload.S tb/sw/link.ld | $(BUILD)
+	$(CC) -march=$(ARCH) -mabi=$(ABI) -nostdlib -nostartfiles \
+	  -T tb/sw/link.ld -o $@ verif/fi/fi_workload.S
+
+$(BUILD)/fi_workload.bin: $(BUILD)/fi_workload.elf
+	$(OBJCOPY) -O binary --only-section=.text $< $@
+
+$(BUILD)/tb_fi.vvp: $(RTL) verif/fi/tb_fi.sv | $(BUILD)
+	$(IVERILOG) -g2012 -o $@ -s tb_fi $(RTL) verif/fi/tb_fi.sv
+
+# Single event upsets across a named fault list, classified into
+# detected / silent-ok / silent data corruption / hang.  The SDC count
+# is the one that matters: a fault that changes the result and reports
+# nothing is what a safety mechanism exists to prevent.
+fi: $(BUILD)/tb_fi.vvp $(BUILD)/fi_workload.hex $(BUILD)/dtcm_zero.hex
+	$(PYTHON) scripts/fi_campaign.py --runs $(FI_RUNS) --seed $(FI_SEED) \
+	  | tee $(BUILD)/fi_campaign.txt
 
 # --------------------------------------------------------------- formal
 # Bounded model check of the fetch stage.  Depth is a variable because
