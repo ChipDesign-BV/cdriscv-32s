@@ -25,6 +25,61 @@ report, because a diagnostic coverage figure means nothing without the
 fault list it was measured over. A full flop-level campaign needs a
 harness that can enumerate the netlist, which this is not.
 
+### Results: 300 upsets
+
+| outcome | count | share |
+|---------|-------|-------|
+| detected by a safety mechanism | 112 | 37.3 % |
+| silent, result still correct | 188 | 62.7 % |
+| **silent data corruption** | **0** | **0 %** |
+| hang | 0 | 0 % |
+
+**No upset produced an undetected wrong answer.** Every fault either
+was reported or left the checksum intact.
+
+By state element, and this is where it gets interesting:
+
+| state element | detected | silent | reading |
+|---------------|----------|--------|---------|
+| fetch program counter | **28 / 28** | 0 | lockstep catches every one |
+| fetch buffer word | 24 / 29 | 5 | |
+| I-TCM word | 22 / 28 | 6 | ECC |
+| core register file word | **13 / 30** | 17 | see below |
+| D-TCM word | 14 / 34 | 20 | |
+| register file parity bit | 9 / 38 | 29 | a parity bit upset is harmless unless its word is read |
+| LSU address offset | 2 / 35 | 33 | only live during an access |
+| `mepc` | **0 / 41** | 41 | dormant: this workload takes no traps |
+| `mstatus.MIE` | **0 / 37** | 37 | dormant: this workload uses no interrupts |
+
+Which mechanism reported: lockstep 76, I-TCM ECC corrected 22, register
+file parity 18, D-TCM ECC corrected 14, bus error 13, core trap 7. A
+single fault often sets several.
+
+### What these numbers do and do not say
+
+**They are not a diagnostic coverage figure**, and should not be quoted
+as one. Three reasons, all of which have to travel with the numbers:
+
+* The two worst-looking rows, `mepc` at 0/41 and `mstatus.MIE` at 0/37,
+  are not evidence that those faults are tolerated. They are evidence
+  that **this workload never activates them** — it takes no traps and
+  enables no interrupts, so those bits are dead state for the whole
+  run. A workload that used them would give completely different
+  numbers. Measuring activation, not just outcome, is the missing
+  piece.
+* The fault list is nine named elements, not the ~5 000 flops the
+  design synthesises to.
+* 300 runs on one short workload is a pilot, not a campaign. The plan
+  asks for 10^4 injections across three workloads.
+
+**The register file row is the one to act on.** 13 of 30 detected,
+against 28 of 28 for the fetch PC. That is finding V4-F3 measured
+rather than argued: the fetch PC reaches a compared signal immediately,
+while a corrupted register is only caught if the value is read again.
+Two independent methods now say the same thing — the characterisation
+test in `tb_safety`, and this campaign — and both point at adding
+`rd_addr` and `rf_wdata` to the lockstep compare vector.
+
 ### Two bench bugs, one of which would have been very expensive
 
 **The injector silently did nothing.** The first version deposited the
