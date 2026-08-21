@@ -170,6 +170,70 @@ the percentages, and prints a warning. A campaign that silently counts
 faults it never injected is worse than no campaign, because the number
 still looks like a number.
 
+### V10 — scaling the campaign to 3 000, and what scaling exposed
+
+1 000 injections per workload, seed 11.
+
+| state element | A: arithmetic | B: traps | C: memory |
+|---------------|--------------|----------|-----------|
+| fetch program counter | 112 / 113 | 126 / 127 | 106 / 106 |
+| I-TCM word | 82 / 118 | 113 / 113 | 119 / 119 |
+| fetch buffer word | 97 / 122 | 92 / 124 | 74 / 112 |
+| D-TCM word | 56 / 114 | 48 / 104 | 64 / 121 |
+| core register file word | 37 / 90 | 51 / 110 | 30 / 97 |
+| register file parity bit | 22 / 112 | 20 / 94 | 17 / 115 |
+| `mstatus.MIE` | 0 / 85 | **100 / 112** | 0 / 124 |
+| `mepc` | 0 / 121 | **20 / 110** | 0 / 113 |
+| LSU address offset | 4 / 125 | 3 / 106 | **18 / 93** |
+| **total** | 410 / 1000 (41.0 %) | 573 / 1000 (57.3 %) | 428 / 1000 (42.8 %) |
+
+**3 000 injections, three workloads, still zero silent data corruption
+and zero hangs.** The fetch program counter is 344 of 346 across all
+three, and the I-TCM is 314 of 350.
+
+The conclusions from the 300 run pilot all survive: activation is what
+drives the `mepc` and `mstatus.MIE` rows, the LSU offset responds to a
+workload that keeps the LSU busy, and the register file does not
+respond to the workload at all.
+
+The individual pilot figures did not survive nearly as well. The
+register file on workload C read 53 % over 300 runs and 31 % over
+1 000; the same row on A moved 43 → 41 % and on B 45 → 46 %. A single
+row of a 300 run campaign is worth about ±15 points, which is worth
+remembering before any of these numbers is quoted as a rate.
+
+### The campaign could destroy its own results
+
+Scaling to 1 000 broke the driver. One simulation exceeded the 600 s
+subprocess timeout, `TimeoutExpired` propagated out of the thread pool,
+and the campaign died having thrown away 999 completed results.
+
+Worse, it reported success. Every simulation recipe in the Makefile
+ends in `| tee somelog`, and a shell pipeline exits with the status of
+its *last* command, so `vvp ... | tee` returns 0 however the simulation
+ended. Verified directly: `vvp` alone exits 1 on `$fatal`, `vvp | tee`
+exits 0. Eleven recipes were written that way — every block bench and
+every software test. **A failing test reported a passing `make`, and
+the CI workflow would have gone green on it.** `.SHELLFLAGS` now
+carries `pipefail`; with the same deliberately failing simulation,
+`make` goes from exit 0 to exit 2. The whole suite was then re-run
+under the fixed gate and everything passes, so nothing had been hiding
+behind it — but that was luck, not design.
+
+The driver now catches the timeout, classifies that run `sim-timeout`,
+and reports the rest.
+
+**A diagnosis I got wrong.** I first put the overrun down to a hung
+core running to the bench's 400 000 cycle give-up point, roughly ninety
+times any workload's length. That was wrong. Re-running the identical
+seed and fault list with the give-up point at 400 000 produced results
+identical to the 50 000 run target for target, took no unusual time and
+did not crash. Nothing hangs, and the cutoff was never the cause. The
+overrun was one simulation losing a race with machine load, and it did
+not reproduce. What changed for the better is that it can no longer
+take a campaign down with it; the tighter cutoff is worth keeping on
+its own merits, but it fixed nothing.
+
 ### What these numbers do and do not say
 
 **They are not a diagnostic coverage figure**, and should not be quoted
@@ -185,8 +249,8 @@ as one. Three reasons, all of which have to travel with the numbers:
   property of the workload set rather than of the design.
 * The fault list is nine named elements, not the ~5 000 flops the
   design synthesises to.
-* 900 runs across three short workloads is a pilot, not a campaign. The
-  plan asks for 10^4 injections per workload. The campaign driver now
+* 3 000 runs across three short workloads is still short of the 10^4
+  per workload the plan asks for, and short workloads at that. The campaign driver now
   runs simulations concurrently, which is what makes that number
   reachable; the fault list is drawn from the seeded generator before
   any of them start, so the results do not depend on `--jobs`. Workload

@@ -3,12 +3,19 @@
 #
 # cdriscv-32s -- build entry points.
 #
-# NONE OF THESE FLOWS HAS BEEN RUN YET.  The RTL in this repository has
-# not been compiled, linted, simulated or synthesised; the targets below
-# describe how it is meant to be exercised, not a result that has been
-# achieved.  See doc/verification_plan.md.
+# See doc/verification_plan.md for what these are meant to establish and
+# doc/verification_findings.md for what they have actually found.
+#
+# .SHELLFLAGS carries pipefail, and it is not optional.  Almost every
+# simulation recipe here ends in `| tee somelog`, and a pipeline's exit
+# status is the *last* command's -- so `vvp ... | tee` returns 0 even
+# when the simulation calls $fatal.  Eleven recipes were built that way,
+# which means a failing test reported a passing make, and the CI
+# workflow would have gone green on it.  Verified directly: vvp alone
+# exits 1 on $fatal, `vvp | tee` exits 0.
 
-SHELL      := /bin/bash
+SHELL       := /bin/bash
+.SHELLFLAGS := -o pipefail -c
 BUILD      := build
 FILELIST   := rtl/cdriscv_files.f
 RTL        := $(shell grep -v '^//' $(FILELIST))
