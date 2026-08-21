@@ -149,6 +149,6 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Functional coverage | **not collected** | plan objective O7 |
 | Synthesis (`make synth`) | **pass** | yosys via slang: no latches, no combinational loops, 52 614 cells with 64-word TCMs |
 | Gate level simulation | **not run** | |
-| FMEDA / diagnostic coverage | **not started** | needs the fault injection campaign |
-| Fault injection campaign | **not started** | plan section 9 |
+| FMEDA / diagnostic coverage | **not started** | the pilot campaign is a first input, not a coverage figure |
+| Fault injection (`make fi`) | **pilot run** | 300 upsets, 9 named state elements: **0 silent data corruption**, 112 detected. Not a diagnostic coverage figure — see the caveats in [verification_findings.md](doc/verification_findings.md) |
 | Safety manual | draft outline only | |
