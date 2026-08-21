@@ -115,8 +115,14 @@ module tb_fi;
 
       if (exit_seen || (cycle > 400000)) begin
         status_at_end = dut.u_safety.status_q;
-        $display("FI target=%0d bit=%0d cycle=%0d exit=%08x golden=%08x exited=%0d status=%08x",
-                 target, bitpos, injcycle, exit_code, golden, exit_seen, status_at_end);
+        // `inj` says whether the deposit actually happened.  An
+        // injection scheduled past the end of the workload never
+        // happens, and without this it would be indistinguishable from
+        // a fault the design tolerated -- it would land in the silent
+        // count and quietly flatter the result.
+        $display("FI target=%0d bit=%0d cycle=%0d exit=%08x golden=%08x exited=%0d status=%08x inj=%0d",
+                 target, bitpos, injcycle, exit_code, golden, exit_seen, status_at_end,
+                 injected);
         $finish;
       end
     end

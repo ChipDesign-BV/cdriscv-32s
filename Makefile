@@ -427,7 +427,7 @@ $(BUILD)/tb_fi.vvp: $(RTL) verif/fi/tb_fi.sv | $(BUILD)
 # detected / silent-ok / silent data corruption / hang.  The SDC count
 # is the one that matters: a fault that changes the result and reports
 # nothing is what a safety mechanism exists to prevent.
-fi: fi-arith fi-trap
+fi: fi-arith fi-trap fi-mem
 
 fi-arith: $(BUILD)/tb_fi.vvp $(BUILD)/fi_workload.hex $(BUILD)/dtcm_zero.hex
 	$(PYTHON) scripts/fi_campaign.py --runs $(FI_RUNS) --seed $(FI_SEED) \
@@ -444,6 +444,19 @@ fi-trap: $(BUILD)/tb_fi.vvp $(BUILD)/fi_workload_trap.hex $(BUILD)/dtcm_zero.hex
 	  --ibase 57 --ispan 53 --min-cycle 200 --max-cycle 5400 \
 	  --name "B: traps and interrupts" \
 	  | tee $(BUILD)/fi_campaign_trap.txt
+
+# Workload C is almost nothing but loads and stores, at every width and
+# alignment.  It exists to settle one row: the LSU address offset was
+# detected once in thirty two on both A and B, and those two bits are
+# live only while an access is in flight.  Raise the exposure and see
+# whether detection follows -- that is what separates narrow exposure
+# from a real gap.
+fi-mem: $(BUILD)/tb_fi.vvp $(BUILD)/fi_workload_mem.hex $(BUILD)/dtcm_zero.hex
+	$(PYTHON) scripts/fi_campaign.py --runs $(FI_RUNS) --seed $(FI_SEED) \
+	  --hex $(BUILD)/fi_workload_mem.hex --golden 02576cb6 \
+	  --ibase 43 --ispan 31 --min-cycle 150 --max-cycle 2300 \
+	  --name "C: dense sub-word memory traffic" \
+	  | tee $(BUILD)/fi_campaign_mem.txt
 
 # --------------------------------------------------------------- formal
 # Bounded model check of the fetch stage.  Depth is a variable because
