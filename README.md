@@ -132,6 +132,7 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | AMS interface (`make ams`) | **pass** | 12 checks: limits and range faults, conversion time-out, trim output, analog test bus |
 | Register walk (`make regwalk`) | **pass** | 16 checks: timer prescaler and roll-over, interrupt edge mode and claim, watchdog window mode, safety pin registers, the unread CSRs |
 | Memory back-pressure (`make cosim-stall`) | **pass** | identical streams vs Spike at 0–90 % grant stall rates; **300/300 random programs, 2 828 026 instructions** at 35 % stall |
+| Block bench: clock monitor (`make block-clkmon`) | **pass** | 17 checks. Owns the clock generator, so it can stop the system clock — the only way to reach the "clock lost" path. **Found three defects: V11-F1, V11-F2, V11-F3** |
 | Block benches: everything else | **not run** | plan section 5 |
 | Architectural test suite | **not run** | plan objective O1 |
 | Co-simulation vs Spike (`make cosim`) | **pass** | 208 instructions: PCs, register writes **and memory accesses** all identical, mutation tested; Verilator and Icarus agree |
@@ -144,8 +145,8 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Formal: LSU (`make formal-lsu`) | **pass** | one access in flight, aligned addresses, byte enables vs a reference, completion only on a response |
 | Formal: safety controller (`make formal-safety`) | **pass** | faults are sticky, the lock holds, the reset request cannot sustain itself (guards V7-F1) |
 | CI workflow | written, **never run, not installed** | [ci/github-workflow-verify.yml](ci/github-workflow-verify.yml); needs a token with GitHub's `workflow` scope to install, then a first run |
-| Line coverage (`make coverage`) | **82.5 %** | objective O6 wants 100 % with reviewed waivers; gap list in [verification_findings.md](doc/verification_findings.md). Earlier entries in this table reported a mixed line+toggle figure by mistake — see V7-M1 |
-| Toggle coverage | 91.4 % | reported separately, as it should have been from the start |
+| Line coverage (`make coverage`) | **84.8 %** | objective O6 wants 100 % with reviewed waivers; gap list in [verification_findings.md](doc/verification_findings.md). Earlier entries in this table reported a mixed line+toggle figure by mistake — see V7-M1 |
+| Toggle coverage | 91.0 % | reported separately, as it should have been from the start |
 | Functional coverage | **not collected** | plan objective O7 |
 | Synthesis (`make synth`) | **pass** | yosys via slang: no latches, no combinational loops, 52 614 cells with 64-word TCMs |
 | Gate level simulation | **not run** | |

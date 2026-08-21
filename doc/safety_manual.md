@@ -115,6 +115,14 @@ used yet.
   name the workload it was measured on. See `verification_findings.md`,
   phase V9.
 * No gate level fault injection.
+* The clock monitor's software interface was defective until 2026-08-21
+  in three ways, all now fixed and all documented as V11-F1 to V11-F3 in
+  `verification_findings.md`: the sticky status could not be cleared by
+  a single write, enabling the monitor could latch a spurious fault, and
+  the measurement window crossed into the reference clock domain without
+  being captured at a defined point. Any integration guidance written
+  against an earlier revision should be re-read against the current
+  register map.
 * The lockstep comparator itself is single point: a fault in the
   comparator can mask a core fault. Only the injection self test bounds
   this, and only if the software runs it. The self test is now known to

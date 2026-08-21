@@ -124,6 +124,29 @@ Fault bit assignment (`STATUS`, `ENABLE`, `REACT_*`, `RAW`):
 With the default `HbDiv` of 256, the expected measurement is
 `256 * f_ref / f_sys` reference cycles.
 
+The reference domain captures the window at the boundary that starts
+each measurement period, so a new window takes effect from the next
+period and a write landing part way through one cannot be half applied
+to it. Software does **not** have to hold the monitor disabled for any
+particular length of time; the quasi-static rule remains a
+recommendation, since a write racing the capture can still garble the
+window for a single period.
+
+`STATUS[0]` is set on the *edge* of a new fault, not by its level, so a
+single write-one-to-clear works even while the fault level is still
+propagating back from the reference domain. It did not always: see
+finding V11-F1.
+
+The first heartbeat edge after `CTRL.enable` rises ends a period that
+began before the monitor was watching. It is used only to start the
+first real measurement and is never compared against the window, so
+enabling the monitor cannot by itself raise a fault (finding V11-F2).
+
+A clock that is too *slow* is reported through the saturation path
+rather than the range comparison: the counter stops and the fault is
+raised the moment it reaches `MAX`. `COUNT` therefore reads `MAX` after
+such a fault, not the true, larger measurement.
+
 ## 7. AMS interface (slot 4)
 
 | Offset | Name | Access | Description |

@@ -353,6 +353,23 @@ collected in the C++ or cocotb harness:
 * **Safety cross**: mechanism × reaction × {enabled, masked} ×
   {configuration locked, unlocked}.
 
+### Block benches are worth more than their coverage number suggests
+
+The clock monitor bench was written to reach one uncovered branch and
+found three defects, none of which the passing software tests could
+have reached. Two lessons for the rest of the plan:
+
+* A module is worth a bench when part of it **cannot be driven from
+  software running on the subsystem**. The clock monitor's stopped
+  clock path is the clear case: software would have to stop the clock
+  it runs on. The same argument applies to reset sequencing and to
+  anything else in the reference clock domain.
+* Coverage has to be measured over the same builds as the tests. The
+  clock monitor bench runs under Icarus, coverage comes from the
+  Verilator builds, and until a Verilator build of the bench was added
+  to the merge the report went on showing tested lines as uncovered. A
+  report that understates is no more useful than one that overstates.
+
 ## 9. Fault injection campaign (L6, O9)
 
 This is what turns "we have safety mechanisms" into a diagnostic
