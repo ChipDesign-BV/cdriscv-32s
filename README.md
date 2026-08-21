@@ -129,7 +129,7 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Traps and illegal encodings (`make trap`) | **pass** | 14 checks: every exception cause, with mcause, mepc and mtval verified |
 | AMS interface (`make ams`) | **pass** | 12 checks: limits and range faults, conversion time-out, trim output, analog test bus |
 | Register walk (`make regwalk`) | **pass** | 16 checks: timer prescaler and roll-over, interrupt edge mode and claim, watchdog window mode, safety pin registers, the unread CSRs |
-| Memory back-pressure (`make cosim-stall`) | **pass** | identical streams vs Spike at 0–90 % grant stall rates |
+| Memory back-pressure (`make cosim-stall`) | **pass** | identical streams vs Spike at 0–90 % grant stall rates; **300/300 random programs, 2 828 026 instructions** at 35 % stall |
 | Block benches: everything else | **not run** | plan section 5 |
 | Architectural test suite | **not run** | plan objective O1 |
 | Co-simulation vs Spike (`make cosim`) | **pass** | 208 instructions: PCs, register writes **and memory accesses** all identical, mutation tested; Verilator and Icarus agree |
