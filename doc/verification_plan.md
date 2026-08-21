@@ -390,8 +390,17 @@ point.
 Objective O8's flow is `make gate`. Two things about it are worth
 fixing in the plan rather than rediscovering.
 
-**It is functional, not timing.** Every delay in the SG13G2 Verilog
-models is zero. A gate level run of this kind confirms the netlist
+**Timing is analysed separately, by `make sta`, and it reports two
+scenarios.** The raw one says what the netlist does as synthesised; the
+second cuts the reset trees, as a clock is cut before CTS, and the
+worst path is then split into the part caused by missing buffering and
+the part caused by logic depth. That split is the point: depth is an
+RTL problem buffering cannot fix, and fanout is a layout problem RTL
+cannot fix, so a single worst-slack number conflates the two and
+directs effort at whichever is not the cause.
+
+**Gate level simulation is functional, not timing.** Every delay in the
+SG13G2 Verilog models is zero. A gate level run of this kind confirms the netlist
 computes what the RTL computed and that nothing goes X. Timing is a
 separate job — static timing analysis against the same library — and
 claiming otherwise from a passing gate simulation would be wrong.

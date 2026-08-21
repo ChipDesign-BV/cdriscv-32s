@@ -721,6 +721,9 @@ sta: $(BUILD)/gate/cdriscv_subsys_sta_fix.v verif/sta/cdriscv_subsys.sdc
 	GATE_LIB=$(GATE_LIB) GATE_NETLIST=$< \
 	  sta -no_splash -exit verif/sta/run_sta.tcl 2>&1 \
 	  | grep -v "^Warning 198" | tee $(BUILD)/gate/sta.log
+	@echo ""
+	@$(PYTHON) scripts/sta_path_split.py $(BUILD)/gate/sta.log \
+	  | tee -a $(BUILD)/gate/sta.log
 
 # ------------------------------------------------- fault injection
 FI_RUNS ?= 300
