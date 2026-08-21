@@ -17,28 +17,46 @@ end else if (resp_accepted) begin
 end
 ```
 
-**Reached when** a redirect (taken branch, jump, trap, `fence.i`)
-occurs in the same cycle as the response to an already-outstanding
-fetch, with no new request granted that cycle.
+**Reached when** a redirect arrives while a fetch is still in flight,
+and that fetch's response lands in the same cycle.
 
-**Why simulation does not reach it.** The TCM answers exactly one cycle
-after a grant, and the core needs at least two cycles per instruction,
-so an outstanding fetch has always completed before the next redirect.
-The bench's stall injector delays *grants*, which moves the response
-later as a block but never lands it on the redirect cycle; reaching it
-needs a memory model with variable *response* latency, which the bench
-does not have. Four stall rates from 15 % to 90 % were tried.
+**These lines are not dead code.** Bounded model checking finds a
+five-step counterexample to the invariant "no fetch is outstanding at a
+redirect" when the block is checked against its own input space: a
+redirect arriving while the buffer is empty leaves a fetch in flight,
+and the block handles it correctly. The lines are defensive, and a
+reuse of this block with a different execute stage would need them.
 
-**What covers it instead.** Bounded model checking. `make formal-if`
-explores every interleaving of request, response and redirect to depth
-20, and `p_pc_stream` — every delivered instruction is the next of the
-stream that began at the last redirect — fails if this branch is wrong.
-The mutation test for that property removes the discard on a coincident
-redirect and is caught at step 6, which is the same class of bug.
+**Why the assembled subsystem cannot reach them.** `cdriscv_core` only
+asserts `redirect` in a cycle where it holds a valid instruction —
+every redirect comes from a trap or a retire, and both require
+`instr_valid`. With that as an assumption, `p_no_outstanding_at_redirect`
+in `verif/formal/if_stage_fv.sv` **passes** to depth 20: with a
+one-deep buffer, no fetch can be in flight at a redirect, so neither
+this branch nor the `outstanding_q` branch below it can execute.
 
-**Status.** Accepted, with a to-do: a variable-latency memory model
-would close it in simulation as well, and is worth having anyway for
-the bus tests.
+**The assumption is itself checked**, not merely assumed:
+`verif/core/tb_cosim.sv` asserts `redirect |-> instr_valid` on every
+co-simulation cycle, so every directed and random run discharges it.
+
+**What covers the lines instead.** For the general case, `p_pc_stream`
+to depth 20; its mutation test removes the discard on a coincident
+redirect and is caught at step 6.
+
+**Status.** Accepted for the current prefetch depth, and deliberately
+*not* removed from the RTL. Finding V2-P1 proposes deepening the
+prefetch, and the moment that happens these branches become live —
+`p_no_outstanding_at_redirect` is expected to fail then, which is
+exactly why it is written down as an assertion rather than a comment.
+
+### How this waiver changed
+
+The first version of it said the lines were merely hard to reach in
+simulation, and guessed at a structural reason. Formal disproved the
+guess in five steps. Writing the invariant down as a property, rather
+than asserting it in prose, is what turned an assumption into either a
+proof or a counterexample — and here it produced one of each,
+depending on whether the core's own discipline is assumed.
 
 ## Format for future entries
 

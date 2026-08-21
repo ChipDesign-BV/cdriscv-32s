@@ -5,6 +5,46 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V7 continued — waiver W1, and a guess disproved (2026-08-21)
+
+The three unreachable lines in the fetch stage got a proper argument
+instead of a plausible one, and the process is the point.
+
+**The guess.** Reading the RTL, I reasoned that with a one-deep buffer
+no fetch can ever be outstanding at a redirect, so those lines are dead
+code. That reasoning was written into the waiver.
+
+**Formal disproved it in five steps.** Stated as a property —
+`p_no_outstanding_at_redirect` — bounded model checking immediately
+produced a counterexample: a redirect arriving while the buffer is
+*empty* leaves a fetch in flight. The block handles that correctly, so
+the lines are defensive rather than dead, and a different execute stage
+reusing this block would need them.
+
+**The real argument.** `cdriscv_core` only redirects in a cycle where
+it holds a valid instruction: every redirect comes from a trap or a
+retire and both require `instr_valid`. Added as an assumption, the
+property **passes** to depth 20. So the lines are unreachable *in
+context*, not in general — a materially different claim, and the honest
+one.
+
+**The assumption is now checked rather than assumed.** `tb_cosim.sv`
+asserts `redirect |-> instr_valid` on every co-simulation cycle, so
+every directed and random run discharges it. Verified across the
+directed program, a 60 % stall run, and 40 random programs.
+
+The waiver in `verif/coverage_waivers.md` now carries the whole chain:
+reachable in general, unreachable in context, the in-context assumption
+checked in simulation, the general case covered by `p_pc_stream`, and
+the lines deliberately retained because finding V2-P1's deeper prefetch
+would make them live again — at which point the invariant assertion is
+*expected* to fail, which is why it exists.
+
+The general lesson: a plausible structural argument about RTL is a
+hypothesis. Writing it as a property costs a few lines and either
+proves it or hands back the case you missed.
+
+
 ## Phase V7 continued — memory back-pressure (2026-08-21)
 
 The TCM always grants immediately, so **the wait-for-grant paths in the

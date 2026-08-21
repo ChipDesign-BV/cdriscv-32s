@@ -158,6 +158,19 @@ module tb_cosim #(
     fetch_enable = 1'b1;
   end
 
+  // Discharges the assumption that the fetch stage's formal proof rests
+  // on (verif/formal/if_stage_fv.sv, a_redirect_needs_valid): the core
+  // only ever redirects in a cycle where it holds a valid instruction.
+  // Waiver W1 depends on it, so it is checked on every run here rather
+  // than left as an assumption nobody tests.
+  always @(posedge clk) begin
+    if (rst_n && `CORE_PATH.redirect && !`CORE_PATH.instr_valid) begin
+      $display("[cosim] ASSERTION: redirect with no valid instruction at cycle %0d",
+               cycle);
+      $fatal(1);
+    end
+  end
+
   // Pseudo-random grant back-pressure, independent per memory.
   always @(posedge clk) begin
     if (!rst_n) begin
