@@ -128,6 +128,7 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Safety reactions (`make reaction`) | **pass** | 9 checks: clock monitor configured through its registers, configuration lock, reset request with self-recognised restart |
 | Traps and illegal encodings (`make trap`) | **pass** | 14 checks: every exception cause, with mcause, mepc and mtval verified |
 | AMS interface (`make ams`) | **pass** | 12 checks: limits and range faults, conversion time-out, trim output, analog test bus |
+| Register walk (`make regwalk`) | **pass** | 16 checks: timer prescaler and roll-over, interrupt edge mode and claim, watchdog window mode, safety pin registers, the unread CSRs |
 | Block benches: everything else | **not run** | plan section 5 |
 | Architectural test suite | **not run** | plan objective O1 |
 | Co-simulation vs Spike (`make cosim`) | **pass** | 208 instructions: PCs, register writes **and memory accesses** all identical, mutation tested; Verilator and Icarus agree |
@@ -137,7 +138,8 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Formal: SEC-DED code (`make formal-ecc`) | **pass** | **proof** over all 2^32 data values and all error positions, mutation tested |
 | Formal: other blocks | **not run** | LSU, bus, decoder, safety controller — plan section 6 |
 | CI workflow | written, **never run, not installed** | [ci/github-workflow-verify.yml](ci/github-workflow-verify.yml); needs a token with GitHub's `workflow` scope to install, then a first run |
-| Line coverage (`make coverage`) | **86.0 %** | objective O6 wants 100 % with reviewed waivers; the gap list is in [verification_findings.md](doc/verification_findings.md) |
+| Line coverage (`make coverage`) | **79.6 %** | objective O6 wants 100 % with reviewed waivers; gap list in [verification_findings.md](doc/verification_findings.md). Earlier entries in this table reported a mixed line+toggle figure by mistake — see V7-M1 |
+| Toggle coverage | 91.4 % | reported separately, as it should have been from the start |
 | Functional coverage | **not collected** | plan objective O7 |
 | Synthesis (`make synth`) | **pass** | yosys via slang: no latches, no combinational loops, 52 614 cells with 64-word TCMs |
 | Gate level simulation | **not run** | |

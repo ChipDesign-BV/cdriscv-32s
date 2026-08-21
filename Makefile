@@ -29,7 +29,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench periph reaction trap ams formal formal-if formal-ecc coverage cosim cosim-iverilog cosim-random
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench periph reaction trap ams regwalk formal formal-if formal-ecc coverage cosim cosim-iverilog cosim-random
 
 all: lint
 
@@ -187,6 +187,26 @@ cosim-iverilog: $(BUILD)/tb_cosim.vvp $(BUILD)/cosim_isa.hex
 	  $(BUILD)/cosim_isa.elf --hex $(BUILD)/cosim_isa.hex \
 	  --vvp $(BUILD)/tb_cosim.vvp --count 5000
 
+# --------------------------------------------------- register walk
+$(BUILD)/regwalk_test.elf: verif/core/regwalk_test.S tb/sw/link.ld | $(BUILD)
+	$(CC) -march=$(ARCH) -mabi=$(ABI) -nostdlib -nostartfiles \
+	  -T tb/sw/link.ld -o $@ verif/core/regwalk_test.S
+
+$(BUILD)/regwalk_test.bin: $(BUILD)/regwalk_test.elf
+	$(OBJCOPY) -O binary --only-section=.text $< $@
+
+# The registers and modes the functional tests never reach: timer
+# prescaler and roll-over, interrupt controller edge mode and claim,
+# watchdog window mode and a wrong key, the safety controller's pin
+# registers, and the CSRs no program happens to read.
+regwalk: $(BUILD)/tb_cdriscv_subsys.vvp $(BUILD)/regwalk_test.hex \
+         $(BUILD)/dtcm_zero.hex
+	$(VVP) $(BUILD)/tb_cdriscv_subsys.vvp \
+	  +ITCM_HEX=$(BUILD)/regwalk_test.hex \
+	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex \
+	  +MAX_CYCLES=200000 | tee $(BUILD)/regwalk.log
+	@grep -q "PASS" $(BUILD)/regwalk.log
+
 # -------------------------------------------------------- AMS tests
 $(BUILD)/ams_test.elf: verif/core/ams_test.S tb/sw/link.ld | $(BUILD)
 	$(CC) -march=$(ARCH) -mabi=$(ABI) -nostdlib -nostartfiles \
@@ -318,7 +338,7 @@ coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
           $(BUILD)/cosim_isa.hex $(BUILD)/safety_test.hex \
           $(BUILD)/periph_test.hex $(BUILD)/reaction_test.hex \
           $(BUILD)/trap_test.hex $(BUILD)/ams_test.hex \
-          $(BUILD)/dtcm_zero.hex sw
+          $(BUILD)/regwalk_test.hex $(BUILD)/dtcm_zero.hex sw
 	@mkdir -p $(BUILD)/cov && rm -f $(BUILD)/cov/*.dat
 	@./$(BUILD)/obj_cov/tb_cosim_cov +HEX=$(BUILD)/cosim_isa.hex \
 	  +MAXRETIRE=100000 +QUIET > /dev/null 2>&1; \
@@ -347,12 +367,20 @@ coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
 	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/ams_test.hex \
 	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=300000 > /dev/null 2>&1; \
 	  mv coverage.dat $(BUILD)/cov/cov_ams.dat
+	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/regwalk_test.hex \
+	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=200000 > /dev/null 2>&1; \
+	  mv coverage.dat $(BUILD)/cov/cov_regwalk.dat
 	verilator_coverage --write $(BUILD)/cov/merged.dat $(BUILD)/cov/cov_*.dat
-	@rm -rf $(BUILD)/cov/annotated
-	verilator_coverage --annotate $(BUILD)/cov/annotated --annotate-min 1 \
-	  $(BUILD)/cov/merged.dat > /dev/null
-	@$(PYTHON) scripts/coverage_report.py $(BUILD)/cov/annotated \
-	  | tee $(BUILD)/coverage.txt
+	@rm -rf $(BUILD)/cov/ann_line $(BUILD)/cov/ann_tog
+	verilator_coverage --filter-type line --annotate $(BUILD)/cov/ann_line \
+	  --annotate-min 1 $(BUILD)/cov/merged.dat > /dev/null
+	verilator_coverage --filter-type toggle --annotate $(BUILD)/cov/ann_tog \
+	  --annotate-min 1 $(BUILD)/cov/merged.dat > /dev/null
+	@$(PYTHON) scripts/coverage_report.py $(BUILD)/cov/ann_line \
+	  "line coverage" | tee $(BUILD)/coverage.txt
+	@echo "" | tee -a $(BUILD)/coverage.txt
+	@$(PYTHON) scripts/coverage_report.py $(BUILD)/cov/ann_tog \
+	  "toggle coverage" | head -3 | tee -a $(BUILD)/coverage.txt
 
 # --------------------------------------------------------------- formal
 # Bounded model check of the fetch stage.  Depth is a variable because
