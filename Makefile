@@ -667,7 +667,18 @@ gate-subsys: $(BUILD)/gate/tb_subsys_gate.vvp $(BUILD)/prog.itcm.hex \
 	@if grep -q FAIL $(BUILD)/gate/subsys.log; then \
 	  echo "gate-subsys: FAIL"; exit 1; else echo "gate-subsys: all programs pass"; fi
 
-gate: gate-alu gate-multdiv gate-ecc gate-fsm gate-subsys
+$(BUILD)/gate/cdriscv_apb_bridge_gate.v: $(GATE_PKG) rtl/bus/cdriscv_apb_bridge.sv | $(BUILD)/gate
+	$(call gate_synth,cdriscv_apb_bridge,rtl/bus/cdriscv_apb_bridge.sv)
+
+$(BUILD)/gate/tb_gate_fsm_apb.vvp: $(BUILD)/gate/cdriscv_apb_bridge_gate.v $(GATE_CELLS) \
+                                   $(GATE_UDP) verif/gate/tb_gate_fsm_apb.sv
+	$(IVERILOG) -g2012 -o $@ -s tb_gate_fsm_apb $(GATE_PKG) $^
+
+gate-fsm-apb: $(BUILD)/gate/tb_gate_fsm_apb.vvp
+	$(VVP) $< | tee $(BUILD)/gate/fsm_apb.log
+	@grep -q "PASS" $(BUILD)/gate/fsm_apb.log
+
+gate: gate-alu gate-multdiv gate-ecc gate-fsm gate-fsm-apb gate-subsys
 
 # ------------------------------------------------- RISCOF (O1)
 # The architectural test suite is fetched, not vendored -- see

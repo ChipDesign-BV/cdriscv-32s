@@ -5,6 +5,58 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V24 — W2a re-argued for a second state machine (2026-08-22)
+
+`make gate-fsm-apb` forces the synthesised APB bridge into all sixteen
+encodings of its four-bit state register, one per reset. Every one
+returns to idle, none produces X, and the bridge then services a read
+correctly. **The illegal-state recovery survives synthesis for the APB
+bridge**, as it does for the multiplier (V16). Two of the six machines
+waiver W2a covers are now argued against gates rather than RTL; the AMS
+sequencer, the LSU, the BIST and the core are not.
+
+### The method, and why the obvious version of it fails
+
+The natural move is one bench over the flattened subsystem netlist,
+covering all six machines at once. That was tried and abandoned, and
+the reason is worth recording because it will catch anyone else
+reaching for the same idea.
+
+**Synthesis does not leave the state register where the RTL put it.**
+yosys runs `FSM_DETECT`, `FSM_EXTRACT` and `FSM_OPT` — the log says
+`Extracting FSM '\state_q' from module '\cdriscv_apb_bridge'` — which
+pulls the machine out and re-encodes it. The consequences:
+
+* the width changes with context: the multiplier's state is **two bits
+  synthesised standalone and three bits inside the subsystem**, so the
+  number of unused encodings differs between the two;
+* after flattening, what survives is an **escaped identifier whose name
+  contains dots**, so `dut.u_apb.state_q` binds to nothing and
+  `dut.\u_apb.state_q` — trailing space and all — binds to a wire;
+* that wire is declared at the RTL width with constant bits optimised
+  away, so a four-bit declaration can have three flops and one
+  permanently floating bit. A bench comparing the whole vector reads X
+  where it should read a state.
+
+The first version of the subsystem bench reported 80 of 84 encodings as
+failures, every one of them an artefact of the above rather than
+anything about the design. It was deleted rather than committed.
+
+So the check runs against a standalone netlist per module, where
+`u_dut.state_q` is an ordinary driven wire. That costs one synthesis
+run per machine and is worth it.
+
+### A caveat on what this proves
+
+The standalone netlist is not the netlist that ships. `FSM_OPT` is
+free to re-encode differently in context — it demonstrably does, given
+the two-versus-three-bit result — so passing standalone does not
+strictly prove the recovery survives in the assembled subsystem. What
+it does establish is that yosys's FSM optimisation **does not delete
+the recovery**, which was the specific risk W2a named. Checking the
+shipped netlist directly needs the bench to find the re-encoded state
+register rather than assume its name, and that is the remaining work.
+
 ## Phase V23 — separating fanout from logic depth (2026-08-22)
 
 V18 reported that setup timing could not be turned into an Fmax,
