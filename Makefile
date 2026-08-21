@@ -105,6 +105,17 @@ block-alu: $(BUILD)/tb_alu.vvp $(ALU_VECTORS)
 	  +NVEC=$$(wc -l < $(ALU_VECTORS)) | tee $(BUILD)/block_alu.log
 	@grep -q "PASS" $(BUILD)/block_alu.log
 
+# The clock monitor's "system clock stopped" branch cannot be reached
+# from software on the subsystem -- the software would have to stop the
+# clock it runs on -- so it gets a bench that owns the clock generator.
+$(BUILD)/tb_clkmon.vvp: rtl/common/cdriscv_sync.sv rtl/safety/cdriscv_clkmon.sv \
+                        verif/block/clkmon/tb_clkmon.sv | $(BUILD)
+	$(IVERILOG) -g2012 -o $@ -s tb_clkmon $^
+
+block-clkmon: $(BUILD)/tb_clkmon.vvp
+	$(VVP) $(BUILD)/tb_clkmon.vvp | tee $(BUILD)/block_clkmon.log
+	@grep -q "PASS" $(BUILD)/block_clkmon.log
+
 ECC_PATTERNS ?= 200
 
 $(BUILD)/tb_ecc.vvp: rtl/core/cdriscv_pkg.sv rtl/safety/cdriscv_ecc_secded.sv \
@@ -130,7 +141,7 @@ block-multdiv: $(BUILD)/tb_multdiv.vvp $(MD_VECTORS)
 	  +NVEC=$$(wc -l < $(MD_VECTORS)) | tee $(BUILD)/block_multdiv.log
 	@grep -q "PASS" $(BUILD)/block_multdiv.log
 
-block: block-alu block-ecc block-multdiv
+block: block-alu block-ecc block-multdiv block-clkmon
 
 # ------------------------------------------------- core co-simulation
 # Runs one program on Spike and on the RTL and compares the retired
@@ -356,47 +367,70 @@ $(BUILD)/obj_syscov/tb_sys_cov: $(RTL) $(TB) | $(BUILD)
 	  --top-module $(TB_TOP) -o tb_sys_cov -Mdir $(BUILD)/obj_syscov \
 	  $(RTL) $(TB)
 
+# Every simulation below is joined to its `mv` with && rather than `;`.
+# With a semicolon the recipe keeps the coverage of a run that failed:
+# the simulation exits non-zero, the status is dropped, the .dat is
+# collected anyway and lands in the merge.  Coverage measured from a
+# failing test is not coverage.
+# The clock monitor bench runs under Icarus like the other block
+# benches, but coverage is measured only from the Verilator builds, so
+# without a Verilator build of it the report goes on showing lines as
+# uncovered that are in fact tested.  A coverage report that
+# understates is no more useful than one that overstates.
+$(BUILD)/obj_cmcov/tb_clkmon_cov: rtl/common/cdriscv_sync.sv \
+                                  rtl/safety/cdriscv_clkmon.sv \
+                                  verif/block/clkmon/tb_clkmon.sv | $(BUILD)
+	$(VERILATOR) --binary --timing -sv --timescale 1ns/1ps --coverage \
+	  -Wno-fatal -Wno-DECLFILENAME -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM \
+	  -Wno-SYNCASYNCNET \
+	  --top-module tb_clkmon -o tb_clkmon_cov -Mdir $(BUILD)/obj_cmcov \
+	  rtl/common/cdriscv_sync.sv rtl/safety/cdriscv_clkmon.sv \
+	  verif/block/clkmon/tb_clkmon.sv
+
 coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
+          $(BUILD)/obj_cmcov/tb_clkmon_cov \
           $(BUILD)/cosim_isa.hex $(BUILD)/safety_test.hex \
           $(BUILD)/periph_test.hex $(BUILD)/reaction_test.hex \
           $(BUILD)/trap_test.hex $(BUILD)/ams_test.hex \
           $(BUILD)/regwalk_test.hex $(BUILD)/dtcm_zero.hex sw
 	@mkdir -p $(BUILD)/cov && rm -f $(BUILD)/cov/*.dat
 	@./$(BUILD)/obj_cov/tb_cosim_cov +HEX=$(BUILD)/cosim_isa.hex \
-	  +MAXRETIRE=100000 +QUIET > /dev/null 2>&1; \
+	  +MAXRETIRE=100000 +QUIET > /dev/null 2>&1 && \
 	  mv coverage.dat $(BUILD)/cov/cov_isa.dat
 	@for p in 15 35 70 90; do \
 	  ./$(BUILD)/obj_cov/tb_cosim_cov +HEX=$(BUILD)/cosim_isa.hex \
-	    +MAXRETIRE=100000 +STALL=$$p +QUIET > /dev/null 2>&1; \
-	  mv coverage.dat $(BUILD)/cov/cov_isa_stall$$p.dat; \
+	    +MAXRETIRE=100000 +STALL=$$p +QUIET > /dev/null 2>&1 && \
+	  mv coverage.dat $(BUILD)/cov/cov_isa_stall$$p.dat || exit 1; \
 	done
 	@for s in $(COV_SEEDS); do \
 	  if [ -f $(BUILD)/random/rand_$$s.hex ]; then \
 	    ./$(BUILD)/obj_cov/tb_cosim_cov +HEX=$(BUILD)/random/rand_$$s.hex \
-	      +MAXRETIRE=100000 +QUIET > /dev/null 2>&1; \
-	    mv coverage.dat $(BUILD)/cov/cov_r$$s.dat; \
+	      +MAXRETIRE=100000 +QUIET > /dev/null 2>&1 && \
+	    mv coverage.dat $(BUILD)/cov/cov_r$$s.dat || exit 1; \
 	  fi; done
 	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/prog.itcm.hex \
-	  +DTCM_HEX=$(BUILD)/prog.dtcm.hex +MAX_CYCLES=20000 > /dev/null 2>&1; \
+	  +DTCM_HEX=$(BUILD)/prog.dtcm.hex +MAX_CYCLES=20000 > /dev/null 2>&1 && \
 	  mv coverage.dat $(BUILD)/cov/cov_smoke.dat
 	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/safety_test.hex \
-	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=20000 > /dev/null 2>&1; \
+	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=20000 > /dev/null 2>&1 && \
 	  mv coverage.dat $(BUILD)/cov/cov_safety.dat
 	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/periph_test.hex \
-	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=2000000 > /dev/null 2>&1; \
+	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=2000000 > /dev/null 2>&1 && \
 	  mv coverage.dat $(BUILD)/cov/cov_periph.dat
 	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/reaction_test.hex \
-	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=500000 > /dev/null 2>&1; \
+	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=500000 > /dev/null 2>&1 && \
 	  mv coverage.dat $(BUILD)/cov/cov_reaction.dat
 	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/trap_test.hex \
-	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=100000 > /dev/null 2>&1; \
+	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=100000 > /dev/null 2>&1 && \
 	  mv coverage.dat $(BUILD)/cov/cov_trap.dat
 	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/ams_test.hex \
-	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=300000 > /dev/null 2>&1; \
+	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=300000 > /dev/null 2>&1 && \
 	  mv coverage.dat $(BUILD)/cov/cov_ams.dat
 	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/regwalk_test.hex \
-	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=200000 > /dev/null 2>&1; \
+	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=200000 > /dev/null 2>&1 && \
 	  mv coverage.dat $(BUILD)/cov/cov_regwalk.dat
+	@./$(BUILD)/obj_cmcov/tb_clkmon_cov > /dev/null 2>&1 && \
+	  mv coverage.dat $(BUILD)/cov/cov_clkmon.dat
 	verilator_coverage --write $(BUILD)/cov/merged.dat $(BUILD)/cov/cov_*.dat
 	@rm -rf $(BUILD)/cov/ann_line $(BUILD)/cov/ann_tog
 	verilator_coverage --filter-type line --annotate $(BUILD)/cov/ann_line \

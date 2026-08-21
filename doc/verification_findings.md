@@ -5,6 +5,106 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V11 — the clock monitor (2026-08-21)
+
+Coverage put this module on the list rather than any suspicion about
+it: the branch reporting a *stopped* system clock had never executed.
+It cannot be reached from software running on the subsystem, for the
+obvious reason — the software would have to stop the clock it is
+running on — so it needed a bench that owns the clock generator.
+`verif/block/clkmon/tb_clkmon.sv` overrides `HbDiv` and `CntW` to small
+values so the counter saturates in tens of reference cycles rather than
+2^24; the logic under test is identical, only the constants differ.
+
+The bench was written to cover one branch. It found three defects, all
+in the same corner: the handover between the two clock domains.
+
+### V11-F1 — the sticky status could not be cleared
+
+`STATUS[0]` is documented write-one-to-clear. One write never cleared
+it. The write reaches the reference domain as a pulse and takes the
+round trip through both synchronisers — about twenty system cycles — to
+bring the fault level back down, and for every one of those cycles
+
+```systemverilog
+if (sys_fault) sts_range_q <= 1'b1;
+```
+
+re-set the bit the write had just cleared. Measured directly: after one
+write `ref_fault_q` is 0, `sys_fault` is 0 and `sts_range_q` is still 1.
+A second write clears it, because by then the level has gone.
+
+So the register behaved neither as documented nor as anything software
+could reasonably guess. `sts_range_q` now latches the *rising edge* of
+the synchronised fault, so a write clears it even while the level is
+still on its way down.
+
+### V11-F2 — a spurious fault on every reconfiguration
+
+The first heartbeat edge after enabling ends a period that began before
+the monitor was watching. Its count is a fragment, and it was being
+compared against the window like any other measurement.
+
+From cold this happened to be harmless — the fragment measured 4
+against a window of 2 to 8. After a disable and re-enable it was not,
+and the register map instructs software to disable the monitor before
+changing `MIN` or `MAX`, so the false fault would land on every
+reconfiguration. The first edge after enable now only starts the first
+real period.
+
+### V11-F3 — the window crosses domains unsynchronised, and my first fix was wrong
+
+`min_q` and `max_q` are written in the system domain and used in the
+reference domain, as multi-bit buses with no synchroniser. The module
+header claimed the only crossings were single bits and the measurement
+result; that was simply not true.
+
+Calling them quasi-static is not sufficient on its own. "Written while
+`CTRL.enable` is 0" is true in the system domain several reference
+cycles before the reference domain sees the disable, and a measurement
+completing inside that window is judged against a window half old and
+half new. The bench caught this as a fault appearing on a monitor that
+had just been switched off.
+
+**The first fix for it was wrong, and the reaction test caught it.**
+Refreshing the reference domain's copy only while it can see
+`CTRL.enable` low requires software to hold the monitor disabled long
+enough for that level to cross — several reference cycles, which at a
+1 MHz reference is hundreds of system cycles. Real software disables,
+writes the window and re-enables in a handful of instructions, so the
+disable never crossed, the copy was never refreshed, and the monitor
+silently went on judging against the old window. `reaction_test.S`
+failed at check 5 within minutes of the change: a window the clock
+cannot possibly meet did not trip it.
+
+The window is now captured at the boundary that *starts* each
+measurement period. A period is always judged against the window in
+force when it began, a write landing part way through cannot be half
+applied, and no disable has to be observed for a new window to take
+effect. A write racing the capture itself can still garble the window
+for a single period, so the quasi-static rule stays in the register
+map — but it is now an ordinary recommendation rather than a
+requirement software cannot actually meet.
+
+### An observation, not a defect
+
+`ref_saturate` is `ref_cnt_q >= ref_max_q` and is tested before the
+range comparison, so `ref_cnt_q > ref_max_q` in the range check can
+never be true — the counter is stopped and the fault raised the moment
+it reaches the limit. A clock that is too slow is therefore reported
+through the saturation path rather than the range path. The behaviour
+is right, and the consequence worth knowing is that `COUNT` reads `MAX`
+after such a fault rather than the true, larger measurement. That is
+now in the register map.
+
+### What this says about the rest
+
+Three defects in one module, all of them in the crossing between the
+two clock domains, none of them reachable by the software tests that
+were already passing. The module was not suspected — it was picked
+because a coverage report said one branch had never run. That is worth
+remembering for the modules still carrying coverage waivers.
+
 ## Phase V9 — fault injection campaign (2026-08-21)
 
 `make fi` injects single event upsets and classifies what happens:
