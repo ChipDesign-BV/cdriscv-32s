@@ -5,6 +5,87 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V13 — peripheral read-back, and objective O6 reached (2026-08-21)
+
+Coverage showed a whole class of lines that had never executed: the
+**read** arms of the APB decoders. Software had written plenty of these
+registers and read a few, so most of the read multiplexer had never
+been selected — and a read arm that decodes to the wrong register is
+invisible to every test that only writes.
+
+`verif/core/rdback_test.S` writes a distinctive value to each register,
+reads it back and compares, across the timer, watchdog, interrupt
+controller, safety controller, BIST and AMS interface. Each block also
+gets a read and a write at an offset inside its own slot that decodes
+to nothing.
+
+Line coverage **87.1 → 94.4 %**, and eight modules are now at 100 %:
+the bus, clock monitor, CSR file, subsystem, TCM, timer, watchdog and
+interrupt controller.
+
+### Slot 5 does not behave like the others
+
+The first run failed with an unexpected trap. The unmapped offset that
+reads as zero everywhere else raises a **bus error** in the BIST slot,
+because the two controllers there each claim only sixteen bytes —
+`psel_hit_o = psel_i && (paddr_i[7:4] == RegBase[7:4])` — and the
+subsystem raises a slave error for anything in the slot that neither
+claims.
+
+That is correct behaviour, so the test now asserts it: the access must
+trap with `mcause` 5, load access fault. Checking it is worth more than
+routing around it, and the register map now says so.
+
+### A check that could not fail, and the BIST run that fixed it
+
+Reaching the BIST's own undecoded read arm needs a byte access, since a
+word access can only produce offsets 0, 4, 8 and 0xc. The obvious check
+— byte read at `0x41`, expect zero — passes, but it also passes when
+moved to a *mapped* offset, because every BIST register reads zero
+until a BIST has run. It discriminated nothing.
+
+So the test now **runs the D-TCM BIST**, which no software test had
+ever done. `STATUS` then reads non-zero, the pair of reads means
+something, and moving the byte read to a mapped offset is caught.
+The BIST completes clean over 4 096 words in about 62 000 cycles.
+
+(The arm still did not get covered, for a reason that turned out to be
+a genuine unreachability — see waiver W2c.)
+
+### Objective O6, with the waivers written
+
+The remaining seventeen lines are **all** `default:` arms whose
+selector is already fully enumerated. They are now covered by waiver W2
+in `verif/coverage_waivers.md`, in three groups with separate
+arguments: state machine recovery arms, mux arms over selectors with no
+spare encoding, and one APB decode arm the bridge makes unreachable by
+forcing `paddr[1:0]` to zero.
+
+The state machine arms are the ones worth arguing about. They are
+unreachable in simulation and **must not be deleted**: an upset can put
+a state register into an unused encoding, and these arms are what
+returns it to a defined state. Deleting them to reach 100 % would trade
+a safety property for a coverage number. The evidence that they work is
+the fault injection campaign's zero hangs across 3 000 injections, not
+any functional test.
+
+W2c was checked rather than assumed. The byte read that should have
+reached it is in the test, and the line stayed uncovered — because the
+bridge drives `paddr_o = {addr_q[11:2], 2'b00}` and a byte read at
+`0x41` arrives as a read of `0x40`.
+
+So **objective O6 is met**: 100 % line coverage with a reviewed waiver
+for every exclusion, 94.4 % without any waiver at all.
+
+### Mutation checks
+
+Removing the timer `MTIMECMP` store fails at check 1, the AMS `CHMASK`
+store at check 21, pointing the unmapped read at a mapped offset fails
+at check 3, and moving the BIST byte read to a mapped offset fails at
+check 21 — but only after the BIST run gave it something to compare
+against. Before that it passed, which is exactly the failure mode this
+project keeps running into: a check that cannot fail.
+
 ## Phase V12 — FENCE, FENCE.I and the writable CSRs (2026-08-21)
 
 Coverage again, and again an uncomfortable gap: the core calls itself

@@ -261,6 +261,24 @@ ams: $(BUILD)/tb_cdriscv_subsys.vvp $(BUILD)/ams_test.hex \
 	@grep -q "PASS" $(BUILD)/ams.log
 
 # ------------------------------------------------------- trap tests
+$(BUILD)/rdback_test.elf: verif/core/rdback_test.S tb/sw/link.ld | $(BUILD)
+	$(CC) -march=$(ARCH) -mabi=$(ABI) -nostdlib -nostartfiles \
+	  -T tb/sw/link.ld -o $@ verif/core/rdback_test.S
+
+$(BUILD)/rdback_test.bin: $(BUILD)/rdback_test.elf
+	$(OBJCOPY) -O binary --only-section=.text $< $@
+
+# Every peripheral read arm, and an unmapped offset in every slot.  A
+# read arm that decodes to the wrong register is invisible to a test
+# that only ever writes.
+rdback: $(BUILD)/tb_cdriscv_subsys.vvp $(BUILD)/rdback_test.hex \
+        $(BUILD)/dtcm_zero.hex
+	$(VVP) $(BUILD)/tb_cdriscv_subsys.vvp \
+	  +ITCM_HEX=$(BUILD)/rdback_test.hex \
+	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex \
+	  +MAX_CYCLES=300000 | tee $(BUILD)/rdback.log
+	@grep -q "PASS" $(BUILD)/rdback.log
+
 $(BUILD)/fence_csr_test.elf: verif/core/fence_csr_test.S tb/sw/link.ld | $(BUILD)
 	$(CC) -march=$(ARCH) -mabi=$(ABI) -nostdlib -nostartfiles \
 	  -T tb/sw/link.ld -o $@ verif/core/fence_csr_test.S
@@ -411,7 +429,7 @@ coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
           $(BUILD)/cosim_isa.hex $(BUILD)/safety_test.hex \
           $(BUILD)/periph_test.hex $(BUILD)/reaction_test.hex \
           $(BUILD)/trap_test.hex $(BUILD)/ams_test.hex \
-          $(BUILD)/fence_csr_test.hex \
+          $(BUILD)/fence_csr_test.hex $(BUILD)/rdback_test.hex \
           $(BUILD)/regwalk_test.hex $(BUILD)/dtcm_zero.hex sw
 	@mkdir -p $(BUILD)/cov && rm -f $(BUILD)/cov/*.dat
 	@./$(BUILD)/obj_cov/tb_cosim_cov +HEX=$(BUILD)/cosim_isa.hex \
@@ -440,6 +458,9 @@ coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
 	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/reaction_test.hex \
 	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=500000 > /dev/null 2>&1 && \
 	  mv coverage.dat $(BUILD)/cov/cov_reaction.dat
+	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/rdback_test.hex \
+	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=300000 > /dev/null 2>&1 && \
+	  mv coverage.dat $(BUILD)/cov/cov_rdback.dat
 	@./$(BUILD)/obj_syscov/tb_sys_cov +ITCM_HEX=$(BUILD)/fence_csr_test.hex \
 	  +DTCM_HEX=$(BUILD)/dtcm_zero.hex +MAX_CYCLES=100000 > /dev/null 2>&1 && \
 	  mv coverage.dat $(BUILD)/cov/cov_fence.dat

@@ -8,6 +8,96 @@ covers it — not a note that nobody got round to it.
 Anything not listed here is a gap to be closed by a test, and the
 current list of those is in `verification_findings.md`.
 
+## W2 — defensive `default` arms over fully enumerated selectors (2026-08-21)
+
+After the read-back and fence tests, seventeen uncovered lines remain
+and **every one of them is a `default:` arm** whose selector is already
+fully enumerated by the arms above it. They fall into three groups, and
+the reason each is unreachable is different enough to be worth stating
+separately.
+
+Line coverage with this waiver applied is 100 %; without it, 94.4 %.
+
+### W2a — state machine recovery arms
+
+| file | line |
+|------|------|
+| `cdriscv_ams_if.sv` | 159 |
+| `cdriscv_apb_bridge.sv` | 72 |
+| `cdriscv_core.sv` | 436 |
+| `cdriscv_lsu.sv` | 104 |
+| `cdriscv_mbist.sv` | 127 |
+| `cdriscv_multdiv.sv` | 115 |
+
+Each is `default: state_d = <IDLE>;` in a `unique case (state_q)` that
+already lists every value of the state enum. No sequence of inputs can
+put the register outside its enum, so simulation cannot reach these.
+
+**They must not be deleted, and that is the point of the waiver.** An
+upset in a state register *can* put the machine into an unused
+encoding, and these arms are what returns it to a defined state rather
+than leaving it stuck. Removing them to reach 100 % would trade a
+safety property for a coverage number. The fault injection campaign is
+where this behaviour is exercised, not the functional tests — and the
+campaign has so far recorded no hang across 3 000 injections, which is
+the evidence that the recovery works.
+
+### W2b — mux arms over selectors with no spare encodings
+
+| file | line | selector |
+|------|------|----------|
+| `cdriscv_alu.sv` | 124 | ALU operation enum |
+| `cdriscv_core.sv` | 197, 206 | operand select enum |
+| `cdriscv_core.sv` | 479 | writeback select enum |
+| `cdriscv_lsu.sv` | 80, 142 | `addr[1:0]`, all four values listed |
+| `cdriscv_multdiv.sv` | 195 | mul/div operation enum |
+
+The LSU pair is the clearest case: `unique case (addr_i[1:0])` lists
+`2'b00` through `2'b11`, so the default is unreachable by construction
+— a two-bit selector has no fifth value. The others are enums whose
+every member has an arm.
+
+These are cheap to keep and give a defined output for an undefined
+selector, which is the same argument as W2a in combinational form.
+
+### W2c — APB decode arms the bridge makes unreachable
+
+| file | line |
+|------|------|
+| `cdriscv_mbist.sv` | 237 |
+
+This one is worth spelling out because it *looks* reachable and is not.
+The BIST decodes `reg_ofs = paddr_i[3:0]` with arms for `0`, `4`, `8`
+and `c`. An offset of, say, `0x41` would select the default — but no
+such address ever arrives, because the APB bridge drives
+
+```systemverilog
+assign paddr_o = {addr_q[11:2], 2'b00};
+```
+
+The low two address bits are forced to zero for every peripheral
+access, byte and halfword accesses included, so `reg_ofs` can only ever
+be `0`, `4`, `8` or `c`. A byte read at `0x41` reaches the BIST as a
+read of `0x40`.
+
+This was checked rather than assumed: `rdback_test.S` issues exactly
+that byte read, and the line stayed uncovered.
+
+The equivalent `default: prdata_o = 32'b0;` in every *other* peripheral
+is **not** waived and is covered, because those decode the full
+`paddr_i[7:0]` and an unmapped word offset selects them normally.
+
+### What would invalidate this waiver
+
+* A peripheral that decodes `paddr_i[1:0]`, or an APB bridge that stops
+  forcing them to zero — W2c would become reachable and must then be
+  tested rather than waived.
+* Any state enum gaining a value without an arm, which would turn a
+  W2a default from unreachable into a live path.
+* Gate level simulation, where synthesis may encode states differently
+  and the "unreachable" argument has to be re-made against the netlist
+  rather than the RTL. That is objective O8 and is not done.
+
 ## W1 — WITHDRAWN (2026-08-21)
 
 The prefetch was deepened (V2-P1), and as this waiver predicted, the

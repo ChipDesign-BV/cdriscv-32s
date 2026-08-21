@@ -177,6 +177,16 @@ Running the BIST destroys the memory contents and blocks the memory
 under test; the core stalls while its instruction memory is being
 tested.
 
+Unlike the other slots, **an unmapped offset in slot 5 raises a slave
+error rather than reading as zero.** Each controller claims only its
+own sixteen bytes (`paddr[7:4]` against its base), and the subsystem
+reports a bus error for anything in the slot that neither claims.
+
+Offsets `0x01`, `0x02` and so on do not exist as far as any peripheral
+is concerned: the APB bridge drives `paddr[1:0]` as zero for every
+access, so a byte or halfword access is presented to the slave as a
+read or write of the containing word.
+
 ## 9. Interrupt controller (slot 6)
 
 | Offset | Name | Access | Description |
