@@ -5,6 +5,54 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V9 — fault injection campaign (2026-08-21)
+
+`make fi` injects single event upsets and classifies what happens:
+detected by a safety mechanism, silent but correct, **silent data
+corruption**, or hang. The SDC count is the one that matters — a fault
+that changes the result and reports nothing is precisely what the
+safety mechanisms exist to prevent, and it is the input an FMEDA needs.
+
+The workload computes a deterministic checksum over arithmetic, memory
+traffic and branches, and publishes it, so a corrupted run is
+detectable by comparison rather than by inspection.
+
+**The fault list is a named set of nine state elements**, not every
+flop in the design: register file word and parity bit, fetch buffer
+word, fetch PC, `mepc`, `mstatus.MIE`, LSU address offset, and an
+I-TCM and a D-TCM word. That limitation is printed at the top of every
+report, because a diagnostic coverage figure means nothing without the
+fault list it was measured over. A full flop-level campaign needs a
+harness that can enumerate the netlist, which this is not.
+
+### Two bench bugs, one of which would have been very expensive
+
+**The injector silently did nothing.** The first version deposited the
+flipped bit inside `always @(posedge clk)` — the same edge on which the
+DUT's own flops assign. The order between the two is undefined, so the
+corruption was usually overwritten before anything could see it. Every
+run came back clean.
+
+That is the worst possible failure mode for a fault injector: it
+reports **perfect detection** and there is nothing in the output to
+suggest anything is wrong. It was caught only because the same
+injection gave different results for different bit positions, which a
+working injector would not do. The deposit now happens on the falling
+edge, where it survives to be read.
+
+**The D-TCM was not preloaded**, so the workload's sub-word stores —
+read-modify-write — read uninitialised memory and X propagated into the
+safety status. That is finding V4-F2 met from the other side, and it is
+the second time an unwritten TCM has cost time.
+
+### Method note
+
+A *deposit* is used rather than `force`/`release`: the bit is written
+and then left, so the next clock edge may overwrite it exactly as in
+silicon. A held force models a stuck-at, which is a different fault
+model and would flatter the detection numbers.
+
+
 ## Phase V6 complete — LSU and safety controller (2026-08-21)
 
 The last two blocks on the plan's formal list are done, so **all six
