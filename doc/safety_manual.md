@@ -104,14 +104,16 @@ used yet.
 
 * No FMEDA, no diagnostic coverage figures, no single point fault
   metric, no latent fault metric.
-* A **pilot** fault injection campaign has been run: 300 single event
-  upsets over a named list of nine state elements, one workload. No
-  silent data corruption, 37 % detected, the remainder benign or
-  dormant for that workload. This is not a diagnostic coverage figure
-  and must not be quoted as one: the fault list is not the flop list,
-  activation is not measured, and `mepc` and `mstatus.MIE` show 0 %
-  detection only because the workload takes no traps and uses no
-  interrupts. See `verification_findings.md`, phase V9.
+* A **pilot** fault injection campaign has been run: 600 single event
+  upsets over a named list of nine state elements, across two
+  workloads. No silent data corruption and no hangs; 37 % detected on
+  the arithmetic and memory workload, 58 % on the trap and interrupt
+  one. This is not a diagnostic coverage figure and must not be quoted
+  as one: the fault list is nine elements rather than the flop list,
+  and the spread between the two workloads is the point — detection
+  depends on what the software makes live, so any figure quoted has to
+  name the workload it was measured on. See `verification_findings.md`,
+  phase V9.
 * No gate level fault injection.
 * The lockstep comparator itself is single point: a fault in the
   comparator can mask a core fault. Only the injection self test bounds

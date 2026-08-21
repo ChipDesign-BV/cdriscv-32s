@@ -406,9 +406,16 @@ coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
 FI_RUNS ?= 300
 FI_SEED ?= 7
 
+$(BUILD)/fi_workload%.elf: verif/fi/fi_workload%.S tb/sw/link.ld | $(BUILD)
+	$(CC) -march=$(ARCH) -mabi=$(ABI) -nostdlib -nostartfiles \
+	  -T tb/sw/link.ld -o $@ $<
+
 $(BUILD)/fi_workload.elf: verif/fi/fi_workload.S tb/sw/link.ld | $(BUILD)
 	$(CC) -march=$(ARCH) -mabi=$(ABI) -nostdlib -nostartfiles \
 	  -T tb/sw/link.ld -o $@ verif/fi/fi_workload.S
+
+$(BUILD)/fi_workload%.bin: $(BUILD)/fi_workload%.elf
+	$(OBJCOPY) -O binary --only-section=.text $< $@
 
 $(BUILD)/fi_workload.bin: $(BUILD)/fi_workload.elf
 	$(OBJCOPY) -O binary --only-section=.text $< $@
@@ -420,9 +427,23 @@ $(BUILD)/tb_fi.vvp: $(RTL) verif/fi/tb_fi.sv | $(BUILD)
 # detected / silent-ok / silent data corruption / hang.  The SDC count
 # is the one that matters: a fault that changes the result and reports
 # nothing is what a safety mechanism exists to prevent.
-fi: $(BUILD)/tb_fi.vvp $(BUILD)/fi_workload.hex $(BUILD)/dtcm_zero.hex
+fi: fi-arith fi-trap
+
+fi-arith: $(BUILD)/tb_fi.vvp $(BUILD)/fi_workload.hex $(BUILD)/dtcm_zero.hex
 	$(PYTHON) scripts/fi_campaign.py --runs $(FI_RUNS) --seed $(FI_SEED) \
 	  | tee $(BUILD)/fi_campaign.txt
+
+# Workload B exists because workload A reported mepc and mstatus.MIE as
+# never detected, which said nothing about the design: A takes no traps
+# and enables no interrupts, so those bits are dead state for the whole
+# run.  B traps every iteration and runs the machine timer, which makes
+# them live.  IBASE/ISPAN are B's own live code window.
+fi-trap: $(BUILD)/tb_fi.vvp $(BUILD)/fi_workload_trap.hex $(BUILD)/dtcm_zero.hex
+	$(PYTHON) scripts/fi_campaign.py --runs $(FI_RUNS) --seed $(FI_SEED) \
+	  --hex $(BUILD)/fi_workload_trap.hex --golden 9c235678 \
+	  --ibase 57 --ispan 53 --min-cycle 200 --max-cycle 5400 \
+	  --name "B: traps and interrupts" \
+	  | tee $(BUILD)/fi_campaign_trap.txt
 
 # --------------------------------------------------------------- formal
 # Bounded model check of the fetch stage.  Depth is a variable because

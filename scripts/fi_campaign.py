@@ -19,6 +19,8 @@
 
 import argparse
 import collections
+import concurrent.futures
+import os
 import random
 import re
 import subprocess
@@ -58,6 +60,14 @@ def main():
     ap.add_argument("--golden", default="f095470a")
     ap.add_argument("--min-cycle", type=int, default=60)
     ap.add_argument("--max-cycle", type=int, default=3000)
+    ap.add_argument("--ibase", type=int, default=40,
+                    help="first I-TCM word of the workload's live code")
+    ap.add_argument("--ispan", type=int, default=45,
+                    help="how many words of live code to inject into")
+    ap.add_argument("--name", default="A: arithmetic and memory",
+                    help="workload name, printed with the results")
+    ap.add_argument("--jobs", type=int, default=min(12, (os.cpu_count() or 2)),
+                    help="simulations to run at once")
     args = ap.parse_args()
 
     rng = random.Random(args.seed)
@@ -66,15 +76,29 @@ def main():
     mechanisms = collections.Counter()
     sdc_cases = []
 
-    for i in range(args.runs):
-        t = rng.randrange(len(TARGETS))
-        b = rng.randrange(39)
-        c = rng.randrange(args.min_cycle, args.max_cycle)
-        r = subprocess.run(
+    # The fault list is drawn up front from a seeded generator, so it is
+    # identical whatever --jobs is set to.  The runs themselves are
+    # independent processes and there is no reason to serialise them;
+    # the plan asks for 10^4 injections and one at a time does not get
+    # there in a working day.
+    faults = [(rng.randrange(len(TARGETS)),
+               rng.randrange(39),
+               rng.randrange(args.min_cycle, args.max_cycle))
+              for _ in range(args.runs)]
+
+    def run_one(f):
+        t, b, c = f
+        return subprocess.run(
             ["vvp", args.vvp, "+HEX=" + args.hex, "+DHEX=" + args.dhex,
+             "+IBASE=%d" % args.ibase, "+ISPAN=%d" % args.ispan,
              "+TARGET=%d" % t, "+BIT=%d" % b, "+CYCLE=%d" % c,
              "+GOLDEN=" + args.golden],
             capture_output=True, text=True, timeout=600)
+
+    with concurrent.futures.ThreadPoolExecutor(args.jobs) as pool:
+        outcomes = list(pool.map(run_one, faults))
+
+    for (t, b, c), r in zip(faults, outcomes):
         m = None
         for line in r.stdout.splitlines():
             m = RE.search(line) or m
@@ -105,6 +129,7 @@ def main():
 
     total = sum(classes.values())
     print("Fault injection campaign: %d single event upsets" % total)
+    print("Workload: %s" % args.name)
     print("Fault list: %d named state elements (not every flop -- see tb_fi.sv)\n"
           % len(TARGETS))
     for cls in ("detected", "silent-ok", "SDC", "hang", "x-propagation", "no-result"):

@@ -376,6 +376,36 @@ coverage number, and it is the input the FMEDA needs.
 * Repeat on the gate level netlist for the flops that survive
   synthesis restructuring.
 
+**Activation has to be measured, not assumed.** The first pilot run put
+this beyond doubt. It reported `mepc` detected 0 times out of 41 and
+`mstatus.MIE` 0 out of 37, which reads as a hole in the safety concept
+and is nothing of the kind: workload A takes no traps and enables no
+interrupts, so both bits hold their reset value for the entire run and
+an upset in them cannot propagate anywhere. A fault that is never
+activated is not a fault that was tolerated, and counting the two
+together turns a workload gap into a design claim.
+
+So the workload set is part of the fault list, not a detail of how it
+was run:
+
+| workload | what it makes live | file |
+|----------|--------------------|------|
+| A: arithmetic and memory | ALU, register file, LSU, both TCMs | `verif/fi/fi_workload.S` |
+| B: traps and interrupts | `mepc`, `mstatus.MIE`, `mcause`, the trap path, the machine timer | `verif/fi/fi_workload_trap.S` |
+| C: control loop | *not written yet* | |
+
+Each workload declares the I-TCM word range of its live code
+(`--ibase`/`--ispan`), because a fault dropped into an instruction that
+has already executed — register initialisation, say — is invisible by
+construction and would pad the silent count with faults that never had
+a chance to do anything.
+
+Workload B is checked against an independent Python model of the
+checksum, which also recovers the number of traps and interrupts the
+run actually took. That is what proves the state is live: the model
+says 64 traps and 14 timer interrupts, and it reproduces workload A's
+golden value exactly when told to take neither.
+
 ## 10. Continuous integration
 
 Everything above only stays true if it runs on every change.
