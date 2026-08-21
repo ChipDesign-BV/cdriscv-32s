@@ -14,7 +14,7 @@ misrouted response hands one master another master's data** — a value
 that looks entirely plausible and is wrong, which is precisely the
 class of fault a functional test can miss.
 
-Three properties pass to depth 20, with the slaves modelled concretely
+Five properties pass to depth 20, with the slaves modelled concretely
 (grant when idle, answer one cycle later, which is what the TCM does):
 
 | property | what it says |
@@ -22,6 +22,7 @@ Three properties pass to depth 20, with the slaves modelled concretely
 | `p_no_spurious_instr` / `p_no_spurious_data` | a master is never handed a response it did not ask for |
 | `p_data_wins_itcm` | the data master wins I-TCM arbitration, so the fetcher cannot starve it |
 | `p_no_double_itcm` | both masters are never granted the same slave in one cycle |
+| `p_no_lost_instr` / `p_no_lost_data` | a granted request is always answered, never dropped |
 
 Mutation tested, both caught by the property meant for them:
 
@@ -30,25 +31,48 @@ Mutation tested, both caught by the property meant for them:
 | I-TCM response owner inverted | `p_no_spurious_instr` |
 | arbitration lets both masters through | `p_data_wins_itcm` |
 
-### One property is written, failing, and deliberately left in place
+### The fourth property — RESOLVED, and it was the harness
 
-A fourth property — *a granted request is always answered* — fails at
-step 4, on a sequence where the instruction master is granted the I-TCM
-and both masters then contend for it in the next cycle.
+The property *a granted request is always answered* failed at step 4
+and was left in place, disabled, as an open question: too strong, or a
+real dropped response?
 
-**I have not established whether the property is too strong or the
-design drops a response.** The naive one-cycle model it assumes may
-simply be wrong about when the response is due.
+**It was neither. It was my harness.** The property was guarded on
+`rst_ni` alone, so at the first cycle out of reset `$past()` reached
+back into the reset window — where the bus's registers were held clear
+but the free inputs were not. It fired on a "grant" that never
+happened. Guarding on `$past(rst_ni)` as well makes it **pass to depth
+20**.
 
-It is commented out in `verif/formal/bus_fv.sv` with that status
-written next to it, rather than deleted. A property that failed and was
-quietly removed is worse than no property, because the next reader has
-no way to know the question was ever asked. It also asks something the
-three passing properties do not: they say responses that *do* arrive go
-to the right master, and say nothing about responses that never arrive.
+It has teeth, too. Two mutations that drop a response are both caught
+by it:
 
-This is an open item, and it is the first one in this log that is
-neither fixed nor waived.
+| mutation | caught by |
+|----------|-----------|
+| unmapped fetch response never delivered | `p_no_lost_instr` |
+| error responder ignores the fetcher | `p_no_lost_instr` |
+
+So `cdriscv_bus` now has **five properties passing**, four of them with
+mutation evidence, and the log has no open items again.
+
+### Formal harness pitfalls, three times over
+
+This is the third false result caused by the harness rather than the
+design, and they are worth naming together because each looked
+convincing:
+
+| # | Symptom | Cause | Tell |
+|---|---------|-------|------|
+| 1 | `p_single_outstanding` fails at step 1 | BMC starts from an arbitrary state; reset was left free | failure in the *first* step, before anything can have happened |
+| 2 | SEC-DED "proven" in 0.3 s | depth 1 never reaches the clock edge, so nothing was checked | a proof that arrives suspiciously fast |
+| 3 | `p_no_lost_instr` fails at step 4 | `$past()` reaching into the reset window | failure at the first active cycle, and only there |
+
+The common shape: **anything that happens at the very start of a
+bounded run, in either direction, should be suspected of being about
+the harness.** Two of the three were false failures and one was a false
+pass, which is why the mutation test matters in both directions — it
+catches the false pass, and re-reading the counterexample catches the
+false failure.
 
 ### A frontend note
 
