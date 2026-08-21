@@ -5,6 +5,86 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V15 — the last three cover points, and a waiver that was wrong (2026-08-21)
+
+The three functional coverage holes left by V14 were all mechanisms
+software cannot provoke: it cannot corrupt its own register file
+parity, cannot make a passing BIST fail, and cannot watch the reset it
+is about to be given. All three now have checks in `tb_safety`, and
+**functional coverage is 100 %, 65 of 65 points.**
+
+Each check was mutation-tested: remove the parity force, the BIST read
+data corruption, or the watchdog reset enable, and the corresponding
+check fails.
+
+Getting there turned up three things worth recording.
+
+### A BIST failure is only reported when the BIST finishes
+
+`fault_int[FLT_MBIST]` is `done && fail`, not `fail`. A failing BIST
+runs the whole march to completion and reports at the end rather than
+stopping at the first bad word. The check waits for `done_o`
+accordingly. Worth knowing for anyone sizing a start-up self-test
+budget: a failing memory costs the same time as a healthy one.
+
+The first version of that check also sampled `status_q` in the cycle
+the wait loop exited, and reported a clean status with `done` and
+`fail` both set. The status latches on the *next* edge.
+
+### The watchdog counter resets to 0xffff_ffff
+
+Enabling the watchdog and waiting for a time-out is a four billion
+cycle proposition from reset. The check deposits a small count and lets
+it run down; the reload from `PERIOD` only happens after the first
+time-out.
+
+### Coverage was being measured over Verilator's own source
+
+Adding a Verilator build of the safety bench dropped reported line
+coverage from 94.4 % to 87.9 %, with the denominator jumping from 302
+lines to 405. Nothing had regressed. The new build pulled in
+Verilator's `verilated_std.sv`, and the report counted it as design
+code — it excluded files named `tb_*` but nothing else.
+
+**A file now counts as RTL if and only if it is in the repository's
+`rtl` tree.** This is the same mistake as V7-M1 in a new costume:
+a coverage number is only as good as the denominator, and the
+denominator has to be defined by something other than a naming
+convention.
+
+Corrected figures, and the denominator is larger than before because
+the fourth build instruments lines the other three never compiled:
+
+| metric | value |
+|--------|-------|
+| line | 96.0 % (358 of 373), 100 % with reviewed waivers |
+| toggle | 94.8 % |
+| functional | **100 %** (65 of 65) |
+
+### W2 was wrong, and it was wrong in the way waivers usually are
+
+Reconciling the waiver document against the actual uncovered lines
+showed it claimed seventeen and its tables accounted for fourteen. The
+three unlisted lines were the decoder's illegal-instruction defaults,
+and checking them gave three different answers:
+
+* `cdriscv_decoder.sv:252` really is unreachable — the OP-IMM `funct3`
+  case lists all eight values. Now waived properly.
+* `cdriscv_decoder.sv:322` is **reachable**: a SYSTEM instruction with
+  `funct3 = 100` leaves `csr_op` undecodable.
+* `cdriscv_decoder.sv:327` is **reachable**: the top level opcode
+  default, which any unknown opcode reaches.
+
+So two lines had been waived as unreachable without anyone checking, in
+a document whose entire purpose is to be that check. Both are now
+covered — `fence_csr_test.S` executes `0x00004073` and `0x0000000b` and
+requires each to trap. Fifteen lines remain waived, and the count now
+reconciles.
+
+A waiver list that does not add up against the uncovered count is not a
+review. The arithmetic is the cheapest part of it, and it was the part
+that was skipped.
+
 ## Phase V14 — functional coverage, objective O7 (2026-08-21)
 
 Line and toggle coverage say which of the RTL ran. They cannot say
