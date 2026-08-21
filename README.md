@@ -29,7 +29,7 @@
 > FMEDA and no diagnostic coverage figure. No timing closure — static
 > timing runs, but the reset nets have no buffer tree and no Fmax can
 > be quoted. Nothing has been laid out and nothing has been near
-> silicon. One finding is still open ([V0-F1](doc/verification_findings.md)).
+> silicon. Every finding raised so far is now closed.
 >
 > **Do not use yet** — not in a product, not in a tapeout, not as a
 > reference, and above all not in anything that has to be safe. No
@@ -163,7 +163,7 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Formal: LSU (`make formal-lsu`) | **pass** | one access in flight, aligned addresses, byte enables vs a reference, completion only on a response |
 | Formal: safety controller (`make formal-safety`) | **pass** | faults are sticky, the lock holds, the reset request cannot sustain itself (guards V7-F1) |
 | CI workflow | written, **never run, not installed** | [ci/github-workflow-verify.yml](ci/github-workflow-verify.yml); needs a token with GitHub's `workflow` scope to install, then a first run |
-| Line coverage (`make coverage`) | **96.0 %**, or **100 % with waivers** | **objective O6 met**: every exclusion has a reviewed waiver in [coverage_waivers.md](verif/coverage_waivers.md). The 15 waived lines are all `default:` arms over fully enumerated selectors. Earlier entries in this table reported a mixed line+toggle figure by mistake — see V7-M1 |
+| Line coverage (`make coverage`) | **96.3 %**, or **100 % with waivers** | **objective O6 met**: every exclusion has a reviewed waiver in [coverage_waivers.md](verif/coverage_waivers.md). The 14 waived lines are all `default:` arms over fully enumerated selectors. Earlier entries in this table reported a mixed line+toggle figure by mistake — see V7-M1 |
 | Toggle coverage | 94.8 % | reported separately, as it should have been from the start |
 | Functional coverage (`make coverage`) | **100 %** | **objective O7 met**: 65 `cover` points bound into the RTL, all hit. Found four safety mechanisms no test had provoked and two decoder lines wrongly waived — see [verification_findings.md](doc/verification_findings.md) |
 | Synthesis (`make synth`) | **pass** | yosys via slang: no latches, no combinational loops, 52 614 cells with 64-word TCMs |

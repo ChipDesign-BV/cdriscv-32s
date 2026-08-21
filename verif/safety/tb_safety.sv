@@ -366,6 +366,14 @@ module tb_safety;
            (dut.u_mbist_d.fail_q === 1'b1),
            $sformatf("BIST did not fail after %0d cycles", latency));
 
+    // V0-F1: the *whole* 39-bit code word has to be captured, not just
+    // the data half, or the check bits the new FAILDATH register
+    // returns would be meaningless.  The forced read data is
+    // 39'h55_5555_5555, so the check bits are its top seven.
+    report("memory BIST: the failing word is captured with its check bits",
+           (dut.u_mbist_d.fail_data_q === 39'h55_5555_5555),
+           $sformatf("fail_data_q = %010x", dut.u_mbist_d.fail_data_q));
+
     // The fault is `done && fail`, not `fail`: a failing BIST runs to
     // completion and reports at the end rather than stopping at the
     // first bad word.  So the wait here is for the whole march to

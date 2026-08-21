@@ -204,16 +204,37 @@ _start:
     li   a0, 19
     bnez t2, fail
 
+    /* The check bits of the failing word, added for V0-F1.  The BIST
+     * above passed, so there is no failing word and this must read
+     * zero -- what it exercises here is the decode and the read arm,
+     * both of which are new: each controller now claims 32 bytes
+     * rather than 16, which is what makes an offset of 0x10 reachable
+     * at all. */
+    lw   t1, 0x50(s0)           /* D-TCM FAILDATH */
+    li   a0, 18
+    bnez t1, fail
+
+    /* An offset inside the claimed 32 bytes that decodes to nothing.
+     * This used to be unreachable and was waived as W2c: when each
+     * controller claimed only 16 bytes, a word access could only ever
+     * produce 0x0, 0x4, 0x8 or 0xc and every one of them had an arm.
+     * Widening the claim to 32 bytes for FAILDATH made 0x14, 0x18 and
+     * 0x1c reachable, so the waiver no longer holds and this is a test
+     * instead. */
+    lw   t1, 0x54(s0)
+    li   a0, 19
+    bnez t1, fail
+
     /* Inside a claimed range, an offset the controller does not decode
      * reads as zero.  Only offsets 0, 4, 8 and 0xc exist and a word
      * access can only ever produce those, so this needs a byte read.
      * STATUS is non-zero now, which is what makes the pair of reads
      * below mean something. */
     lbu  t1, 0x44(s0)
-    li   a0, 20
+    li   a0, 22
     beqz t1, fail               /* decoded: must not read zero */
     lbu  t1, 0x41(s0)
-    li   a0, 21
+    li   a0, 23
     bnez t1, fail               /* not decoded: must read zero */
 
     /* ---- AMS interface -------------------------------------------- */
@@ -221,30 +242,30 @@ _start:
     li   t0, 0x00000640
     sw   t0, 0x04(s0)           /* PERIOD */
     lw   t1, 0x04(s0)
-    li   a0, 22
+    li   a0, 24
     bne  t1, t0, fail
 
     li   t0, 0x0000000d
     sw   t0, 0x08(s0)           /* CHMASK */
     lw   t1, 0x08(s0)
-    li   a0, 23
+    li   a0, 25
     bne  t1, t0, fail
 
     li   t0, 0x0f2c0111         /* LIMIT 0: low 0x0111, high 0x0f2c */
     sw   t0, 0x30(s0)
     lw   t1, 0x30(s0)
-    li   a0, 24
+    li   a0, 26
     bne  t1, t0, fail
 
     li   t0, 0x00000fa0
     sw   t0, 0x58(s0)           /* TIMEOUT */
     lw   t1, 0x58(s0)
-    li   a0, 25
+    li   a0, 27
     bne  t1, t0, fail
 
     sw   zero, 0x08(s0)         /* no channels, so nothing converts */
     lw   t1, UNMAPPED(s0)
-    li   a0, 26
+    li   a0, 28
     bnez t1, fail
 
     /* ---- done ----------------------------------------------------- */

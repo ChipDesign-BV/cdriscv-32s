@@ -171,16 +171,23 @@ at `+0x40`.
 | `+0x00` | `CTRL` | WO | [0] start [1] abort |
 | `+0x04` | `STATUS` | RO | [0] busy [1] done [2] fail [6:4] march element |
 | `+0x08` | `FAILADR` | RO | first failing address |
-| `+0x0c` | `FAILDAT` | RO | data read at the first failing address |
+| `+0x0c` | `FAILDAT` | RO | data read at the first failing address, bits 31:0 |
+| `+0x10` | `FAILDATH` | RO | the same word's seven ECC check bits, `[38:32]` |
 
 Running the BIST destroys the memory contents and blocks the memory
 under test; the core stalls while its instruction memory is being
 tested.
 
 Unlike the other slots, **an unmapped offset in slot 5 raises a slave
-error rather than reading as zero.** Each controller claims only its
-own sixteen bytes (`paddr[7:4]` against its base), and the subsystem
-reports a bus error for anything in the slot that neither claims.
+error rather than reading as zero.** Each controller claims its own
+thirty-two bytes (`paddr[7:5]` against its base) — so `0x00..0x1f` and
+`0x40..0x5f` — and the subsystem reports a bus error for anything in
+the slot that neither claims.
+
+The check bits are readable because a failure in the check-bit half of
+the array is otherwise undiagnosable: it is the part only the raw test
+port can reach, so `FAILDAT` alone would leave it invisible. See
+finding V0-F1.
 
 Offsets `0x01`, `0x02` and so on do not exist as far as any peripheral
 is concerned: the APB bridge drives `paddr[1:0]` as zero for every
