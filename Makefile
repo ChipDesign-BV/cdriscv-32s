@@ -420,13 +420,15 @@ $(BUILD)/obj_syscov/tb_sys_cov: $(RTL) $(TB) $(COVER_SV) | $(BUILD)
 # uncovered that are in fact tested.  A coverage report that
 # understates is no more useful than one that overstates.
 $(BUILD)/obj_cmcov/tb_clkmon_cov: rtl/common/cdriscv_sync.sv \
+                                  rtl/common/cdriscv_cfg_parity.sv \
                                   rtl/safety/cdriscv_clkmon.sv \
                                   verif/block/clkmon/tb_clkmon.sv | $(BUILD)
 	$(VERILATOR) --binary --timing -sv --timescale 1ns/1ps --coverage \
 	  -Wno-fatal -Wno-DECLFILENAME -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM \
 	  -Wno-SYNCASYNCNET \
 	  --top-module tb_clkmon -o tb_clkmon_cov -Mdir $(BUILD)/obj_cmcov \
-	  rtl/common/cdriscv_sync.sv rtl/safety/cdriscv_clkmon.sv \
+	  rtl/common/cdriscv_sync.sv rtl/common/cdriscv_cfg_parity.sv \
+	  rtl/safety/cdriscv_clkmon.sv \
 	  verif/block/clkmon/tb_clkmon.sv
 
 # The safety bench is where the mechanisms live that software cannot
