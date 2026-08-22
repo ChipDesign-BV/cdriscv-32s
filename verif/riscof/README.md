@@ -98,7 +98,13 @@ the same faulting address then encodes as a different number than in the
 reference build, and every misaligned-**load** test fails while everything
 else passes. See finding V35.
 
-## How the earlier releases fail (kept for the record)
+## How this looked before `-mno-relax` (kept for the record)
+
+The paragraphs below were written when the workaround was pinning the suite
+to release 3.5.3. They remain accurate as a description of the failure mode;
+the resolution has since improved from "pin an old release" to "build with
+`-mno-relax`", which runs the current suite unmodified. The whole story is in
+[upstream-issues.md](upstream-issues.md) and findings V34–V36.
 
 **The reference model traps in the same place the DUT does.** Spike on
 `add-01.S`:
