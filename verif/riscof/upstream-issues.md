@@ -1,12 +1,24 @@
 # Defects found in riscv-arch-test and RISCOF
 
-Four problems found while bringing `make riscof` up on this core (RV32IM
-Zicsr Zifencei, machine mode only, no PMP, no U mode). All four are in the
+**Filing status (2026-08-22):**
+
+* Item 3 (pmp `verify` gating) — filed as
+  [riscv/riscv-arch-test#2159](https://github.com/riscv/riscv-arch-test/issues/2159).
+* Item 1 (`c.nop`) — already reported upstream (#442, #659) and fixed on
+  `act4`; the `-mno-relax` workaround for `old-framework-3.x` users posted as
+  a [comment on #659](https://github.com/riscv/riscv-arch-test/issues/659#issuecomment-5381756173).
+* Item 2 (cebreak regex) — already fixed in the current tree; nothing to file.
+* Item 4 (broken default clone) — **cannot be filed:
+  `riscv-software-src/riscof` is archived and read-only.** That also means
+  the defect is permanent; the workaround below is the fix.
+
+Four problems found (one turned out to be already fixed upstream and one already reported — see each item) while bringing `make riscof` up on this core (RV32IM
+Zicsr Zifencei, machine mode only, no PMP, no U mode). All are in the
 tools, not in the design. Each is reduced to the smallest reproduction that
 still shows it. Verified 2026-08-22 against `riscv/riscv-arch-test`
 `old-framework-3.x` at `281d71ef`, `act4` at HEAD, and RISCOF 1.25.3.
 
-## 1. `LA` emits an executable `c.nop` on targets without C
+## 1. `LA` emits an executable `c.nop` on targets without C — known upstream (#442, #659), fixed on `act4`; not filed as a new issue
 
 **Where:** `riscv-test-suite/env/arch_test.h`, `LA` macro, on
 `old-framework-3.x` — the branch that carries the suite RISCOF consumes.
@@ -65,19 +77,13 @@ Suggested: add `.option norelax` (or the `-mno-relax` note) to
 `old-framework-3.x`, or state in the README that non-C targets must build
 with `-mno-relax` or use release 3.5.3 or earlier.
 
-## 2. `cebreak-01.S` selects on cores without the C extension
+## 2. `cebreak-01.S` regex typo — already fixed upstream, do not file
 
-**Where:** `riscv-test-suite/rv32i_m/C/src/cebreak-01.S`.
-
-```
-check ISA:=regex(.*I.*Zicsr.*.C*)
-```
-
-`C*` matches **zero or more** occurrences of `C`, so it matches any string.
-The other 26 tests in that directory use `.*C.*`. The test is selected on
-RV32I Zicsr cores with no C extension and fails there.
-
-Presumably `.*I.*Zicsr.*C.*` was meant.
+Release 3.5.3 gates the test with `check ISA:=regex(.*I.*Zicsr.*.C*)`, where
+`C*` matches zero occurrences, so the test selects on cores without C. The
+current `old-framework-3.x` tree reads `.*I.*C.*Zicsr` — fixed. Only relevant
+to anyone still pinning 3.5.3, which this repository no longer does. Kept
+here for the record.
 
 ## 3. The pmp tests gate PMP with a clause RISCOF never evaluates
 
