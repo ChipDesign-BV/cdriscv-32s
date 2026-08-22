@@ -69,6 +69,8 @@ jobs:
           done
           echo "PATH=$PATH" >> "$GITHUB_ENV"
           echo "PYTHONPATH=${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          # vvp finds its libvvp.so.1 through this, not through PATH
+          echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
           echo "--- resolved ---"
           for t in verilator iverilog yosys vvp sby verilator_coverage; do
             printf '%-20s %s\n' "$t" "$(command -v "$t" 2>/dev/null || echo MISSING)"
@@ -140,6 +142,8 @@ jobs:
           done
           echo "PATH=$PATH" >> "$GITHUB_ENV"
           echo "PYTHONPATH=${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          # vvp finds its libvvp.so.1 through this, not through PATH
+          echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
           echo "--- resolved ---"
           for t in verilator iverilog yosys vvp sby verilator_coverage; do
             printf '%-20s %s\n' "$t" "$(command -v "$t" 2>/dev/null || echo MISSING)"
@@ -215,6 +219,8 @@ jobs:
           done
           echo "PATH=$PATH" >> "$GITHUB_ENV"
           echo "PYTHONPATH=${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          # vvp finds its libvvp.so.1 through this, not through PATH
+          echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
           echo "--- resolved ---"
           for t in verilator iverilog yosys vvp sby verilator_coverage; do
             printf '%-20s %s\n' "$t" "$(command -v "$t" 2>/dev/null || echo MISSING)"
@@ -289,6 +295,8 @@ jobs:
           done
           echo "PATH=$PATH" >> "$GITHUB_ENV"
           echo "PYTHONPATH=${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          # vvp finds its libvvp.so.1 through this, not through PATH
+          echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
           echo "--- resolved ---"
           for t in verilator iverilog yosys vvp sby verilator_coverage; do
             printf '%-20s %s\n' "$t" "$(command -v "$t" 2>/dev/null || echo MISSING)"
@@ -343,6 +351,8 @@ jobs:
           done
           echo "PATH=$PATH" >> "$GITHUB_ENV"
           echo "PYTHONPATH=${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          # vvp finds its libvvp.so.1 through this, not through PATH
+          echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
           echo "--- resolved ---"
           for t in verilator iverilog yosys vvp sby verilator_coverage; do
             printf '%-20s %s\n' "$t" "$(command -v "$t" 2>/dev/null || echo MISSING)"
@@ -402,6 +412,8 @@ jobs:
           done
           echo "PATH=$PATH" >> "$GITHUB_ENV"
           echo "PYTHONPATH=${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          # vvp finds its libvvp.so.1 through this, not through PATH
+          echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
           echo "--- resolved ---"
           for t in verilator iverilog yosys vvp sby verilator_coverage; do
             printf '%-20s %s\n' "$t" "$(command -v "$t" 2>/dev/null || echo MISSING)"
