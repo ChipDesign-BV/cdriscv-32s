@@ -31,9 +31,22 @@
 import re
 import sys
 
+PARAM = re.compile(
+    r"^\s*parameter\s+(?:int\s+unsigned\s+|int\s+|logic\s*\[[^\]]*\]\s*|bit\s+)?"
+    r"(\w+)\s*=\s*([^,\n)]+)", re.M)
+
 PORT = re.compile(
     r"^\s*(input|output)\s+(?:wire\s+|logic\s+|reg\s+)?"
     r"(?:(\[[^\]]+\])\s+)?(\w+)\s*[,)]", re.M)
+
+
+def params(path, module):
+    # Port widths can depend on the module's parameters, so the bench
+    # needs them as localparams or it will not elaborate.
+    text = open(path, errors="replace").read()
+    i = text.index("module " + module)
+    j = text.index(")(", i) if ")(" in text[i:i + 4000] else i
+    return PARAM.findall(text[i:j]) if j > i else []
 
 
 def ports(path, module):
@@ -51,6 +64,7 @@ def main():
     high = set(sys.argv[6].split(",")) if len(sys.argv) > 6 and sys.argv[6] else set()
     w = int(width)
     pl = ports(rtl, module)
+    pr = params(rtl, module)
     decls, conns = [], []
     for d, wd, name in pl:
         if name in ("clk_i", "rst_ni"):
@@ -80,6 +94,8 @@ module tb_fsm_{module};
 
   logic clk = 0, rst_n;
   always #5ns clk = ~clk;
+
+{chr(10).join("  localparam int %s = %s;" % (n, v.strip()) for n, v in pr)}
 
 {chr(10).join(decls)}
 

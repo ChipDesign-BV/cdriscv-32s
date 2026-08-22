@@ -717,8 +717,48 @@ gate-fsm-mbist: $(BUILD)/gate/tb_fsm_cdriscv_mbist.vvp
 	$(VVP) $< | tee $(BUILD)/gate/fsm_mbist.log
 	@grep -q "PASS" $(BUILD)/gate/fsm_mbist.log
 
+$(BUILD)/gate/cdriscv_ams_if_gate.v: $(GATE_PKG) rtl/common/cdriscv_sync.sv \
+                                     rtl/periph/cdriscv_ams_if.sv | $(BUILD)/gate
+	$(YOSYS) -p "plugin -i slang; \
+	  read_slang --top cdriscv_ams_if $(GATE_PKG) rtl/common/cdriscv_sync.sv \
+	    rtl/periph/cdriscv_ams_if.sv; \
+	  synth -top cdriscv_ams_if -flatten; \
+	  dfflibmap -liberty $(GATE_LIB); abc -liberty $(GATE_LIB); opt_clean; \
+	  write_verilog -noattr $@" -l $(BUILD)/gate/ams_synth.log
+
+$(BUILD)/gate/tb_fsm_cdriscv_ams_if.vvp: $(BUILD)/gate/cdriscv_ams_if_gate.v \
+                                         $(GATE_CELLS) $(GATE_UDP) \
+                                         verif/gate/tb_fsm_cdriscv_ams_if.sv
+	$(IVERILOG) -g2012 -o $@ -s tb_fsm_cdriscv_ams_if $(GATE_PKG) $^
+
+gate-fsm-ams: $(BUILD)/gate/tb_fsm_cdriscv_ams_if.vvp
+	$(VVP) $< | tee $(BUILD)/gate/fsm_ams.log
+	@grep -q "PASS" $(BUILD)/gate/fsm_ams.log
+
+CORE_RTL := rtl/core/cdriscv_pkg.sv rtl/common/cdriscv_sync.sv \
+            rtl/core/cdriscv_alu.sv rtl/core/cdriscv_decoder.sv \
+            rtl/core/cdriscv_regfile.sv rtl/core/cdriscv_multdiv.sv \
+            rtl/core/cdriscv_lsu.sv rtl/core/cdriscv_csr.sv \
+            rtl/core/cdriscv_if_stage.sv rtl/core/cdriscv_core.sv
+
+$(BUILD)/gate/cdriscv_core_gate.v: $(CORE_RTL) | $(BUILD)/gate
+	$(YOSYS) -p "plugin -i slang; \
+	  read_slang --top cdriscv_core $(CORE_RTL); \
+	  synth -top cdriscv_core -flatten; \
+	  dfflibmap -liberty $(GATE_LIB); abc -liberty $(GATE_LIB); opt_clean; \
+	  write_verilog -noattr $@" -l $(BUILD)/gate/core_synth.log
+
+$(BUILD)/gate/tb_fsm_cdriscv_core.vvp: $(BUILD)/gate/cdriscv_core_gate.v \
+                                       $(GATE_CELLS) $(GATE_UDP) \
+                                       verif/gate/tb_fsm_cdriscv_core.sv
+	$(IVERILOG) -g2012 -o $@ -s tb_fsm_cdriscv_core $(GATE_PKG) $^
+
+gate-fsm-core: $(BUILD)/gate/tb_fsm_cdriscv_core.vvp
+	$(VVP) $< | tee $(BUILD)/gate/fsm_core.log
+	@grep -q "PASS" $(BUILD)/gate/fsm_core.log
+
 gate: gate-alu gate-multdiv gate-ecc gate-fsm gate-fsm-apb gate-fsm-lsu \
-      gate-fsm-mbist gate-subsys
+      gate-fsm-mbist gate-fsm-ams gate-fsm-core gate-subsys
 
 # ------------------------------------------------- RISCOF (O1)
 # The architectural test suite is fetched, not vendored -- see
