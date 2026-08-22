@@ -14,7 +14,10 @@
 // different fault model and would flatter the detection numbers.
 //
 // The fault list is a **named set of state elements**, not every flop
-// in the design.  That is stated plainly in the results: a full
+// in the design.  It covers twenty of them, chosen to include the
+// safety controller's own configuration registers: an upset there does
+// not corrupt a result, it switches a detector off, and a campaign
+// that injects only into datapath state cannot see that happening.  That is stated plainly in the results: a full
 // flop-level campaign needs a harness that can enumerate the netlist,
 // which this is not.
 //
@@ -93,6 +96,7 @@ module tb_fi;
   bit          injected, arm;
   int unsigned idx, b32, b39;
   logic [31:0] status_at_end;
+  logic [31:0] cfg_safety, cfg_wdog, cfg_csr;
 
   initial begin
     fetch_enable = 1'b0;
@@ -130,9 +134,20 @@ module tb_fi;
         // happens, and without this it would be indistinguishable from
         // a fault the design tolerated -- it would land in the silent
         // count and quietly flatter the result.
-        $display("FI target=%0d bit=%0d cycle=%0d exit=%08x golden=%08x exited=%0d status=%08x inj=%0d",
+        // The configuration a fault can quietly destroy.  A workload
+        // finishing with the right answer says nothing about whether
+        // the safety controller is still armed, and "silent-ok" is a
+        // badly wrong label for a run that ended with a detector
+        // switched off.  These three words are compared against a
+        // fault-free run so that case can be named.
+        cfg_safety = dut.u_safety.enable_q ^ dut.u_safety.react_irq_q
+                   ^ dut.u_safety.react_rst_q ^ {31'b0, dut.u_safety.ctrl_en_q};
+        cfg_wdog   = {30'b0, dut.u_wdog.enable_q, dut.u_wdog.rst_en_q}
+                   ^ dut.u_wdog.period_q;
+        cfg_csr    = dut.g_lockstep.u_core.u_core_main.u_csr.mtvec_q;
+        $display("FI target=%0d bit=%0d cycle=%0d exit=%08x golden=%08x exited=%0d status=%08x inj=%0d cfg=%08x_%08x_%08x",
                  target, bitpos, injcycle, exit_code, golden, exit_seen, status_at_end,
-                 injected);
+                 injected, cfg_safety, cfg_wdog, cfg_csr);
         $finish;
       end
     end
@@ -167,7 +182,7 @@ module tb_fi;
         idx   = bitpos % 31;
         b32   = bitpos % 32;
         b39   = bitpos % 39;
-        case (target % 9)
+        case (target % 20)
           0: dut.g_lockstep.u_core.u_core_main.u_regfile.rf_q[idx + 1] =
              dut.g_lockstep.u_core.u_core_main.u_regfile.rf_q[idx + 1] ^ (32'b1 << b32);
           1: dut.g_lockstep.u_core.u_core_main.u_if.buf_rdata_q[bitpos % 2] =
@@ -192,6 +207,46 @@ module tb_fi;
              dut.u_dtcm.mem[512 + (bitpos % 4)] ^ (39'b1 << b39);
           8: dut.g_lockstep.u_core.u_core_main.u_regfile.par_q =
              dut.g_lockstep.u_core.u_core_main.u_regfile.par_q ^ (31'b1 << idx);
+
+          // ---- the safety controller's own configuration -----------
+          // The safety manual already lists these as unprotected, and
+          // that entry was written from reading the RTL rather than
+          // from measuring anything.  An upset in enable_q or ctrl_en_q
+          // does not corrupt a result: it switches a detector off, and
+          // the workload then finishes perfectly while the mechanism
+          // that was meant to be watching is gone.  A campaign that
+          // only injects into datapath state cannot see that at all.
+          9:  dut.u_safety.status_q    = dut.u_safety.status_q    ^ (32'b1 << b32);
+          10: dut.u_safety.enable_q    = dut.u_safety.enable_q    ^ (32'b1 << b32);
+          11: dut.u_safety.react_irq_q = dut.u_safety.react_irq_q ^ (32'b1 << b32);
+          12: dut.u_safety.react_rst_q = dut.u_safety.react_rst_q ^ (32'b1 << b32);
+          13: dut.u_safety.ctrl_en_q   = ~dut.u_safety.ctrl_en_q;
+
+          // ---- the watchdog -----------------------------------------
+          14: dut.u_wdog.count_q  = dut.u_wdog.count_q ^ (32'b1 << b32);
+          15: dut.u_wdog.enable_q = ~dut.u_wdog.enable_q;
+
+          // ---- more core state -------------------------------------
+          16: dut.g_lockstep.u_core.u_core_main.u_csr.mtvec_q =
+              dut.g_lockstep.u_core.u_core_main.u_csr.mtvec_q ^ (32'b1 << b32);
+          17: dut.g_lockstep.u_core.u_core_main.u_csr.mscratch_q =
+              dut.g_lockstep.u_core.u_core_main.u_csr.mscratch_q ^ (32'b1 << b32);
+          // A bit-select rather than a whole-word XOR: state_q is an
+          // enum, and assigning an integer expression to it needs an
+          // explicit cast that would have to name a type declared
+          // inside the module.
+          18: dut.g_lockstep.u_core.u_core_main.state_q[bitpos % 2] =
+              ~dut.g_lockstep.u_core.u_core_main.state_q[bitpos % 2];
+
+          // ---- the lockstep delay pipeline --------------------------
+          // The comparator's own storage.  If an upset here is silent,
+          // the comparison it feeds is worth less than it looks.
+          // Stage 0 only: Icarus will not take a variable index on the
+          // outer dimension of a packed array in an lvalue.  One stage
+          // of the pipeline is representative of all of them.
+          19: dut.g_lockstep.u_core.g_delay.out_pipe_q[0][b32] =
+              ~dut.g_lockstep.u_core.g_delay.out_pipe_q[0][b32];
+
           default: ;
         endcase
       if (trace_on && (target % 9) == 3)

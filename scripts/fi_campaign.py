@@ -8,7 +8,15 @@
 # and classifies each run:
 #
 #   detected        a safety mechanism latched a fault
-#   silent-ok       no fault, and the workload result was correct
+#   silent-ok       no fault, the result was correct, and the safety
+#                   configuration was left intact
+#   latent          no fault, the result was correct, and yet the
+#                   configuration is NOT what it should be -- an upset
+#                   has switched a detector off and nothing noticed.
+#                   Classified apart from silent-ok because calling it
+#                   benign is exactly wrong: the workload passing is not
+#                   evidence when the thing that would have complained
+#                   is the thing that was hit.
 #   SDC             no fault, and the result was WRONG -- silent data
 #                   corruption, the number that matters most
 #   hang            the workload never finished
@@ -33,7 +41,8 @@ import subprocess
 import sys
 
 RE = re.compile(r"FI target=(\d+) bit=(\d+) cycle=(\d+) exit=([0-9a-fx]+) "
-                r"golden=([0-9a-f]+) exited=(\d) status=([0-9a-fX]+) inj=(\d)")
+                r"golden=([0-9a-f]+) exited=(\d) status=([0-9a-fX]+) inj=(\d)"
+                r" cfg=([0-9a-fxX_]+)")
 
 TARGETS = {
     0: "core register file word",
@@ -45,6 +54,17 @@ TARGETS = {
     6: "I-TCM word (ECC protected)",
     7: "D-TCM word (ECC protected)",
     8: "register file parity bit",
+    9: "safety controller STATUS",
+    10: "safety controller ENABLE",
+    11: "safety controller REACT_IRQ",
+    12: "safety controller REACT_RST",
+    13: "safety controller CTRL.enable",
+    14: "watchdog counter",
+    15: "watchdog CTRL.enable",
+    16: "mtvec",
+    17: "mscratch",
+    18: "core state machine",
+    19: "lockstep delay pipeline",
 }
 
 MECHANISM = {
@@ -70,6 +90,8 @@ def main():
                     help="first I-TCM word of the workload's live code")
     ap.add_argument("--ispan", type=int, default=45,
                     help="how many words of live code to inject into")
+    ap.add_argument("--golden-cfg", default="",
+                    help="safety configuration signature from a clean run")
     ap.add_argument("--name", default="A: arithmetic and memory",
                     help="workload name, printed with the results")
     ap.add_argument("--jobs", type=int, default=(os.cpu_count() or 2),
@@ -78,6 +100,10 @@ def main():
                     help="give-up point for a workload that never finishes")
     args = ap.parse_args()
 
+    # A clean reference for the configuration signature: taken from the
+    # run itself rather than hard-coded, since it depends on the
+    # workload.
+    golden_cfg = args.golden_cfg
     rng = random.Random(args.seed)
     classes = collections.Counter()
     by_target = collections.defaultdict(collections.Counter)
@@ -143,7 +169,8 @@ def main():
         elif exited != "1":
             cls = "hang"
         elif exit_v == golden:
-            cls = "silent-ok"
+            cls = "silent-ok" if (not golden_cfg or m.group(9) == golden_cfg) \
+                  else "latent"
         else:
             cls = "SDC"
             sdc_cases.append((t, b, c, exit_v))
@@ -160,19 +187,19 @@ def main():
         print("  WARNING: %d runs never injected -- the cycle range runs past\n"
               "  the end of the workload.  Excluded from the counts below."
               % classes["not-injected"])
-    for cls in ("detected", "silent-ok", "SDC", "hang", "sim-timeout",
+    for cls in ("detected", "silent-ok", "latent", "SDC", "hang", "sim-timeout",
                 "x-propagation", "no-result"):
         if classes[cls]:
             print("  %-14s %4d  %5.1f %%" % (cls, classes[cls],
                                              100.0 * classes[cls] / total))
     print("\nBy target:")
-    print("  %-34s %8s %9s %5s %5s" % ("state element", "detected", "silent-ok",
-                                       "SDC", "hang"))
+    print("  %-34s %8s %9s %6s %5s %5s" % ("state element", "detected", "silent-ok",
+                                            "latent", "SDC", "hang"))
     for t in sorted(by_target):
         c = by_target[t]
-        print("  %-34s %8d %9d %5d %5d"
-              % (TARGETS[t], c["detected"], c["silent-ok"], c["SDC"],
-                 c["hang"] + c["sim-timeout"]))
+        print("  %-34s %8d %9d %6d %5d %5d"
+              % (TARGETS[t], c["detected"], c["silent-ok"], c["latent"],
+                 c["SDC"], c["hang"] + c["sim-timeout"]))
     if mechanisms:
         print("\nWhich mechanism reported (a fault may set several):")
         for name, n in mechanisms.most_common():
