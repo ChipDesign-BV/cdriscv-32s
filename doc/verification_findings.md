@@ -5,6 +5,77 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V30 — measuring what the mitigation is worth (2026-08-22)
+
+V29 found that twelve configuration registers are 100 % latent and the
+safety manual's answer was to tell integrators to re-read the
+configuration periodically. That was advice, not evidence.
+`fi_workload_check.S` is the same advice written down and executable —
+workload A's arithmetic, plus a read-back of every configuration
+register each iteration, raising the software fault through
+`msafectrl` on a mismatch.
+
+Same fault list, same seed, 2 600 injections each:
+
+| outcome | A: no check | D: with the check |
+|---------|------------|-------------------|
+| detected by a mechanism | 646 (24.8 %) | 1 773 (68.2 %) |
+| detected by software | — | 95 (3.7 %) |
+| silent, configuration intact | 747 (28.7 %) | 621 (23.9 %) |
+| **latent** | **1 207 (46.4 %)** | **111 (4.3 %)** |
+| SDC / hang | 0 | 0 |
+
+**Latent falls from 46.4 % to 4.3 %.** Eleven of the twelve elements
+that were 100 % undetected are now caught every time — the safety
+controller's `ENABLE`, `REACT_IRQ` and `REACT_RST`, `mtvec`, the clock
+monitor's enable and window, the interrupt controller's `ENABLE`, the
+timer's `MTIMECMP`, the AMS channel mask.
+
+### The two things that did not come out clean
+
+**The watchdog's `CTRL.enable` is still 111 of 111 latent**, and that
+is a gap in the *check*, not in the mitigation. The workload writes and
+verifies the watchdog's `PERIOD` but never its `CTRL`. An earlier run
+made the same point more loudly: with only four blocks checked, the
+watchdog, the timer and the AMS mask all stayed 100 % latent, and adding
+their read-backs moved two of the three to 100 % detected.
+
+**A read-back check covers exactly what it reads back.** That sounds
+obvious written down; it is worth 111 undetected upsets when it is not.
+
+**The safety controller's own `CTRL.enable` is detected only by
+software — 94 runs, and zero by any hardware mechanism.** This is a
+circular dependency, and it is the most interesting thing in the
+campaign. The software notices the corruption and raises the software
+fault, which the safety controller would latch — except that the
+register the fault disabled *is the controller's enable*. The report
+has nowhere to go.
+
+Before this was classified separately those 94 runs looked like
+**silent data corruption**: the workload exited with its own error code
+rather than the golden checksum, and nothing had latched a fault, so
+the classifier called the result wrong. It was not wrong; it was a
+correct detection with no channel to report on.
+
+**Integration consequence:** software that checks the safety
+configuration needs a reporting path that does not run through the
+safety controller. An error pin driven directly, or a watchdog that is
+simply not serviced, will survive the case where the controller itself
+is the casualty.
+
+### The cost
+
+The check is eleven loads and eleven compares per iteration, guarding
+about twenty instructions of work. The workload grows from 4 448 cycles
+to 9 120 — **roughly double**. That is the price of the mitigation at
+this checking interval, and the interval is a free parameter: checking
+every tenth iteration would cost a tenth as much and lengthen the
+window in which a disarmed mechanism goes unnoticed by the same factor.
+
+Choosing that interval is an FTTI argument and belongs to whoever is
+making the safety case. What this phase provides is the two endpoints:
+**46.4 % latent unchecked, 4.3 % checked every iteration.**
+
 ## Phase V29 — every mechanism is armed by an unprotected register (2026-08-22)
 
 V28 added the safety controller's configuration to the fault list and

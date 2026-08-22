@@ -511,6 +511,19 @@ coverage: $(BUILD)/obj_cov/tb_cosim_cov $(BUILD)/obj_syscov/tb_sys_cov \
 	@$(PYTHON) scripts/funccov_report.py $(BUILD)/cov/merged.dat \
 	  | tee -a $(BUILD)/coverage.txt
 
+# Workload D is workload A plus the mitigation the safety manual
+# recommends: re-read every configuration register each iteration and
+# raise the software fault on a mismatch.  Running the same fault list
+# against A and D measures what that advice is worth -- V30.
+fi-check: $(BUILD)/tb_fi.vvp $(BUILD)/fi_workload_check.hex $(BUILD)/dtcm_zero.hex
+	$(PYTHON) scripts/fi_campaign.py --runs $(FI_RUNS) --seed $(FI_SEED) \
+	  --hex $(BUILD)/fi_workload_check.hex --golden f095470a \
+	  --golden-cfg fffffcfd_00010000_0000227c \
+	  --sw-detect bad0c0de \
+	  --ibase 76 --ispan 70 --min-cycle 200 --max-cycle 9000 \
+	  --name "D: arithmetic and memory, with a configuration check" \
+	  | tee $(BUILD)/fi_campaign_check.txt
+
 # ------------------------------------------------- gate level (O8)
 # Synthesis to real IHP SG13G2 standard cells, then the *same* block
 # benches re-run against the netlist.  Passing on the RTL and passing

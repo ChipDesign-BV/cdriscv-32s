@@ -8,6 +8,11 @@
 # and classifies each run:
 #
 #   detected        a safety mechanism latched a fault
+#   detected-sw     the workload itself spotted the fault and exited
+#                   with its own code.  Distinct from `detected`
+#                   because no safety mechanism latched anything: when
+#                   the fault is the safety controller's own enable,
+#                   software is the only thing left that can report.
 #   silent-ok       no fault, the result was correct, and the safety
 #                   configuration was left intact
 #   latent          no fault, the result was correct, and yet the
@@ -96,6 +101,9 @@ def main():
                     help="first I-TCM word of the workload's live code")
     ap.add_argument("--ispan", type=int, default=45,
                     help="how many words of live code to inject into")
+    ap.add_argument("--sw-detect", default="",
+                    help="exit code the workload writes when it detects a "
+                         "fault itself, e.g. a configuration read-back")
     ap.add_argument("--golden-cfg", default="",
                     help="safety configuration signature from a clean run")
     ap.add_argument("--name", default="A: arithmetic and memory",
@@ -174,6 +182,13 @@ def main():
             cls = "x-propagation"
         elif exited != "1":
             cls = "hang"
+        elif args.sw_detect and exit_v == args.sw_detect:
+            # The workload found the fault and said so.  It is a
+            # detection, even though the safety controller latched
+            # nothing -- and when the fault is the controller's own
+            # enable, the controller latching nothing is the whole
+            # point rather than a failure of this classifier.
+            cls = "detected-sw"
         elif exit_v == golden:
             cls = "silent-ok" if (not golden_cfg or m.group(9) == golden_cfg) \
                   else "latent"
@@ -193,19 +208,20 @@ def main():
         print("  WARNING: %d runs never injected -- the cycle range runs past\n"
               "  the end of the workload.  Excluded from the counts below."
               % classes["not-injected"])
-    for cls in ("detected", "silent-ok", "latent", "SDC", "hang", "sim-timeout",
+    for cls in ("detected", "detected-sw", "silent-ok", "latent", "SDC",
+                "hang", "sim-timeout",
                 "x-propagation", "no-result"):
         if classes[cls]:
             print("  %-14s %4d  %5.1f %%" % (cls, classes[cls],
                                              100.0 * classes[cls] / total))
     print("\nBy target:")
-    print("  %-34s %8s %9s %6s %5s %5s" % ("state element", "detected", "silent-ok",
-                                            "latent", "SDC", "hang"))
+    print("  %-34s %8s %5s %9s %6s %5s %5s"
+          % ("state element", "detected", "sw", "silent-ok", "latent", "SDC", "hang"))
     for t in sorted(by_target):
         c = by_target[t]
-        print("  %-34s %8d %9d %6d %5d %5d"
-              % (TARGETS[t], c["detected"], c["silent-ok"], c["latent"],
-                 c["SDC"], c["hang"] + c["sim-timeout"]))
+        print("  %-34s %8d %5d %9d %6d %5d %5d"
+              % (TARGETS[t], c["detected"], c["detected-sw"], c["silent-ok"],
+                 c["latent"], c["SDC"], c["hang"] + c["sim-timeout"]))
     if mechanisms:
         print("\nWhich mechanism reported (a fault may set several):")
         for name, n in mechanisms.most_common():
