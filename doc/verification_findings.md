@@ -5,6 +5,50 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V26 — W2a for the BIST, by measuring instead of assuming (2026-08-22)
+
+`make gate-fsm-mbist` forces the synthesised BIST controller into all
+sixteen encodings of its state register; every one recovers. **Four of
+the six machines waiver W2a covers are now argued against gates** — the
+multiplier, the APB bridge, the LSU and the BIST. The AMS sequencer and
+the core remain.
+
+Two things made this one work that had defeated it in V25.
+
+**A small-depth build.** At the real `Depth=4096`, forcing the state
+restarts a march over the whole array and the settle window would have
+to be tens of thousands of cycles per encoding. Synthesised at
+`Depth=16` the march finishes in about two thousand, and the state
+machine is identical either way — only the address counter's range
+changes.
+
+**Measuring the terminal state instead of assuming it.** The check
+first reported encodings 12 to 15 settling at `100` rather than idle
+`000`. That is `BS_DONE`: a forced state restarts the march, the march
+completes, and the machine stops in the state it is supposed to stop
+in. Both `BS_IDLE` and `BS_DONE` are quiescent and defined, and both
+are a successful recovery.
+
+So the bench runs one normal BIST first, records where the machine
+comes to rest, and accepts either that or idle.
+
+### The criterion, finally stated properly
+
+Three phases of false failures — the tied-off LSU bus, the BIST's
+terminal state, the flattened subsystem's escaped identifiers — all
+came from the same mistaken criterion: **"the machine must return to
+idle"**. W2a never claimed that. It claims the `default:` arms return
+an upset machine to a *defined* state rather than leaving it stuck.
+
+The right question is whether the machine reaches a state it can
+legitimately hold. Idle is usually such a state; it is not the only
+one, and requiring it turns correct behaviour into a reported defect.
+
+The generator also masks the comparison to the bits a flip-flop
+actually drives, because yosys declares the state wire at its RTL width
+and optimises constant bits away — for the BIST the undriven bit is
+bit 0, so a four-bit declaration reads `000z` at reset.
+
 ## Phase V25 — W2a for a third machine, and a bench that lied twice (2026-08-22)
 
 `make gate-fsm-lsu` forces the synthesised LSU into all eight encodings

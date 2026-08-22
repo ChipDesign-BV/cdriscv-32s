@@ -88,8 +88,8 @@ module tb_fsm_{module};
   );
 
   int errors = 0, checks = 0;
-  logic [{w-1}:0] idle, got;
-  int e;
+  logic [{w-1}:0] idle, got, mask;
+  int e, b;
 
   task automatic do_reset;
     rst_n = 0;
@@ -102,6 +102,15 @@ module tb_fsm_{module};
   initial begin
     do_reset();
     idle = u_dut.{state};
+    // Compare only the bits a flip-flop actually drives.  yosys
+    // declares the state wire at its RTL width and optimises constant
+    // bits away, so a four-bit declaration can have three flops and one
+    // permanently floating bit -- and comparing that bit makes every
+    // encoding look like a failure.
+    mask = '0;
+    for (b = 0; b < {w}; b++)
+      if (idle[b] === 1'b0 || idle[b] === 1'b1) mask[b] = 1'b1;
+    $display("[fsm-{module}] idle=%b driven=%b", idle, mask);
 
     for (e = 0; e < {2**w}; e++) begin
       do_reset();
@@ -112,11 +121,8 @@ module tb_fsm_{module};
       repeat (8) @(posedge clk);
       checks++;
       got = u_dut.{state};
-      if (got === {w}'bx) begin
-        $display("[fsm-{module}] FAIL: encoding %0d led to X", e);
-        errors++;
-      end else if (got !== idle) begin
-        $display("[fsm-{module}] FAIL: encoding %0d settled at %0d, not idle %0d",
+      if (((got ^ idle) & mask) !== '0) begin
+        $display("[fsm-{module}] FAIL: encoding %0d settled at %b, idle is %b",
                  e, got, idle);
         errors++;
       end
