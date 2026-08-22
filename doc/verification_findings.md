@@ -5,6 +5,67 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V33 — how long a fault goes unreported (2026-08-22)
+
+V32 needed detection latency for one fault class and the campaign now
+records it for all of them. Coverage says whether a fault is found;
+latency says whether it is found in time, and a fault tolerant time
+interval is spent on the second.
+
+2 700 injections, 734 of them detected:
+
+| state element | runs | median | 90th | worst |
+|---------------|-----:|-------:|-----:|------:|
+| safety controller `STATUS` | 103 | 1 | 1 | 1 |
+| lockstep delay pipeline | 103 | 3 | 3 | 3 |
+| fetch program counter | 96 | 4 | 4 | 22 |
+| core state machine | 87 | 4 | 4 | 37 |
+| fetch buffer word | 71 | 4 | 28 | 35 |
+| LSU address offset | 3 | 5 | 5 | 5 |
+| register file parity bit | 19 | 6 | 52 | 55 |
+| register file word | 38 | 12 | 50 | 60 |
+| register file write path | 117 | 12 | 35 | 40 |
+| D-TCM word | 42 | 32 | 61 | 69 |
+| I-TCM word | 55 | 38 | 64 | 69 |
+| **all** | **734** | **4** | **34** | **69** |
+
+**Every fault this list covers is reported within 69 cycles — 690 ns at
+100 MHz — and the median is 4.**
+
+### The shape of it is the design's structure, visible in the numbers
+
+The fast end is everything compared or checked continuously. The safety
+controller's own status register reports in **one** cycle, because a
+flipped status bit *is* a fault bit. The lockstep delay pipeline takes
+three: the comparator's own storage, caught by the comparator.
+
+The slow end is memory. I-TCM and D-TCM upsets take a median of 32 to
+38 cycles and up to 69, because ECC checks a word **when it is read**,
+and a corrupted word sits there until the program comes back to it.
+That is not a weakness in the ECC — it is what a read-triggered check
+means, and it is the number to use rather than an assumption that ECC
+is instantaneous.
+
+Between them sits everything detected *indirectly*: the register file
+and its write path, at a median of 12 and a worst of 60. Those are
+faults that have to propagate to something compared before anything
+notices, which is exactly what V4-F3 described and V32 measured.
+
+### What it is worth, and what it is not
+
+It bounds diagnostic latency for the fault classes that **are**
+covered. For an FTTI argument that is the useful half: a fault in this
+list, if it is going to be reported at all, is reported inside 690 ns.
+
+It says nothing about the 46 % that are latent. Those have no latency
+because they are never detected, and averaging them in — or quietly
+omitting them and quoting 69 cycles as *the* diagnostic latency —
+would be the same kind of error as quoting a detection rate without its
+fault list.
+
+The honest pair of numbers for this fault list and this workload:
+**24.8 % detected, all within 69 cycles; 46.4 % latent, never.**
+
 ## Phase V32 — V4-F3 answered, and the answer is "do not make the change" (2026-08-22)
 
 V31 showed the compare-vector recommendation was mis-scoped: the
