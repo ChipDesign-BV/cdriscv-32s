@@ -39,6 +39,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Tool environment
+        # The image puts its tools under /foss/tools and sets PATH only from
+        # /etc/profile.d/iic-osic-tools-setup.sh, which a login shell sources
+        # and an Actions step's shell does not.  Without this every step dies
+        # with "verilator: command not found" and make exit 127.
+        run: |
+          set -e
+          set +u   # the setup script reads variables it does not always set
+          . /etc/profile.d/iic-osic-tools-setup.sh >/dev/null 2>&1 || true
+          set -u
+          echo "PATH=$PATH" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          command -v verilator iverilog yosys
+
       - name: Lint (hard gate, waivers in verif/lint/waivers.vlt)
         run: make lint
 
@@ -73,6 +87,20 @@ jobs:
       options: --user root
     steps:
       - uses: actions/checkout@v4
+
+      - name: Tool environment
+        # The image puts its tools under /foss/tools and sets PATH only from
+        # /etc/profile.d/iic-osic-tools-setup.sh, which a login shell sources
+        # and an Actions step's shell does not.  Without this every step dies
+        # with "verilator: command not found" and make exit 127.
+        run: |
+          set -e
+          set +u   # the setup script reads variables it does not always set
+          . /etc/profile.d/iic-osic-tools-setup.sh >/dev/null 2>&1 || true
+          set -u
+          echo "PATH=$PATH" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          command -v verilator iverilog yosys
 
       - name: Cache the Spike build
         id: spike-cache
@@ -113,6 +141,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Tool environment
+        # The image puts its tools under /foss/tools and sets PATH only from
+        # /etc/profile.d/iic-osic-tools-setup.sh, which a login shell sources
+        # and an Actions step's shell does not.  Without this every step dies
+        # with "verilator: command not found" and make exit 127.
+        run: |
+          set -e
+          set +u   # the setup script reads variables it does not always set
+          . /etc/profile.d/iic-osic-tools-setup.sh >/dev/null 2>&1 || true
+          set -u
+          echo "PATH=$PATH" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          command -v verilator iverilog yosys
+
       # Each of these found something when it was written -- the safety
       # tests three clock-domain defects, the fence test two decoder
       # lines that had been wrongly waived, the read-back test a slot
@@ -150,6 +192,20 @@ jobs:
       options: --user root
     steps:
       - uses: actions/checkout@v4
+
+      - name: Tool environment
+        # The image puts its tools under /foss/tools and sets PATH only from
+        # /etc/profile.d/iic-osic-tools-setup.sh, which a login shell sources
+        # and an Actions step's shell does not.  Without this every step dies
+        # with "verilator: command not found" and make exit 127.
+        run: |
+          set -e
+          set +u   # the setup script reads variables it does not always set
+          . /etc/profile.d/iic-osic-tools-setup.sh >/dev/null 2>&1 || true
+          set -u
+          echo "PATH=$PATH" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          command -v verilator iverilog yosys
       - name: Bounded model checking
         run: make formal
       - uses: actions/upload-artifact@v4
@@ -168,6 +224,20 @@ jobs:
       options: --user root
     steps:
       - uses: actions/checkout@v4
+
+      - name: Tool environment
+        # The image puts its tools under /foss/tools and sets PATH only from
+        # /etc/profile.d/iic-osic-tools-setup.sh, which a login shell sources
+        # and an Actions step's shell does not.  Without this every step dies
+        # with "verilator: command not found" and make exit 127.
+        run: |
+          set -e
+          set +u   # the setup script reads variables it does not always set
+          . /etc/profile.d/iic-osic-tools-setup.sh >/dev/null 2>&1 || true
+          set -u
+          echo "PATH=$PATH" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          command -v verilator iverilog yosys
       - name: Line, toggle and functional coverage
         run: make coverage
       # Not a gate.  Objective O6 is met with reviewed waivers and O7 is
@@ -191,6 +261,20 @@ jobs:
       options: --user root
     steps:
       - uses: actions/checkout@v4
+
+      - name: Tool environment
+        # The image puts its tools under /foss/tools and sets PATH only from
+        # /etc/profile.d/iic-osic-tools-setup.sh, which a login shell sources
+        # and an Actions step's shell does not.  Without this every step dies
+        # with "verilator: command not found" and make exit 127.
+        run: |
+          set -e
+          set +u   # the setup script reads variables it does not always set
+          . /etc/profile.d/iic-osic-tools-setup.sh >/dev/null 2>&1 || true
+          set -u
+          echo "PATH=$PATH" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          command -v verilator iverilog yosys
 
       - name: Gate level simulation and illegal-state recovery
         run: make gate
