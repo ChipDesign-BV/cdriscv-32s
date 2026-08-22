@@ -54,9 +54,10 @@ nothing about the addresses is assumed.
 is no console, so the IO macros are empty and the signature is the only
 output.
 
-## Status: 59 of 62 pass, on release 3.5.3
+## Status: 62 of 62 pass, on release 3.5.3
 
-`make riscof` runs against **`riscv-arch-test` 3.5.3, unmodified**.
+`make riscof` runs against **`riscv-arch-test` 3.5.3, unmodified**: 38 from I,
+8 from M, 15 from privilege, 1 Zifencei. **62 passed, 0 failed.**
 
 Current releases cannot be used with this core. `env/arch_test.h` wraps
 its `.align` directives in `.option rvc` so the assembler pads with
@@ -86,12 +87,16 @@ external to this design:
   use `.*C.*`.
 * `rv32i_m/I/src/jalr-01.S` — modern binutils rejects `la x0,5b`.
 
-### Known failures
+### One trap to be careful of
 
-`misalign-lh-01.S`, `misalign-lhu-01.S`, `misalign-lw-01.S`. Misaligned
-**stores** pass. Three signature words of 72 differ; the reference
-values look like sign-extended bytes and the DUT's like sign-extended
-halfwords. **Open and unexplained** — see finding V34.
+`RVMODEL_DATA_SECTION` must expand inside `RVMODEL_DATA_END`, after
+`end_signature` — never inside `RVMODEL_DATA_BEGIN`. On RISC-V `.align 8`
+means 256 bytes, so that block drags ~400 bytes of padding with it, and ahead
+of the signature the padding sits between `rvtest_data` and `mtrap_sigptr`.
+The arch-test trap handler records `mtval` *relative to `mtrap_sigptr`*, so the
+same faulting address then encodes as a different number than in the reference
+build, and every misaligned-**load** test fails while everything else passes.
+See finding V35.
 
 ## How the earlier releases fail (kept for the record)
 

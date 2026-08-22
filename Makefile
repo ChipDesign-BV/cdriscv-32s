@@ -777,7 +777,11 @@ gate: gate-alu gate-multdiv gate-ecc gate-fsm gate-fsm-apb gate-fsm-lsu \
 # The architectural test suite is fetched, not vendored -- see
 # verif/riscof/README.md, which also records why this does not yet
 # produce a result.
-RISCOF_SUITE := verif/riscof/riscv-arch-test/riscv-test-suite
+# riscv-arch-test 3.5.3, not a current release: from 3.6.0 onward env/arch_test.h
+# wraps its .align directives in ".option rvc", so the assembler pads with c.nop
+# and that padding lands in the executable stream.  An RV32I core must trap on a
+# 16-bit encoding -- and Spike traps at the same address.  See verif/riscof/README.md.
+RISCOF_SUITE := verif/riscof/arch-test-3.5.3/riscv-test-suite
 
 # A separate build with a larger instruction memory: the architectural
 # tests do not fit in the 4096 words the subsystem defaults to.
@@ -798,8 +802,8 @@ riscof: $(BUILD)/tb_cosim_arch.vvp
 	  echo "riscv-arch-test not present: see verif/riscof/README.md"; \
 	  exit 1; }
 	cd verif/riscof && riscof run --config=config.ini \
-	  --suite=riscv-arch-test/riscv-test-suite/ \
-	  --env=riscv-arch-test/riscv-test-suite/env --no-browser
+	  --suite=arch-test-3.5.3/riscv-test-suite/ \
+	  --env=arch-test-3.5.3/riscv-test-suite/env --no-browser
 
 # ------------------------------------------------- static timing (O8)
 # OpenSTA against the same SG13G2 library the netlist is mapped to.

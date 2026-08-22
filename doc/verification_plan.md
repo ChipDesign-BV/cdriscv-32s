@@ -23,7 +23,7 @@ Anything not on this list is not claimed.
 
 | # | Objective | Sign-off criterion |
 |---|-----------|--------------------|
-| O1 | The core implements the specified ISA | RISCOF run of `riscv-arch-test` for RV32I, M, Zicsr, Zifencei and the M-mode privileged tests passes, against Spike or the Sail model as reference |
+| O1 | The core implements the specified ISA | RISCOF run of `riscv-arch-test` for RV32I, M, Zicsr, Zifencei and the M-mode privileged tests passes, against Spike or the Sail model as reference — **met** (V35): 62 of 62 on suite 3.5.3, unmodified |
 | O2 | The core matches a golden model on arbitrary code | ≥ 10^9 instructions of randomly generated code co-simulated against Spike with zero mismatches on retire PC, instruction, register write and memory access |
 | O3 | Every block behaves as its header comment says | Block level bench per block, all directed tests in section 5 pass |
 | O4 | Every safety mechanism fires when it should, and only then | Section 7 matrix complete: each mechanism has at least one test that triggers it and one that proves it stays quiet |
@@ -73,7 +73,7 @@ where noted.
 | Icarus Verilog | second opinion on SystemVerilog constructs, and the existing `tb_cdriscv_subsys.sv` | none |
 | cocotb | register-level tests for the APB peripherals, written in Python | pick the simulator backend, write an APB BFM |
 | Spike (`riscv-isa-sim`) | golden model for O1 and O2 | **not in the container**: build it, add a step-and-compare hook |
-| RISCOF + `riscv-arch-test` | O1 | write the DUT plugin (ELF to memory image, run, dump signature) |
+| RISCOF + `riscv-arch-test` | O1 | **done**, `verif/riscof/`, `make riscof` |
 | `riscv-dv` in pyflow mode | random program generation for O2 | constraint tuning for M-mode only, no PMP, TCM address ranges |
 | SymbiYosys / yosys-smtbmc | formal properties, section 6 | write the SVA subset the flow accepts |
 | Yosys | O5 structural checks, area tracking | reuse `make synth` |
