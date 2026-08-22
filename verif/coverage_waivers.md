@@ -64,7 +64,7 @@ where this behaviour is exercised, not the functional tests — and the
 campaign has so far recorded no hang across 3 000 injections, which is
 the evidence that the recovery works.
 
-**Re-argued against the netlist for two of the six (2026-08-22).**
+**Re-argued against the netlist for three of the six (2026-08-22).**
 `make gate-fsm` forces the synthesised multiplier into each of the four
 encodings its two state flops allow; the unused one returns to idle,
 none produces X, and it computes correctly afterwards. `make
@@ -72,9 +72,21 @@ gate-fsm-apb` does the same for the APB bridge over all sixteen
 encodings of its four-bit state, and then checks it still services a
 read. Both recoveries survive synthesis.
 
-The AMS sequencer, the LSU, the BIST and the core have not been checked
-this way, so for those the waiver still rests on the RTL argument
-alone.
+`make gate-fsm-lsu` covers the LSU's eight encodings the same way.
+
+The AMS sequencer, the BIST and the core have not been checked this
+way, so for those the waiver still rests on the RTL argument alone.
+The BIST is not merely unwritten: a forced state restarts a march over
+the whole array, so it needs either a small-depth build or a settle
+window of tens of thousands of cycles.
+
+**The environment matters as much as the netlist.** A machine whose
+handshake inputs are all tied low sits for ever in a legal state
+waiting for a response, and a bench that requires "returns to idle"
+then reports a recovery failure that is nothing of the kind. The LSU
+does exactly this until `data_gnt_i` and `data_rvalid_i` are held high.
+Two of these three checks needed no such tie and one did, which is
+worth knowing before reading a failure as a defect.
 
 **How this has to be done, learned the hard way.** The check must run
 against a *standalone* netlist, not the flattened subsystem. Two
