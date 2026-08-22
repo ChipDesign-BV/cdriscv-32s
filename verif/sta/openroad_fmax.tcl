@@ -32,6 +32,15 @@ read_sdc verif/sta/cdriscv_subsys.sdc
 # skew and jitter a real CTS run would introduce.
 set_clock_uncertainty 0.25 [all_clocks]
 
+# Internal timing and the IO budget are different questions.  The SDC's
+# input/output delays are a placeholder 30 % of the period "until the
+# SoC says otherwise"; folding them into one worst-slack number lets a
+# placeholder set the headline.  Grouped, each question gets its own
+# answer.
+group_path -name reg2reg -from [all_registers] -to [all_registers]
+group_path -name in2reg  -from [all_inputs]
+group_path -name reg2out -to [all_outputs]
+
 # ---------------------------------------------------------------- floorplan
 initialize_floorplan -utilization 45 -aspect_ratio 1.0 \
     -core_space 20 -site CoreSite
@@ -65,12 +74,19 @@ report_worst_slack -max
 report_tns
 puts ""
 report_checks -path_delay max -fields {slew cap fanout} -digits 3 \
-    -path_group clk -group_path_count 3
+    -path_group reg2reg -group_path_count 3
 puts ""
 puts "==== fmax ===="
 set period 10.0
-set wns [sta::worst_slack -max]
-puts [format "period %.2f ns, worst setup slack %+.3f ns" $period $wns]
-puts [format "fmax estimate: %.1f MHz (1 / (period - slack), ideal clock + 250 ps uncertainty)" \
-    [expr {1000.0 / ($period - $wns)}]]
+foreach grp {reg2reg in2reg reg2out} {
+    set paths [find_timing_paths -path_group $grp -sort_by_slack -group_path_count 1]
+    if {[llength $paths] == 0} { continue }
+    set slk [get_property [lindex $paths 0] slack]
+    if {$slk eq ""} { puts "$grp: slack query failed"; continue }
+    puts [format "%-8s worst setup slack %+.3f ns -> %.1f MHz" \
+        $grp $slk [expr {1000.0 / ($period - $slk)}]]
+}
+puts "reg2reg is the design's number; in2reg/reg2out carry the SDC's"
+puts "placeholder 30 % IO budget and belong to the integration, not the core."
+
 exit

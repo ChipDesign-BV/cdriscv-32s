@@ -751,7 +751,7 @@ gate-fsm-ams: $(BUILD)/gate/tb_fsm_cdriscv_ams_if.vvp
 	@grep -q "PASS" $(BUILD)/gate/fsm_ams.log
 
 CORE_RTL := rtl/core/cdriscv_pkg.sv rtl/common/cdriscv_sync.sv \
-            rtl/common/cdriscv_cfg_parity.sv \
+            rtl/common/cdriscv_cfg_parity.sv rtl/common/cdriscv_counter64.sv \
             rtl/core/cdriscv_alu.sv rtl/core/cdriscv_decoder.sv \
             rtl/core/cdriscv_regfile.sv rtl/core/cdriscv_multdiv.sv \
             rtl/core/cdriscv_lsu.sv rtl/core/cdriscv_csr.sv \

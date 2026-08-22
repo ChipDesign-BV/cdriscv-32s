@@ -4,6 +4,7 @@
 rtl/core/cdriscv_pkg.sv
 rtl/common/cdriscv_sync.sv
 rtl/common/cdriscv_cfg_parity.sv
+rtl/common/cdriscv_counter64.sv
 rtl/core/cdriscv_alu.sv
 rtl/core/cdriscv_decoder.sv
 rtl/core/cdriscv_regfile.sv
