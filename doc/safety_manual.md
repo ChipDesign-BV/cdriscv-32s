@@ -120,6 +120,21 @@ used yet.
   Software must re-read and re-verify the safety configuration
   periodically, at an interval short enough for the fault tolerant time
   interval being claimed. See finding V29.
+
+  **This has been measured, not assumed.** A workload that re-reads
+  every configuration register each iteration takes the latent share
+  from **46.4 % to 4.3 %** over the same 2 600 injections, at a cost of
+  roughly doubling the run time at that checking interval
+  (`verif/fi/fi_workload_check.S`, finding V30). Two cautions come with
+  it:
+
+  * a read-back check covers exactly what it reads back — the one
+    register the workload does not verify stayed 100 % latent;
+  * **the report must not travel through the safety controller.** An
+    upset in the controller's own `CTRL.enable` is caught by software
+    and cannot be latched by the controller, because the register the
+    fault disabled is the one that would have recorded it. Use a
+    directly driven error pin, or simply stop servicing the watchdog.
 * A fault injection campaign has been run: 3 000 single event upsets
   over a named list of nine state elements, across three workloads. No
   silent data corruption and no hangs; 41 % detected on the arithmetic
