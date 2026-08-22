@@ -59,6 +59,18 @@ available in the execute stage.
 | `0x1c` | `PIN_DIV` | RW | half period of the healthy pin toggle |
 | `0x20` | `RAW` | RO | fault inputs before the sticky stage |
 | `0x24` | `SELFTEST` | WO | [0] lockstep mismatch [1] single bit ECC error [2] double bit ECC error [3] ECC target: 0 = D-TCM, 1 = I-TCM |
+| `0x28` | `CFG_SRC` | RO | which register group raised the configuration parity fault (STATUS bit 13): [0] safety controller [1] watchdog [2] clock monitor [3] interrupt controller [4] timer [5] AMS [6] core `mtvec`. Sticky; cleared by the W1C of STATUS bit 13 |
+
+**STATUS bit 13 (configuration parity) is special: it latches and
+reacts unconditionally.** Every configuration register group in the
+subsystem carries one parity bit, captured at write time and compared
+continuously; a mismatch sets bit 13 regardless of `ENABLE` and
+`CTRL.enable`, raises the safety interrupt regardless of `REACT_IRQ`,
+and asserts the error pin regardless of `REACT_PIN`. A fault that may
+have corrupted the reaction configuration is not left asking that same
+configuration for permission to report (findings V29/V30, fix V37).
+`REACT_RST` applies normally: whether a configuration upset warrants a
+reset is policy, and stays configurable.
 
 Writing `SELFTEST[1]` or `[2]` *arms* the corruption; the selected TCM
 applies it to its next write and disarms itself. It cannot work any
@@ -84,7 +96,8 @@ Fault bit assignment (`STATUS`, `ENABLE`, `REACT_*`, `RAW`):
 | 10 | AMS interface (range, time-out, analog flag) |
 | 11 | software signalled fault (`msafectrl[1]`) |
 | 12 | unexpected core exception (illegal instruction) |
-| 13, 14 | spare |
+| 13 | configuration register parity error (ungated -- see above) |
+| 14 | spare |
 | 15 | fault injection self test |
 | 16..31 | `fault_ext_i[15:0]` from the SoC |
 

@@ -41,7 +41,8 @@ module cdriscv_wdog #(
     output logic        pslverr_o,
 
     output logic        fault_o,       // pulse: timeout or bad service
-    output logic        reset_req_o    // pulse: fault and reset enabled
+    output logic        reset_req_o,   // pulse: fault and reset enabled
+    output logic        cfg_err_o      // level: configuration parity mismatch
 );
 
   logic        enable_q, window_q, lock_q, rst_en_q;
@@ -156,5 +157,19 @@ module cdriscv_wdog #(
 
   assign pready_o  = 1'b1;
   assign pslverr_o = 1'b0;
+
+  // ------------------------------------------------------------------
+  // Configuration parity (V29): CTRL fields, PERIOD, WINDOW.
+  // count_q and the key/service state are dynamic and excluded.
+  // ------------------------------------------------------------------
+  cdriscv_cfg_parity #(.Width(68)) u_cfg_par (
+      .clk_i  (clk_i),
+      .rst_ni (rst_ni),
+      .cfg_i  ({enable_q, window_q, lock_q, rst_en_q, period_q, window_val_q}),
+      .wr_i   (wr && ((paddr_i[7:0] == 8'h00) ||
+                      (paddr_i[7:0] == 8'h04) ||
+                      (paddr_i[7:0] == 8'h08))),
+      .err_o  (cfg_err_o)
+  );
 
 endmodule

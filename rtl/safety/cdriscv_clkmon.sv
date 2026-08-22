@@ -60,6 +60,7 @@ module cdriscv_clkmon #(
     output logic        pslverr_o,
 
     output logic        fault_o,        // level, system domain
+    output logic        cfg_err_o,      // level: configuration parity mismatch
 
     // reference domain
     input  logic        ref_clk_i,
@@ -287,5 +288,21 @@ module cdriscv_clkmon #(
   assign pready_o  = 1'b1;
   assign pslverr_o = 1'b0;
   assign fault_o   = sys_fault;
+
+  // ------------------------------------------------------------------
+  // Configuration parity (V29): ENABLE, MIN, MAX -- the system-domain
+  // sources.  The reference-domain copies reload from these every
+  // heartbeat, so their exposure is one heartbeat period and they are
+  // not separately guarded.
+  // ------------------------------------------------------------------
+  cdriscv_cfg_parity #(.Width(1 + 2*CntW)) u_cfg_par (
+      .clk_i  (clk_i),
+      .rst_ni (rst_ni),
+      .cfg_i  ({enable_q, min_q, max_q}),
+      .wr_i   (wr && ((paddr_i[7:0] == 8'h00) ||
+                      (paddr_i[7:0] == 8'h04) ||
+                      (paddr_i[7:0] == 8'h08))),
+      .err_o  (cfg_err_o)
+  );
 
 endmodule

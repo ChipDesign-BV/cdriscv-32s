@@ -170,7 +170,9 @@ package cdriscv_pkg;
   localparam int unsigned FLT_AMS          = 10;  // analog supervisor flag
   localparam int unsigned FLT_SW           = 11;  // software-signalled fault
   localparam int unsigned FLT_CORE_TRAP    = 12;  // unexpected core exception
-  localparam int unsigned FLT_SPARE13      = 13;
+  localparam int unsigned FLT_CFG_PAR     = 13;  // configuration register parity
+                                                 // error -- latched UNGATED, see
+                                                 // cdriscv_safety_ctrl
   localparam int unsigned FLT_SPARE14      = 14;
   localparam int unsigned FLT_SELFTEST     = 15;  // fault-injection self test
 

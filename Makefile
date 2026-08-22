@@ -108,7 +108,8 @@ block-alu: $(BUILD)/tb_alu.vvp $(ALU_VECTORS)
 # The clock monitor's "system clock stopped" branch cannot be reached
 # from software on the subsystem -- the software would have to stop the
 # clock it runs on -- so it gets a bench that owns the clock generator.
-$(BUILD)/tb_clkmon.vvp: rtl/common/cdriscv_sync.sv rtl/safety/cdriscv_clkmon.sv \
+$(BUILD)/tb_clkmon.vvp: rtl/common/cdriscv_sync.sv rtl/common/cdriscv_cfg_parity.sv \
+                        rtl/safety/cdriscv_clkmon.sv \
                         verif/block/clkmon/tb_clkmon.sv | $(BUILD)
 	$(IVERILOG) -g2012 -o $@ -s tb_clkmon $^
 
@@ -731,10 +732,11 @@ gate-fsm-mbist: $(BUILD)/gate/tb_fsm_cdriscv_mbist.vvp
 	@grep -q "PASS" $(BUILD)/gate/fsm_mbist.log
 
 $(BUILD)/gate/cdriscv_ams_if_gate.v: $(GATE_PKG) rtl/common/cdriscv_sync.sv \
+                                     rtl/common/cdriscv_cfg_parity.sv \
                                      rtl/periph/cdriscv_ams_if.sv | $(BUILD)/gate
 	$(YOSYS) -p "plugin -i slang; \
 	  read_slang --top cdriscv_ams_if $(GATE_PKG) rtl/common/cdriscv_sync.sv \
-	    rtl/periph/cdriscv_ams_if.sv; \
+	    rtl/common/cdriscv_cfg_parity.sv rtl/periph/cdriscv_ams_if.sv; \
 	  synth -top cdriscv_ams_if -flatten; \
 	  dfflibmap -liberty $(GATE_LIB); abc -liberty $(GATE_LIB); opt_clean; \
 	  write_verilog -noattr $@" -l $(BUILD)/gate/ams_synth.log
@@ -749,6 +751,7 @@ gate-fsm-ams: $(BUILD)/gate/tb_fsm_cdriscv_ams_if.vvp
 	@grep -q "PASS" $(BUILD)/gate/fsm_ams.log
 
 CORE_RTL := rtl/core/cdriscv_pkg.sv rtl/common/cdriscv_sync.sv \
+            rtl/common/cdriscv_cfg_parity.sv \
             rtl/core/cdriscv_alu.sv rtl/core/cdriscv_decoder.sv \
             rtl/core/cdriscv_regfile.sv rtl/core/cdriscv_multdiv.sv \
             rtl/core/cdriscv_lsu.sv rtl/core/cdriscv_csr.sv \
@@ -844,6 +847,31 @@ $(BUILD)/gate/cdriscv_subsys_sta.v: $(RTL) verif/gate/cdriscv_tcm_bb.sv | $(BUIL
 
 $(BUILD)/gate/cdriscv_subsys_sta_fix.v: $(BUILD)/gate/cdriscv_subsys_sta.v
 	$(PYTHON) scripts/sta_netlist_fixup.py $< $@
+
+
+# ------------------------------------------------- placed timing (V38)
+# Same RTL, but the TCM storage is mapped to four real IHP SRAM macros
+# (verif/gate/cdriscv_tcm_macro.sv) so the ECC logic and the array
+# access are both in the timing picture, then OpenROAD floorplans,
+# places and buffers the netlist before asking for slack.  `make sta`
+# stays as the quick unbuffered check; this is the number to quote.
+SRAM_PDK  ?= $(dir $(patsubst %/,%,$(GATE_PDK)))sg13g2_sram
+OPENROAD  ?= /foss/tools/openroad/bin/openroad
+
+$(BUILD)/gate/cdriscv_subsys_pd.v: $(RTL) verif/gate/cdriscv_tcm_macro.sv | $(BUILD)/gate
+	$(YOSYS) -p "plugin -i slang; \
+	  read_slang --top $(TOP) verif/gate/cdriscv_tcm_macro.sv $(GATE_RTL); \
+	  connect -set boot_addr_i 32'h00000000; \
+	  synth -top $(TOP) -flatten; \
+	  dfflibmap -liberty $(GATE_LIB); \
+	  abc -liberty $(GATE_LIB); \
+	  opt_clean -purge; \
+	  write_verilog -noattr $@" -l $(BUILD)/gate/subsys_pd_synth.log
+
+fmax: $(BUILD)/gate/cdriscv_subsys_pd.v verif/sta/openroad_fmax.tcl
+	GATE_PDK=$(GATE_PDK) SRAM_PDK=$(SRAM_PDK) GATE_NETLIST=$< \
+	  $(OPENROAD) -no_init -exit verif/sta/openroad_fmax.tcl \
+	  2>&1 | tee $(BUILD)/gate/fmax.log | tail -40
 
 sta: $(BUILD)/gate/cdriscv_subsys_sta_fix.v verif/sta/cdriscv_subsys.sdc
 	GATE_LIB=$(GATE_LIB) GATE_NETLIST=$< \

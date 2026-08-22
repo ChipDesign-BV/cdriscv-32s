@@ -19,6 +19,11 @@
 //   0x18  INJECT    WO  pulse the given fault bits for one cycle
 //   0x1c  PIN_DIV   RW  half period of the healthy pin toggle
 //   0x20  RAW       RO  current fault inputs, before the sticky stage
+//   0x28  CFG_SRC   RO  which register group raised the configuration
+//                       parity fault: [0] this block [1] watchdog
+//                       [2] clock monitor [3] interrupt controller
+//                       [4] timer [5] AMS [6] core mtvec.  Sticky;
+//                       cleared by the W1C of STATUS bit 13.
 //   0x24  SELFTEST  WO  one shot self tests, all bits self clearing
 //                       [0] force a lockstep comparator mismatch
 //                       [1] corrupt one bit of the next TCM write
@@ -28,6 +33,19 @@
 //                       TCM applies it to its next write and disarms.
 //                       Anything else could not be triggered from
 //                       software at all -- see finding V4-F1.
+//
+// Configuration parity (V29/V37).  Every mechanism above is armed by a
+// register, and V29 measured that an upset in any of them was 100 %
+// latent -- including this block's own ENABLE and CTRL, where the
+// register the fault disabled was the one that would have recorded it.
+// Each register group in the subsystem now carries one parity bit
+// (cdriscv_cfg_parity); the mismatch signals arrive here on cfg_err_i,
+// this block guards its own configuration the same way, and the result
+// latches into STATUS bit 13 (FLT_CFG_PAR) UNGATED -- not masked by
+// ENABLE, not masked by CTRL.enable -- with its interrupt and error
+// pin reaction hardwired rather than taken from REACT_*.  A fault that
+// may have corrupted the reaction configuration cannot be left asking
+// that same configuration for permission to report.
 //
 // External error pin protocol.  In level mode the pin is asserted while
 // a fault is latched.  In toggle mode the pin carries a square wave
@@ -58,6 +76,8 @@ module cdriscv_safety_ctrl
     // fault sources
     input  logic [NUM_INT_FAULTS-1:0] fault_int_i,   // synchronous to clk_i
     input  logic [NUM_EXT_FAULTS-1:0] fault_ext_i,   // asynchronous, from the SoC
+    input  logic [5:0]                cfg_err_i,     // config parity: wdog, clkmon,
+                                                     // irqc, timer, ams, core mtvec
 
     // reactions
     output logic        irq_o,
@@ -107,11 +127,35 @@ module cdriscv_safety_ctrl
   assign fault_latched = fault_raw & enable_q & {32{ctrl_en_q}};
 
   // ------------------------------------------------------------------
+  // Configuration parity -- own registers, and the collected errors
+  // ------------------------------------------------------------------
+  logic cfg_err_own;
+  cdriscv_cfg_parity #(.Width(4*32 + 4 + 16)) u_cfg_par (
+      .clk_i  (clk_i),
+      .rst_ni (rst_ni),
+      .cfg_i  ({enable_q, react_irq_q, react_rst_q, react_pin_q,
+                ctrl_en_q, pin_inv_q, pin_tog_q, lock_q, pin_div_q}),
+      .wr_i   (wr && ((paddr_i[7:0] == 8'h04) || (paddr_i[7:0] == 8'h08) ||
+                      (paddr_i[7:0] == 8'h0c) || (paddr_i[7:0] == 8'h10) ||
+                      (paddr_i[7:0] == 8'h14) || (paddr_i[7:0] == 8'h1c))),
+      .err_o  (cfg_err_own)
+  );
+
+  logic [6:0]  cfg_src;
+  logic [6:0]  cfg_src_q;
+  assign cfg_src = {cfg_err_i[5:0], cfg_err_own};
+
+  // The one status contribution that no configuration can gate.
+  logic [31:0] cfg_fault_set;
+  assign cfg_fault_set = |cfg_src ? (32'b1 << FLT_CFG_PAR) : 32'b0;
+
+  // ------------------------------------------------------------------
   // Register file
   // ------------------------------------------------------------------
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
       status_q    <= 32'b0;
+      cfg_src_q   <= 7'b0;
       enable_q    <= 32'hffff_ffff;
       react_irq_q <= 32'hffff_ffff;
       react_rst_q <= 32'b0;
@@ -124,13 +168,17 @@ module cdriscv_safety_ctrl
       inject_q    <= 32'b0;
       selftest_q  <= 4'b0;
     end else begin
-      status_q   <= status_q | fault_latched;
+      status_q   <= status_q | fault_latched | cfg_fault_set;
+      cfg_src_q  <= cfg_src_q | cfg_src;
       inject_q   <= 32'b0;                     // injection is a one cycle pulse
       selftest_q <= 4'b0;
 
       if (wr) begin
         unique case (paddr_i[7:0])
-          8'h00:   status_q    <= (status_q & ~pwdata_i) | fault_latched;   // W1C
+          8'h00: begin
+            status_q <= (status_q & ~pwdata_i) | fault_latched | cfg_fault_set;   // W1C
+            if (pwdata_i[FLT_CFG_PAR]) cfg_src_q <= cfg_src;   // clears with its bit
+          end
           8'h04:   if (cfg_wr) enable_q    <= pwdata_i;
           8'h08:   if (cfg_wr) react_irq_q <= pwdata_i;
           8'h0c:   if (cfg_wr) react_rst_q <= pwdata_i;
@@ -155,7 +203,9 @@ module cdriscv_safety_ctrl
   // ------------------------------------------------------------------
   // Reactions
   // ------------------------------------------------------------------
-  assign irq_o       = |(status_q & react_irq_q);
+  // The configuration parity bit reacts unconditionally: REACT_* may be
+  // exactly what the fault corrupted.
+  assign irq_o       = |(status_q & react_irq_q) || status_q[FLT_CFG_PAR];
   assign fault_any_o = |status_q;
 
   // The reset request is a pulse per fault, not a level.
@@ -181,7 +231,7 @@ module cdriscv_safety_ctrl
   end
 
   logic pin_fault;
-  assign pin_fault = |(status_q & react_pin_q);
+  assign pin_fault = |(status_q & react_pin_q) || status_q[FLT_CFG_PAR];
 
   logic [15:0] pin_cnt_q;
   logic        pin_tog_q_state;
@@ -233,6 +283,7 @@ module cdriscv_safety_ctrl
         8'h14:   prdata_o = {28'b0, lock_q, pin_tog_q, pin_inv_q, ctrl_en_q};
         8'h1c:   prdata_o = {16'b0, pin_div_q};
         8'h20:   prdata_o = fault_raw;
+        8'h28:   prdata_o = {25'b0, cfg_src_q};
         default: prdata_o = 32'b0;
       endcase
     end

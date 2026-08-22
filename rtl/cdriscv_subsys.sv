@@ -155,6 +155,8 @@ module cdriscv_subsys
 
   logic        irq_soft, irq_timer, irq_ext;
   logic        f_rf_par, f_illegal, f_bus_err_core, f_sw, f_out_en, f_lockstep;
+  logic        f_cfg_par;
+  logic        wdog_cfg_err, clkm_cfg_err, irqc_cfg_err, timer_cfg_err, ams_cfg_err;
   logic        inj_lockstep;
 
   logic        mbist_busy_i_tcm, mbist_busy_d_tcm, mbist_busy;
@@ -198,6 +200,7 @@ module cdriscv_subsys
         .fault_bus_err_o (f_bus_err_core),
         .fault_sw_o      (f_sw),
         .fault_out_en_o  (f_out_en),
+        .fault_cfg_par_o (f_cfg_par),
         .fault_lockstep_o(f_lockstep),
         .core_sleep_o    (core_sleep_o),
         .retire_valid_o  (retire_valid_o),
@@ -239,6 +242,7 @@ module cdriscv_subsys
         .fault_bus_err_o (f_bus_err_core),
         .fault_sw_o      (f_sw),
         .fault_out_en_o  (f_out_en),
+        .fault_cfg_par_o (f_cfg_par),
         .core_sleep_o    (core_sleep_o),
         .retire_valid_o  (retire_valid_o),
         .retire_pc_o     (retire_pc_o),
@@ -443,6 +447,8 @@ module cdriscv_subsys
       .pslverr_o      (sfty_pslverr),
       .fault_int_i    (fault_int),
       .fault_ext_i    (fault_ext_i),
+      .cfg_err_i      ({f_cfg_par, ams_cfg_err, timer_cfg_err,
+                        irqc_cfg_err, clkm_cfg_err, wdog_cfg_err}),
       .irq_o          (sfty_irq),
       .reset_req_o    (sfty_reset_req),
       .err_pin_o      (err_pin_o),
@@ -469,6 +475,7 @@ module cdriscv_subsys
       .pready_o    (wdog_pready),
       .pslverr_o   (wdog_pslverr),
       .fault_o     (wdog_fault),
+      .cfg_err_o   (wdog_cfg_err),
       .reset_req_o (wdog_reset_req)
   );
 
@@ -487,7 +494,8 @@ module cdriscv_subsys
       .prdata_o  (tmr_prdata),
       .pready_o  (tmr_pready),
       .pslverr_o (tmr_pslverr),
-      .irq_o     (irq_timer)
+      .irq_o     (irq_timer),
+      .cfg_err_o (timer_cfg_err)
   );
 
   // ---- slot 3: clock monitor ----
@@ -506,6 +514,7 @@ module cdriscv_subsys
       .pready_o   (clkm_pready),
       .pslverr_o  (clkm_pslverr),
       .fault_o    (clkm_fault),
+      .cfg_err_o  (clkm_cfg_err),
       .ref_clk_i  (ref_clk_i),
       .ref_rst_ni (ref_rst_ni)
   );
@@ -538,7 +547,8 @@ module cdriscv_subsys
       .atest_sel_o (atest_sel_o),
       .ana_flag_i  (ana_flag_i),
       .irq_o       (ams_irq),
-      .fault_o     (ams_fault)
+      .fault_o     (ams_fault),
+      .cfg_err_o   (ams_cfg_err)
   );
 
   // ---- slot 5: memory BIST (two controllers in one slot) ----
@@ -621,7 +631,8 @@ module cdriscv_subsys
       .pslverr_o  (irqc_pslverr),
       .src_i      (irq_src),
       .irq_ext_o  (irq_ext),
-      .irq_soft_o (irq_soft)
+      .irq_soft_o (irq_soft),
+      .cfg_err_o  (irqc_cfg_err)
   );
 
   // ---- slot 15: SoC expansion ----

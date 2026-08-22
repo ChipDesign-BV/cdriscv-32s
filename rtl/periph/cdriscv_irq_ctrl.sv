@@ -37,7 +37,8 @@ module cdriscv_irq_ctrl #(
     input  logic [NumSrc-1:0] src_i,      // asynchronous SoC interrupt lines
 
     output logic        irq_ext_o,
-    output logic        irq_soft_o
+    output logic        irq_soft_o,
+    output logic        cfg_err_o    // level: configuration parity mismatch
 );
 
   logic [NumSrc-1:0] enable_q, mode_q, pending_q, src_sync, src_sync_q;
@@ -114,5 +115,19 @@ module cdriscv_irq_ctrl #(
   assign pslverr_o  = 1'b0;
   assign irq_ext_o  = |active;
   assign irq_soft_o = msip_q;
+
+  // ------------------------------------------------------------------
+  // Configuration parity (V29): ENABLE and MODE.  pending_q follows
+  // the sources and msip_q is a software doorbell; both are dynamic
+  // by design and excluded.
+  // ------------------------------------------------------------------
+  cdriscv_cfg_parity #(.Width(2*NumSrc)) u_cfg_par (
+      .clk_i  (clk_i),
+      .rst_ni (rst_ni),
+      .cfg_i  ({enable_q, mode_q}),
+      .wr_i   (wr && ((paddr_i[7:0] == 8'h04) ||
+                      (paddr_i[7:0] == 8'h10))),
+      .err_o  (cfg_err_o)
+  );
 
 endmodule

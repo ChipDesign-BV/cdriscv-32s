@@ -74,6 +74,7 @@ module cdriscv_lockstep
     output logic        fault_bus_err_o,
     output logic        fault_sw_o,
     output logic        fault_out_en_o,
+    output logic        fault_cfg_par_o,
     output logic        fault_lockstep_o,
 
     // status / trace (main core)
@@ -91,7 +92,7 @@ module cdriscv_lockstep
   logic        m_instr_req, m_data_req, m_data_we;
   logic [3:0]  m_data_be;
   logic [31:0] m_instr_addr, m_data_addr, m_data_wdata;
-  logic        m_f_rf_par, m_f_illegal, m_f_bus_err, m_f_sw, m_f_out_en;
+  logic        m_f_rf_par, m_f_cfg_par, m_f_illegal, m_f_bus_err, m_f_sw, m_f_out_en;
   logic        m_sleep, m_retire_valid;
   logic [31:0] m_retire_pc, m_retire_instr;
 
@@ -130,6 +131,7 @@ module cdriscv_lockstep
       .fault_bus_err_o(m_f_bus_err),
       .fault_sw_o     (m_f_sw),
       .fault_out_en_o (m_f_out_en),
+      .fault_cfg_par_o(m_f_cfg_par),
       .core_sleep_o   (m_sleep),
       .retire_valid_o (m_retire_valid),
       .retire_pc_o    (m_retire_pc),
@@ -148,6 +150,7 @@ module cdriscv_lockstep
   assign fault_bus_err_o  = m_f_bus_err;
   assign fault_sw_o       = m_f_sw;
   assign fault_out_en_o   = m_f_out_en;
+  assign fault_cfg_par_o  = m_f_cfg_par;
   assign core_sleep_o     = m_sleep;
   assign retire_valid_o   = m_retire_valid;
   assign retire_pc_o      = m_retire_pc;
@@ -157,7 +160,7 @@ module cdriscv_lockstep
   // Delay lines
   // ------------------------------------------------------------------
   localparam int unsigned InW  = 74;
-  localparam int unsigned OutW = 174;
+  localparam int unsigned OutW = 175;
 
   logic [InW-1:0]  in_vec, in_vec_dly;
   logic [OutW-1:0] out_vec_main, out_vec_main_dly, out_vec_check;
@@ -168,7 +171,7 @@ module cdriscv_lockstep
 
   assign out_vec_main = {m_instr_req, m_instr_addr,
                          m_data_req, m_data_we, m_data_be, m_data_addr, m_data_wdata,
-                         m_f_rf_par, m_f_illegal, m_f_bus_err, m_f_sw, m_f_out_en,
+                         m_f_rf_par, m_f_cfg_par, m_f_illegal, m_f_bus_err, m_f_sw, m_f_out_en,
                          m_sleep, m_retire_valid, m_retire_pc, m_retire_instr};
 
   if (Delay == 0) begin : g_no_delay
@@ -235,7 +238,7 @@ module cdriscv_lockstep
   logic        k_instr_req, k_data_req, k_data_we;
   logic [3:0]  k_data_be;
   logic [31:0] k_instr_addr, k_data_addr, k_data_wdata;
-  logic        k_f_rf_par, k_f_illegal, k_f_bus_err, k_f_sw, k_f_out_en;
+  logic        k_f_rf_par, k_f_cfg_par, k_f_illegal, k_f_bus_err, k_f_sw, k_f_out_en;
   logic        k_sleep, k_retire_valid;
   logic [31:0] k_retire_pc, k_retire_instr;
 
@@ -274,6 +277,7 @@ module cdriscv_lockstep
       .fault_bus_err_o(k_f_bus_err),
       .fault_sw_o     (k_f_sw),
       .fault_out_en_o (k_f_out_en),
+      .fault_cfg_par_o(k_f_cfg_par),
       .core_sleep_o   (k_sleep),
       .retire_valid_o (k_retire_valid),
       .retire_pc_o    (k_retire_pc),
@@ -282,7 +286,7 @@ module cdriscv_lockstep
 
   assign out_vec_check = {k_instr_req, k_instr_addr,
                           k_data_req, k_data_we, k_data_be, k_data_addr, k_data_wdata,
-                          k_f_rf_par, k_f_illegal, k_f_bus_err, k_f_sw, k_f_out_en,
+                          k_f_rf_par, k_f_cfg_par, k_f_illegal, k_f_bus_err, k_f_sw, k_f_out_en,
                           k_sleep, k_retire_valid, k_retire_pc, k_retire_instr};
 
   // ------------------------------------------------------------------
