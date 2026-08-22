@@ -104,6 +104,14 @@ used yet.
 
 * No FMEDA, no diagnostic coverage figures, no single point fault
   metric, no latent fault metric.
+* **Diagnostic latency has been measured** for the fault classes that
+  are detected: median 4 cycles, worst observed 69 — 690 ns at 100 MHz
+  — over 734 detections in a 2 700-injection campaign. The fast end is
+  the safety controller's own status register at 1 cycle; the slow end
+  is memory ECC at a median of 32 to 38 cycles, because ECC checks a
+  word when it is read and a corrupted word waits until the program
+  returns to it. This bounds latency for what is covered and says
+  nothing about the 46 % that are latent. See finding V33.
 * **Every safety mechanism here is armed by a register, and not one of
   those registers is protected.** Measured, not asserted: over 2 600
   single event upsets across a twenty-six element fault list, **1 207

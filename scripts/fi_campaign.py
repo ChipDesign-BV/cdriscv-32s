@@ -45,7 +45,7 @@ import re
 import subprocess
 import sys
 
-RFW = re.compile(r"^FIRFW (\d)$", re.M)
+RFW = re.compile(r"^FIRFW (\d) (\d+)$", re.M)
 
 RE = re.compile(r"FI target=(\d+) bit=(\d+) cycle=(\d+) exit=([0-9a-fx]+) "
                 r"golden=([0-9a-f]+) exited=(\d) status=([0-9a-fX]+) inj=(\d)"
@@ -129,6 +129,10 @@ def main():
     # reporting an already-reported fault is worth nothing.
     would = collections.Counter()
     would_tot = collections.Counter()
+    # Detection latency, in cycles from the injection.  Coverage says
+    # whether a fault is found; latency says whether it is found in
+    # time, and a fault tolerant time interval is spent on the second.
+    lat = collections.defaultdict(list)
     mechanisms = collections.Counter()
     sdc_cases = []
 
@@ -212,6 +216,10 @@ def main():
             would_tot[t] += 1
             if rfw.group(1) == "1" and cls not in ("detected", "detected-sw"):
                 would[t] += 1
+            if cls == "detected":
+                d = int(rfw.group(2))
+                if d:
+                    lat[t].append(d)
 
     total = sum(classes.values()) - classes["not-injected"]
     print("Fault injection campaign: %d single event upsets" % total)
@@ -236,6 +244,23 @@ def main():
         print("  %-34s %8d %5d %9d %6d %5d %5d"
               % (TARGETS[t], c["detected"], c["detected-sw"], c["silent-ok"],
                  c["latent"], c["SDC"], c["hang"] + c["sim-timeout"]))
+    if lat:
+        print("\nDetection latency, cycles from injection (detected runs only):")
+        print("  %-34s %6s %7s %6s %6s" % ("state element", "runs", "median",
+                                           "90th", "worst"))
+        allv = []
+        for t in sorted(lat):
+            v = sorted(lat[t])
+            allv.extend(v)
+            print("  %-34s %6d %7d %6d %6d"
+                  % (TARGETS[t], len(v), v[len(v)//2],
+                     v[int(len(v) * 0.9)], v[-1]))
+        allv.sort()
+        if allv:
+            print("  %-34s %6d %7d %6d %6d"
+                  % ("ALL", len(allv), allv[len(allv)//2],
+                     allv[int(len(allv) * 0.9)], allv[-1]))
+
     if sum(would.values()):
         print("\nUndetected faults a register-write comparator would have")
         print("caught (finding V4-F3 -- rd_addr and rf_wdata are not in the")
