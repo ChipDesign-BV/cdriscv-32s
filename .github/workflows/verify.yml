@@ -36,6 +36,12 @@ jobs:
       # The image runs as an unprivileged user; the runner's /__w is owned by
       # root, so actions/checkout fails with EACCES writing its state file.
       options: --user root
+    defaults:
+      run:
+        # The container advertises no bash to Actions, so steps default to
+        # 'sh -e', which is dash here.  Sourcing the image's bash-syntax
+        # profile under dash is a parse-time abort (exit 2, no output).
+        shell: bash -e {0}
     steps:
       - uses: actions/checkout@v4
 
@@ -101,6 +107,12 @@ jobs:
       # The image runs as an unprivileged user; the runner's /__w is owned by
       # root, so actions/checkout fails with EACCES writing its state file.
       options: --user root
+    defaults:
+      run:
+        # The container advertises no bash to Actions, so steps default to
+        # 'sh -e', which is dash here.  Sourcing the image's bash-syntax
+        # profile under dash is a parse-time abort (exit 2, no output).
+        shell: bash -e {0}
     steps:
       - uses: actions/checkout@v4
 
@@ -170,6 +182,12 @@ jobs:
       # The image runs as an unprivileged user; the runner's /__w is owned by
       # root, so actions/checkout fails with EACCES writing its state file.
       options: --user root
+    defaults:
+      run:
+        # The container advertises no bash to Actions, so steps default to
+        # 'sh -e', which is dash here.  Sourcing the image's bash-syntax
+        # profile under dash is a parse-time abort (exit 2, no output).
+        shell: bash -e {0}
     steps:
       - uses: actions/checkout@v4
 
@@ -238,6 +256,12 @@ jobs:
       # The image runs as an unprivileged user; the runner's /__w is owned by
       # root, so actions/checkout fails with EACCES writing its state file.
       options: --user root
+    defaults:
+      run:
+        # The container advertises no bash to Actions, so steps default to
+        # 'sh -e', which is dash here.  Sourcing the image's bash-syntax
+        # profile under dash is a parse-time abort (exit 2, no output).
+        shell: bash -e {0}
     steps:
       - uses: actions/checkout@v4
 
@@ -286,6 +310,12 @@ jobs:
       # The image runs as an unprivileged user; the runner's /__w is owned by
       # root, so actions/checkout fails with EACCES writing its state file.
       options: --user root
+    defaults:
+      run:
+        # The container advertises no bash to Actions, so steps default to
+        # 'sh -e', which is dash here.  Sourcing the image's bash-syntax
+        # profile under dash is a parse-time abort (exit 2, no output).
+        shell: bash -e {0}
     steps:
       - uses: actions/checkout@v4
 
@@ -339,6 +369,12 @@ jobs:
       # The image runs as an unprivileged user; the runner's /__w is owned by
       # root, so actions/checkout fails with EACCES writing its state file.
       options: --user root
+    defaults:
+      run:
+        # The container advertises no bash to Actions, so steps default to
+        # 'sh -e', which is dash here.  Sourcing the image's bash-syntax
+        # profile under dash is a parse-time abort (exit 2, no output).
+        shell: bash -e {0}
     steps:
       - uses: actions/checkout@v4
 
