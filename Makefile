@@ -678,7 +678,25 @@ gate-fsm-apb: $(BUILD)/gate/tb_gate_fsm_apb.vvp
 	$(VVP) $< | tee $(BUILD)/gate/fsm_apb.log
 	@grep -q "PASS" $(BUILD)/gate/fsm_apb.log
 
-gate: gate-alu gate-multdiv gate-ecc gate-fsm gate-fsm-apb gate-subsys
+# The LSU's bench ties data_gnt_i and data_rvalid_i high.  Without them
+# the machine sits for ever in a legal state waiting for a bus response
+# and the check reports a recovery failure that is nothing of the kind.
+verif/gate/tb_fsm_cdriscv_lsu.sv: rtl/core/cdriscv_lsu.sv scripts/gen_fsm_bench.py
+	$(PYTHON) scripts/gen_fsm_bench.py $< cdriscv_lsu state_q 3 $@ \
+	  data_gnt_i,data_rvalid_i
+
+$(BUILD)/gate/cdriscv_lsu_gate.v: $(GATE_PKG) rtl/core/cdriscv_lsu.sv | $(BUILD)/gate
+	$(call gate_synth,cdriscv_lsu,rtl/core/cdriscv_lsu.sv)
+
+$(BUILD)/gate/tb_fsm_cdriscv_lsu.vvp: $(BUILD)/gate/cdriscv_lsu_gate.v $(GATE_CELLS) \
+                                      $(GATE_UDP) verif/gate/tb_fsm_cdriscv_lsu.sv
+	$(IVERILOG) -g2012 -o $@ -s tb_fsm_cdriscv_lsu $(GATE_PKG) $^
+
+gate-fsm-lsu: $(BUILD)/gate/tb_fsm_cdriscv_lsu.vvp
+	$(VVP) $< | tee $(BUILD)/gate/fsm_lsu.log
+	@grep -q "PASS" $(BUILD)/gate/fsm_lsu.log
+
+gate: gate-alu gate-multdiv gate-ecc gate-fsm gate-fsm-apb gate-fsm-lsu gate-subsys
 
 # ------------------------------------------------- RISCOF (O1)
 # The architectural test suite is fetched, not vendored -- see

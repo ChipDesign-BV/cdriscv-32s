@@ -5,6 +5,60 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V25 — W2a for a third machine, and a bench that lied twice (2026-08-22)
+
+`make gate-fsm-lsu` forces the synthesised LSU into all eight encodings
+of its state register; every one recovers to idle. Three of the six
+machines waiver W2a covers are now argued against gates: the
+multiplier, the APB bridge and the LSU.
+
+`scripts/gen_fsm_bench.py` generates these benches from the module's
+own port list, since most of a bench like this is port wiring and the
+RTL already says what the ports are.
+
+### The first two runs were wrong, in opposite directions
+
+The generated LSU bench reported **four of eight encodings failing**.
+None of them was a defect.
+
+With every input tied low, the LSU is forced into a state that has
+issued a bus request, and then waits — correctly and for ever — for a
+grant and a response that a tied-off environment never sends. The
+machine is in a *legal* state doing exactly what it should. The bench's
+criterion, "must return to idle", called that a recovery failure.
+
+Tying `data_gnt_i` and `data_rvalid_i` high lets the implied
+transaction finish, and all eight encodings then recover. **The
+environment mattered as much as the netlist**, and the generator now
+takes a list of inputs to hold high for that reason.
+
+The BIST failed for a different reason and is not fixed: forcing its
+state restarts a march over the whole array, so it needs either a
+small-depth build or a settle window of tens of thousands of cycles
+rather than the eight this bench allows. Its bench was deleted rather
+than left reporting failures that mean nothing.
+
+### Why this keeps happening
+
+Three benches in two phases have now reported failures that were
+artefacts:
+
+* the subsystem-wide version, defeated by escaped identifiers and
+  optimised-away declaration bits (V24);
+* the LSU, defeated by a tied-off bus;
+* the BIST, defeated by a settle window three orders of magnitude too
+  short.
+
+The pattern is the same each time: **the check was right and the
+environment was not**, and the failure looked like a design problem
+because that is what a failing check looks like. The cost of getting
+this wrong is not a missed bug — it is a phantom one, and phantom bugs
+in a safety argument are expensive to chase.
+
+So the rule this leaves behind, for anyone extending the remaining
+three: before believing a recovery failure, check that the machine is
+not simply waiting for something the bench never sends.
+
 ## Phase V24 — W2a re-argued for a second state machine (2026-08-22)
 
 `make gate-fsm-apb` forces the synthesised APB bridge into all sixteen
