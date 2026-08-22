@@ -90,6 +90,61 @@ module tb_fi;
     end
   end
 
+  // ---- what a register-write comparator would have caught ----------
+  // Finding V4-F3 has been open since phase V4: the lockstep compare
+  // vector carries the bus and the retire information but not the
+  // register file write port, so a corrupted register write is only
+  // detected if and when the wrong value reaches an address, a branch
+  // or a store.  Whether to add rd_addr and rf_wdata to the vector is a
+  // design decision, and it has been waiting on a number.
+  //
+  // This is that number, measured without touching the RTL.  The
+  // checker core runs LockstepDly cycles behind the main one, so the
+  // main core's write is delayed here by the same amount before being
+  // compared -- exactly what the comparator in the RTL would have to
+  // do.  A mismatch sets rfw_mismatch, which is reported alongside the
+  // real status so the campaign can count what *would* have been
+  // detected.
+  localparam int unsigned RfwDly = 2;
+  logic [RfwDly:0]        rfw_we_dly;
+  logic [4:0]             rfw_addr_dly [RfwDly:0];
+  logic [31:0]            rfw_data_dly [RfwDly:0];
+  bit                     rfw_mismatch, rfw_armed;
+  int unsigned            d, rfw_wait;
+
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+      rfw_we_dly   <= '0;
+      rfw_mismatch <= 1'b0;
+      rfw_armed    <= 1'b0;
+      rfw_wait     <= 0;
+    end else begin
+      if (rfw_wait < 40) rfw_wait <= rfw_wait + 1;
+      else               rfw_armed <= 1'b1;
+      rfw_we_dly[0]   <= dut.g_lockstep.u_core.u_core_main.rf_we;
+      rfw_addr_dly[0] <= dut.g_lockstep.u_core.u_core_main.rd_addr;
+      rfw_data_dly[0] <= dut.g_lockstep.u_core.u_core_main.rf_wdata;
+      for (d = 1; d <= RfwDly; d++) begin
+        rfw_we_dly[d]   <= rfw_we_dly[d-1];
+        rfw_addr_dly[d] <= rfw_addr_dly[d-1];
+        rfw_data_dly[d] <= rfw_data_dly[d-1];
+      end
+      // Index RfwDly-1, not RfwDly: stage 0 is already one cycle of
+      // delay, so [1] is two.  And the comparison is held off until
+      // both cores are out of reset -- the checker's reset is released
+      // later than the main core's, and comparing across that window
+      // makes the comparator fire on a fault-free run, which it did.
+      if (rfw_armed) begin
+        if (rfw_we_dly[RfwDly-1] !== dut.g_lockstep.u_core.u_core_check.rf_we)
+          rfw_mismatch <= 1'b1;
+        else if (rfw_we_dly[RfwDly-1] &&
+                 ((rfw_addr_dly[RfwDly-1] !== dut.g_lockstep.u_core.u_core_check.rd_addr) ||
+                  (rfw_data_dly[RfwDly-1] !== dut.g_lockstep.u_core.u_core_check.rf_wdata)))
+          rfw_mismatch <= 1'b1;
+      end
+    end
+  end
+
   string       hexfile, dhexfile;
   int unsigned target, bitpos, injcycle, cycle, ibase, ispan, maxcycle;
   logic [31:0] golden;
@@ -154,6 +209,7 @@ module tb_fi;
         $display("FI target=%0d bit=%0d cycle=%0d exit=%08x golden=%08x exited=%0d status=%08x inj=%0d cfg=%08x_%08x_%08x",
                  target, bitpos, injcycle, exit_code, golden, exit_seen, status_at_end,
                  injected, cfg_safety, cfg_wdog, cfg_csr);
+        $display("FIRFW %0d", rfw_mismatch);
         $finish;
       end
     end

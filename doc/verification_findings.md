@@ -5,6 +5,68 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V31 — the compare-vector recommendation was mis-scoped (2026-08-22)
+
+V4-F3 has been open since phase V4 and I have restated it in nearly
+every status since: *the lockstep compare vector carries the bus and
+the retire information but not the register file write port, so a
+corrupted register write is only detected indirectly — add `rd_addr`
+and `rf_wdata` to the vector.* Four measurements were offered in
+support: the characterisation test in `tb_safety`, and the register
+file's detection rate across three workloads.
+
+`tb_fi` now contains the comparator that change would add — the main
+core's register write delayed by `LockstepDly` and compared against the
+checker's, which is exactly what the RTL would have to do — so the
+question can be answered with a number instead of an argument.
+
+**Over 2 600 injections it would have caught nothing. Not one.**
+
+### Why, and why the argument was wrong
+
+The campaign injects into `rf_q`: the *stored word*. Both cores wrote
+the same correct value; the corruption happened afterwards, in the
+array. A comparator on the write port sees two identical writes and
+has nothing to say.
+
+The characterisation test in `tb_safety` forces
+`u_core_check.rf_wdata`: the *write path*. That is a different fault,
+and a write-port comparator would catch it immediately — which is
+precisely why that test detects the fault indirectly at 14 cycles
+today, and would detect it at 0 or 1 with the change.
+
+So both halves of the evidence were real and they were about different
+faults. **I connected them and recommended a fix for the one they did
+not share.** The three-workload detection rates — 43, 45 and 31 per
+cent — are storage upsets, and the proposed change does not address
+storage upsets at all.
+
+### What actually covers the stored word
+
+Parity. `RfParity` is on, every read of a written register checks it,
+and the register file parity mechanism reported 42 of 107 register-file
+injections in one campaign. The remainder are the registers that are
+never read again before being overwritten — dead values, where the
+corruption has no consequence to detect.
+
+### The recommendation, restated correctly
+
+Adding `rd_addr` and `rf_wdata` to the compare vector is worth
+something, and it is not what I have been claiming:
+
+* it closes **write-path** faults — a fault between the ALU or load
+  result and the register file input — which nothing currently detects
+  directly, and which the `tb_safety` characterisation demonstrates;
+* it adds **nothing** for corruption of the stored word, which parity
+  already covers and which is what the injection campaign samples;
+* the fault list contains no write-path target, so **the campaign
+  cannot presently size the benefit**. That is the next thing to add if
+  the decision needs a number.
+
+Thirty-seven bits of compare vector for a fault class the campaign does
+not yet sample is a thinner case than "four independent measurements
+agree", which is what I said. The finding stands; the sizing does not.
+
 ## Phase V30 — measuring what the mitigation is worth (2026-08-22)
 
 V29 found that twelve configuration registers are 100 % latent and the
@@ -2682,7 +2744,7 @@ architecture of that block: a monitor clocked by the clock it watches
 cannot report that clock's failure, and this test is what demonstrates
 the reference-domain design does.
 
-### V4-F3 — register write data is not directly compared (observation)
+### V4-F3 — register write data is not directly compared (observation, re-scoped in V31)
 
 The lockstep compare vector carries the bus signals, the fault flags,
 sleep and the retire information — but not the register file write

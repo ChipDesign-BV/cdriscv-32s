@@ -45,6 +45,8 @@ import re
 import subprocess
 import sys
 
+RFW = re.compile(r"^FIRFW (\d)$", re.M)
+
 RE = re.compile(r"FI target=(\d+) bit=(\d+) cycle=(\d+) exit=([0-9a-fx]+) "
                 r"golden=([0-9a-f]+) exited=(\d) status=([0-9a-fX]+) inj=(\d)"
                 r" cfg=([0-9a-fxX_]+)")
@@ -121,6 +123,11 @@ def main():
     rng = random.Random(args.seed)
     classes = collections.Counter()
     by_target = collections.defaultdict(collections.Counter)
+    # V4-F3: what a register-write comparator would have added.  Counted
+    # only where nothing else caught the fault, since a second mechanism
+    # reporting an already-reported fault is worth nothing.
+    would = collections.Counter()
+    would_tot = collections.Counter()
     mechanisms = collections.Counter()
     sdc_cases = []
 
@@ -199,6 +206,12 @@ def main():
         classes[cls] += 1
         by_target[t][cls] += 1
 
+        rfw = RFW.search(r.stdout)
+        if rfw:
+            would_tot[t] += 1
+            if rfw.group(1) == "1" and cls not in ("detected", "detected-sw"):
+                would[t] += 1
+
     total = sum(classes.values()) - classes["not-injected"]
     print("Fault injection campaign: %d single event upsets" % total)
     print("Workload: %s" % args.name)
@@ -222,6 +235,15 @@ def main():
         print("  %-34s %8d %5d %9d %6d %5d %5d"
               % (TARGETS[t], c["detected"], c["detected-sw"], c["silent-ok"],
                  c["latent"], c["SDC"], c["hang"] + c["sim-timeout"]))
+    if sum(would.values()):
+        print("\nUndetected faults a register-write comparator would have")
+        print("caught (finding V4-F3 -- rd_addr and rf_wdata are not in the")
+        print("lockstep compare vector today):")
+        for t in sorted(would):
+            if would[t]:
+                print("  %-34s %4d of %4d" % (TARGETS[t], would[t], would_tot[t]))
+        print("  %-34s %4d total" % ("", sum(would.values())))
+
     if mechanisms:
         print("\nWhich mechanism reported (a fault may set several):")
         for name, n in mechanisms.most_common():
