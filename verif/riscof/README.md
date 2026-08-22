@@ -54,38 +54,38 @@ nothing about the addresses is assumed.
 is no console, so the IO macros are empty and the signature is the only
 output.
 
-## Status: 62 of 62 pass, on release 3.5.3
+## Status: 85 of 85 pass, on the current suite
 
-`make riscof` runs against **`riscv-arch-test` 3.5.3, unmodified**: 38 from I,
-8 from M, 15 from privilege, 1 Zifencei. **62 passed, 0 failed.**
+`make riscof` runs against the **current `riscv-arch-test`, unmodified**:
+39 from I, 8 from M, 22 hints, 15 privilege, 1 Zifencei. **85 passed, 0
+failed.**
 
-Current releases cannot be used with this core. `env/arch_test.h` wraps
-its `.align` directives in `.option rvc` so the assembler pads with
-`c.nop`, unconditionally, and that padding lands in the executable
-instruction stream. An RV32I core must trap on a 16-bit encoding — and
-**Spike traps at the same address**, so the suite build is wrong for
-non-C targets rather than the core being wrong. 3.5.3 (2022-12-27) is
-the newest release predating that change.
+Two things make that work, both in `cdriscv/riscof_cdriscv.py` and
+`spike/riscof_spike.py`:
+
+* **`-mno-relax`.** The suite's `LA` macro brackets its alignment in
+  `.option rvc`, so the assembler pads with `c.nop` even on a target with no
+  C extension, and linker relaxation keeps that padding in the executed
+  stream. An RV32I core must trap on a 16-bit encoding, and Spike traps at
+  the same address. Turning relaxation off resolves the padding away. This
+  replaces the earlier workaround of pinning the suite to release 3.5.3.
+* **The `pmp` group is dropped from the generated test list.** All 43 gate
+  PMP on `verify (PMP['implemented'])`, and RISCOF selects on `check` clauses
+  only, so they are selected on any RV32 I+Zicsr core. This core implements
+  no PMP and has no U mode. `make riscof` prints how many it dropped.
+
+Both, and two more, are written up in [upstream-issues.md](upstream-issues.md).
 
 ### Setup
 
 ```sh
 pip install "cython<3" && pip install --no-build-isolation riscof
 cd verif/riscof && riscof arch-test --clone
-git -C riscv-arch-test worktree add ../arch-test-3.5.3 3.5.3
+git -C riscv-arch-test checkout old-framework-3.x   # main no longer has the suite
 for t in gcc objcopy nm objdump ld as; do
   ln -sf "$(command -v riscv64-unknown-elf-$t)" ~/.local/bin/riscv32-unknown-elf-$t
 done
 ```
-
-Two tests must be removed from the 3.5.3 tree, both for reasons
-external to this design:
-
-* `rv32i_m/C/src/cebreak-01.S` — a C extension test **selected by a
-  typo**: its regex is `.*I.*Zicsr.*.C*`, and `C*` matches zero
-  occurrences, so it selects on cores without C. The other 26 C tests
-  use `.*C.*`.
-* `rv32i_m/I/src/jalr-01.S` — modern binutils rejects `la x0,5b`.
 
 ### One trap to be careful of
 
@@ -93,10 +93,10 @@ external to this design:
 `end_signature` — never inside `RVMODEL_DATA_BEGIN`. On RISC-V `.align 8`
 means 256 bytes, so that block drags ~400 bytes of padding with it, and ahead
 of the signature the padding sits between `rvtest_data` and `mtrap_sigptr`.
-The arch-test trap handler records `mtval` *relative to `mtrap_sigptr`*, so the
-same faulting address then encodes as a different number than in the reference
-build, and every misaligned-**load** test fails while everything else passes.
-See finding V35.
+The arch-test trap handler records `mtval` *relative to `mtrap_sigptr`*, so
+the same faulting address then encodes as a different number than in the
+reference build, and every misaligned-**load** test fails while everything
+else passes. See finding V35.
 
 ## How the earlier releases fail (kept for the record)
 

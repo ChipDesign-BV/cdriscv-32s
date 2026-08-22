@@ -5,6 +5,69 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V36 — the suite pin is gone: current riscv-arch-test, 85 of 85 (2026-08-22)
+
+`make riscof` now runs the **current** `riscv-arch-test`, not the pinned
+3.5.3 tree, and passes **85 of 85**: 39 from I, 8 from M, 22 hints, 15
+privilege, 1 Zifencei. Three consecutive runs, identical.
+
+The `c.nop` blocker that forced the 3.5.3 pin at V34 has a one-flag
+workaround that needs no change to the suite at all: **`-mno-relax`**. The
+`LA` macro brackets its alignment in `.option rvc` so the assembler pads with
+compressed nops; it is *linker relaxation* that keeps that padding in the
+executed stream. Turn relaxation off and the padding is resolved away. On
+`add-01.S`: six 16-bit encodings become zero, and Spike configured as `rv32i`
+goes from one illegal-instruction trap to none.
+
+That is also, it turns out, exactly how upstream fixed it. The history is
+worth recording because it is easy to misread:
+
+* #442 (2024) and #659 report the bug.
+* #891 fixes it on the `act4` branch by jumping over the second alignment.
+* #950 *removes* that jump 19 days later, when it enables `.option norelax`
+  across the suite.
+
+Read as a diff, #950 looks like a regression that dropped a fix. Measuring
+four variants under Spike `rv32i` shows it is not: `.p2align` with no jump
+traps once, and the same thing with `norelax` traps zero times. `norelax`
+addresses the cause rather than stepping around the symptom, and `act4`
+is correct today. **I had drafted the opposite conclusion — "the #891 fix has
+regressed on act4" — from reading the diffs, and it was wrong.** The test
+that settled it took two minutes.
+
+The branch that is *not* fixed is `old-framework-3.x`, which has neither the
+jump nor `norelax` — and that is the branch carrying the suite RISCOF
+consumes. Hence `-mno-relax` in both plugin compile commands.
+
+Removing the pin exposed two more selection defects, neither about this core:
+
+**43 pmp tests select on a core with no PMP.** They gate PMP with
+`verify (PMP['implemented'])`, but RISCOF selects on `check` clauses only —
+`riscof/framework/test.py:315` iterates `part_dict['check']` and nothing
+reads `verify`. So all 43 select on any RV32 core with I and Zicsr. This core
+implements no PMP and has no U mode. `make riscof` now generates the test
+list, drops the pmp group with a message saying how many it dropped, and runs
+the rest.
+
+**`cebreak-01.S` selects on cores without C**, already noted at V34: its
+regex is `.*I.*Zicsr.*.C*`, and `C*` matches zero occurrences. With the pin
+gone this is no longer worked around by deleting the file; it is simply one
+of the tests the current tree does not mis-select, because the current tree
+has fixed it.
+
+One honest note on the numbers. The first run with the pin removed reported
+85 passed and 43 failed, and among the failures were `xori-01` and one hints
+test — which then passed on every subsequent run. That first run had all 128
+tests in flight across 8 workers, each with a 512K-word memory image. The two
+stray failures were contention in the bench, not the core; they have not
+recurred in three runs since. They are recorded rather than quietly dropped
+because a test that fails once and passes three times is exactly the kind of
+result that deserves to be written down instead of forgotten.
+
+The four defects are written up with minimal reproductions in
+[verif/riscof/upstream-issues.md](../verif/riscof/upstream-issues.md), ready
+to file.
+
 ## Phase V35 — the three misaligned-load failures were the bench, not the core; 62 of 62 pass (2026-08-22)
 
 The three failures left open by V34 — `misalign-lh-01`, `misalign-lhu-01`,
