@@ -25,6 +25,7 @@ module safety_fv
     input  logic        pwrite_i,
     input  logic [31:0] pwdata_i,
     input  logic [NUM_INT_FAULTS-1:0] fault_int_i,
+    input  logic [5:0]                cfg_err_i,
     input  logic [NUM_EXT_FAULTS-1:0] fault_ext_i
 );
 
@@ -50,6 +51,7 @@ module safety_fv
       .pready_o       (pready),
       .pslverr_o      (pslverr),
       .fault_int_i    (fault_int_i),
+      .cfg_err_i      (cfg_err_i),
       .fault_ext_i    (fault_ext_i),
       .irq_o          (irq),
       .reset_req_o    (reset_req),
@@ -84,6 +86,15 @@ module safety_fv
         p_lock_pin:      assert (u_dut.react_pin_q == $past(u_dut.react_pin_q));
         p_lock_ctrl_en:  assert (u_dut.ctrl_en_q   == $past(u_dut.ctrl_en_q));
       end
+
+      // A configuration parity error must latch and react regardless
+      // of ENABLE and CTRL -- the registers it may have corrupted.
+      // This is the structural fix for the V29/V30 circular
+      // dependency, so it gets checked rather than asserted in prose.
+      p_cfg_ungated_latch: assert (
+          !$past(|cfg_err_i) || u_dut.status_q[FLT_CFG_PAR]);
+      p_cfg_hard_irq: assert (!u_dut.status_q[FLT_CFG_PAR] || irq);
+      p_cfg_hard_any: assert (!u_dut.status_q[FLT_CFG_PAR] || fault_any);
 
       // The reset request must not repeat while the status is
       // unchanged.

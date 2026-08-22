@@ -60,6 +60,7 @@ module cdriscv_core
     output logic        fault_bus_err_o,
     output logic        fault_sw_o,
     output logic        fault_out_en_o,
+    output logic        fault_cfg_par_o,
 
     // status / trace (also used by the lockstep comparator)
     output logic        core_sleep_o,
@@ -518,6 +519,7 @@ module cdriscv_core
       .evt_lockstep_i   (1'b0),
       .instr_retired_i  (retire),
       .mtvec_o          (mtvec),
+      .cfg_err_o        (fault_cfg_par_o),
       .mepc_o           (mepc),
       .irq_pending_o    (irq_pending),
       .irq_wake_o       (irq_wake),

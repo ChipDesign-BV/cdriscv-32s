@@ -67,7 +67,8 @@ module cdriscv_ams_if #(
 
     // to the interrupt controller / safety controller
     output logic                 irq_o,
-    output logic                 fault_o
+    output logic                 fault_o,
+    output logic                 cfg_err_o   // level: configuration parity mismatch
 );
 
   // ------------------------------------------------------------------
@@ -318,5 +319,29 @@ module cdriscv_ams_if #(
 
   assign irq_o   = irq_en_q && (sts_done_q || sts_timeout_q || (|sts_range_q));
   assign fault_o = (|sts_range_q) || sts_timeout_q || (|(ana_flag_sync & flagcfg_q));
+
+  // ------------------------------------------------------------------
+  // Configuration parity (V29): the channel mask (90/90 latent in the
+  // campaign), the sequencing and test-mux configuration, the limits
+  // and the DAC value.  seq_en_q is excluded: a one-shot sequence
+  // clears it in hardware, and a self-updating field in the parity
+  // vector would raise a permanent false error the first time it did.
+  // ------------------------------------------------------------------
+  logic [NumCh*32-1:0] lim_flat;
+  always_comb begin
+    for (int unsigned c = 0; c < NumCh; c++) begin
+      lim_flat[c*32 +: 32] = {lim_hi_q[c], lim_lo_q[c]};
+    end
+  end
+
+  cdriscv_cfg_parity #(.Width(3 + 4 + 32 + NumCh + 4 + 16 + AdcW + NumCh*32))
+  u_cfg_par (
+      .clk_i  (clk_i),
+      .rst_ni (rst_ni),
+      .cfg_i  ({cont_q, atest_en_q, irq_en_q, atest_sel_q, period_q,
+                chmask_q, flagcfg_q, timeout_q, dac_q, lim_flat}),
+      .wr_i   (wr && (ofs != 8'h0c)),
+      .err_o  (cfg_err_o)
+  );
 
 endmodule

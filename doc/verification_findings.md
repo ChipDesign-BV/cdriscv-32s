@@ -5,6 +5,134 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V38 — a placed and buffered Fmax: 76 MHz, and the path is the performance counter (2026-08-22)
+
+`make fmax` is new: the subsystem synthesised with its TCM storage
+mapped to four real IHP SRAM macros (two RM_IHPSG13_1P_2048x64 banks
+per TCM, `verif/gate/cdriscv_tcm_macro.sv`), floorplanned at 45 %
+utilisation, placed, and repaired by OpenROAD's resizer against
+placement-estimated parasitics — 5 955 buffers inserted, 917 gates
+resized, 121 pin swaps — before any slack is reported. No CTS and no
+routing; the ideal clock carries a 250 ps uncertainty in their place.
+
+The number: **worst setup slack −3.18 ns at a 10 ns period, an Fmax
+estimate of 75.9 MHz** in the typical corner (1.20 V, 25 °C), design
+area 2.58 mm², 46 % utilisation.
+
+Two things this run settles:
+
+**The unbuffered `make sta` number was not a number.** The same design
+through plain abc with ideal nets reported slacks that meant nothing —
+903 fanout violations, 163 slew violations, nets driving dozens of
+loads for free. Buffering is not a refinement of that estimate; it is
+the difference between an estimate and an anecdote. `make sta` stays in
+the Makefile as a fast smoke check, and `make fmax` is the number to
+quote.
+
+**The critical path is not where anyone was looking.** Not the ALU,
+not the multiplier, not the ECC encode into the TCM — the worst three
+paths all start at `u_if.rd_ptr_q` and end in `u_csr.minstret_q[61..63]`:
+the 64-bit retired-instruction counter increments in a single cycle,
+and abc built the carry as a ripple of nand4/nor4 cells the resizer
+can buffer but not shorten. mcycle has the same structure and is one
+retire-qualification behind. The fix is standard and cheap — stage the
+upper-word increment on the registered carry-out of the lower word, one
+extra flop and one cycle of visible-only-to-itself latency — and it is
+*design* work, so it is recorded here rather than done in a
+verification phase. Until it is done, 76 MHz is the honest ceiling; the
+target in the architecture notes is 100 MHz, so this finding is a
+blocker for the performance claim, not for function.
+
+The TCM macro model is stated honestly: 39 of 64 bits used per bank,
+bank select on address bit 11, and the macro's read register standing
+in for the RTL's `rd_cw` flop. The ECC encoders and decoders — which
+the plain gate flow silently excluded along with the black-boxed TCM —
+are inside the timing picture here, and they are not the problem.
+
+## Phase V37 — configuration parity: latent falls from 46.4 % to zero (2026-08-22)
+
+The decision V29 left open has been made and implemented: every
+configuration register group in the subsystem now carries one hardware
+parity bit, and the same 2 600-injection campaign that measured the
+problem measures the fix.
+
+| outcome | V29: unprotected | V30: software check | **V37: hardware parity** |
+|---------|-----------------|---------------------|--------------------------|
+| detected by a mechanism | 646 (24.8 %) | 1 773 (68.2 %) | **1 832 (70.5 %)** |
+| detected by software only | — | 95 (3.7 %) | — |
+| silent, configuration intact | 747 (28.7 %) | 621 (23.9 %) | 768 (29.5 %) |
+| **latent** | **1 207 (46.4 %)** | 111 (4.3 %) | **0** |
+| SDC / hang | 0 | 0 | 0 |
+
+Same fault list, same seed, same workload A — no software check in the
+loop at all. **Not one of 2 600 upsets left a mechanism silently
+disarmed.** The twelve elements that were 100 % latent are now 100 %
+detected, and the detection latency table puts every one of them at
+**2 cycles, median and worst** — against a median of 4 and a worst of
+69 for the pre-existing mechanisms (V33), and against a detection
+interval bounded by the software checking period in the V30 approach.
+
+### What was built
+
+`cdriscv_cfg_parity` (rtl/common) captures one parity bit per register
+group the cycle after any architectural write — from the stored value,
+so the baseline cannot disagree with the register it guards — and
+compares continuously ever after. Instantiated seven times: safety
+controller (ENABLE, REACT_*, CTRL, PIN_DIV), watchdog (CTRL, PERIOD,
+WINDOW), clock monitor (ENABLE, MIN, MAX), interrupt controller
+(ENABLE, MODE), timer (MTIMECMP, ENABLE, PRESCALER), AMS interface
+(everything but the self-clearing sequencer enable), and `mtvec` in
+the CSR file, with the core's error passed through the lockstep wrapper
+and into both compare vectors.
+
+The mismatches land in **STATUS bit 13, and that bit is latched and
+reacted UNGATED** — not masked by `ENABLE`, not masked by
+`CTRL.enable`, interrupt and error pin hardwired rather than taken from
+`REACT_*`. This is the structural answer to the V30 circular
+dependency, where the register the fault disabled was the one that
+would have recorded it: a fault that may have corrupted the reaction
+configuration is not left asking that same configuration for permission
+to report. The safety controller's own `CTRL.enable` — previously
+detectable only by software with nowhere to deliver the report — is now
+90 of 90 hardware-detected at 2 cycles. A new RO register `CFG_SRC`
+(0x28) says which of the seven groups raised it.
+
+Three properties in the formal bench pin the contract down so it
+cannot regress silently: `p_cfg_ungated_latch` (a parity error latches
+bit 13 no matter what the configuration says), `p_cfg_hard_irq` and
+`p_cfg_hard_any` (bit 13 raises the interrupt and the fault flag
+unconditionally). All prove.
+
+### What is accepted and written down rather than closed
+
+* An upset landing in the one cycle between a write and its parity
+  capture is folded into the baseline. One cycle per configuration
+  write, against a mission time of everything else.
+* Fields the hardware itself updates cannot be parity-guarded by this
+  scheme and are excluded: the AMS sequencer's self-clearing enable,
+  and the CSRs the trap machinery writes (`mepc`, `mcause`,
+  `mstatus`). Those are dynamic state, covered by lockstep at the point
+  of use — and the campaign classes them silent-ok, not latent.
+* One parity bit per group detects every single-bit upset but not all
+  double-bit upsets. The single-event-upset model is the one the
+  campaign uses; multi-bit config upsets are out of scope and stated
+  so.
+* Software scrubbing (V30, `fi_workload_check.S`) is no longer needed
+  for detection, but remains documented in the safety manual as
+  defence in depth; the one thing it uniquely adds is coverage of
+  double-bit upsets within a group.
+
+The `silent-ok` count rising from 747 to 768 is not noise worth hiding:
+elements like `mepc`, `mscratch` and the watchdog counter are dynamic,
+their upsets get overwritten before mattering, and runs that used to
+fall in other buckets now classify cleanly. Zero SDC and zero hangs,
+as in every campaign on this list.
+
+One reporting note: `scripts/fi_campaign.py` did not know bit 13 by
+name when this campaign ran, so its "which mechanism reported" table
+under-attributes — the by-target table and the 2-cycle latency
+signature carry the evidence. The map is fixed for future runs.
+
 ## Phase V36 — the suite pin is gone: current riscv-arch-test, 85 of 85 (2026-08-22)
 
 `make riscof` now runs the **current** `riscv-arch-test`, not the pinned

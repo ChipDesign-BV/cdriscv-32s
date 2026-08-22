@@ -30,7 +30,8 @@ module cdriscv_timer (
     output logic        pready_o,
     output logic        pslverr_o,
 
-    output logic        irq_o
+    output logic        irq_o,
+    output logic        cfg_err_o    // level: configuration parity mismatch
 );
 
   logic [63:0] mtime_q, mtimecmp_q;
@@ -91,5 +92,21 @@ module cdriscv_timer (
   assign pready_o  = 1'b1;
   assign pslverr_o = 1'b0;
   assign irq_o     = (mtime_q >= mtimecmp_q);
+
+  // ------------------------------------------------------------------
+  // Configuration parity (V29): MTIMECMP, ENABLE, PRESCALER.  mtime_q
+  // counts on its own and is excluded.  An upset in MTIMECMP moves the
+  // one deadline the software relies on; V29 measured it 97/97 latent.
+  // ------------------------------------------------------------------
+  cdriscv_cfg_parity #(.Width(64 + 1 + 16)) u_cfg_par (
+      .clk_i  (clk_i),
+      .rst_ni (rst_ni),
+      .cfg_i  ({mtimecmp_q, enable_q, prescaler_q}),
+      .wr_i   (wr && ((paddr_i[7:0] == 8'h08) ||
+                      (paddr_i[7:0] == 8'h0c) ||
+                      (paddr_i[7:0] == 8'h10) ||
+                      (paddr_i[7:0] == 8'h14))),
+      .err_o  (cfg_err_o)
+  );
 
 endmodule

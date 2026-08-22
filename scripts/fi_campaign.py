@@ -86,6 +86,7 @@ MECHANISM = {
     3: "D-TCM ECC corrected", 4: "D-TCM ECC uncorrectable",
     5: "register file parity", 6: "watchdog", 7: "clock monitor",
     8: "bus error", 9: "memory BIST", 10: "AMS", 11: "software",
+    13: "configuration parity (ungated)",
     12: "core trap",
 }
 

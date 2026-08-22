@@ -112,37 +112,37 @@ used yet.
   word when it is read and a corrupted word waits until the program
   returns to it. This bounds latency for what is covered and says
   nothing about the 46 % that are latent. See finding V33.
-* **Every safety mechanism here is armed by a register, and not one of
-  those registers is protected.** Measured, not asserted: over 2 600
-  single event upsets across a twenty-six element fault list, **1 207
-  (46 %) left the configuration corrupted while the workload produced a
-  correct result**. Twelve elements are **100 % undetected** — the
-  safety controller's `ENABLE`, `REACT_IRQ`, `REACT_RST` and
-  `CTRL.enable`; the watchdog's `CTRL.enable`; the clock monitor's
-  `CTRL.enable`, `MIN` and `MAX`; the interrupt controller's `ENABLE`;
-  the machine timer's `MTIMECMP`; the AMS channel mask; and `mtvec`.
-  An upset in any of them switches a mechanism off or moves its
-  threshold, and nothing reports it.
+* **Every safety mechanism here is armed by a register — and since
+  2026-08-22 every one of those registers is parity-protected.** The
+  history matters and is kept: V29 measured that over 2 600 single
+  event upsets across a twenty-six element fault list, 1 207 (46.4 %)
+  left the configuration corrupted while the workload produced a
+  correct result, with twelve elements 100 % undetected. Each
+  configuration register group now carries a hardware parity bit
+  (`cdriscv_cfg_parity`), checked continuously; a mismatch latches
+  STATUS bit 13 in the safety controller **ungated** — not maskable by
+  `ENABLE` or `CTRL.enable`, interrupt and error pin hardwired — which
+  closes the circular case where the register the fault disabled was
+  the one that would have recorded it. Measured on the same campaign:
+  **latent 46.4 % → 0**, every previously-latent element detected at a
+  2-cycle median. Three formal properties pin the ungated contract.
+  See findings V29/V30/V37.
 
-  **Integration consequence.** Do not rely on a mechanism staying armed.
-  Software must re-read and re-verify the safety configuration
-  periodically, at an interval short enough for the fault tolerant time
-  interval being claimed. See finding V29.
+  **Residual gaps, stated rather than closed:** a one-cycle capture
+  window per configuration write; double-bit upsets within one group;
+  and the dynamic CSRs the trap machinery writes (`mepc`, `mcause`,
+  `mstatus`), which parity cannot guard and lockstep covers at the
+  point of use.
 
-  **This has been measured, not assumed.** A workload that re-reads
-  every configuration register each iteration takes the latent share
-  from **46.4 % to 4.3 %** over the same 2 600 injections, at a cost of
-  roughly doubling the run time at that checking interval
-  (`verif/fi/fi_workload_check.S`, finding V30). Two cautions come with
-  it:
-
-  * a read-back check covers exactly what it reads back — the one
-    register the workload does not verify stayed 100 % latent;
-  * **the report must not travel through the safety controller.** An
-    upset in the controller's own `CTRL.enable` is caught by software
-    and cannot be latched by the controller, because the register the
-    fault disabled is the one that would have recorded it. Use a
-    directly driven error pin, or simply stop servicing the watchdog.
+  **Integration guidance.** Periodic software re-read of the safety
+  configuration (V30, `verif/fi/fi_workload_check.S`, latent 4.3 % at
+  2x runtime when checking every iteration) is no longer required for
+  single-bit detection; it remains recommended as defence in depth,
+  and it is the only mechanism here that catches a double-bit upset
+  within one register group. If used, its report must not depend
+  solely on the safety controller's configurable reactions: STATUS
+  bit 13's hardwired interrupt and pin exist precisely because the
+  configured path may be what the fault corrupted.
 * A fault injection campaign has been run: 3 000 single event upsets
   over a named list of nine state elements, across three workloads. No
   silent data corruption and no hangs; 41 % detected on the arithmetic

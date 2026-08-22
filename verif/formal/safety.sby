@@ -9,10 +9,11 @@ depth 15
 smtbmc yices
 [script]
 plugin -i slang
-read_slang --top safety_fv --allow-use-before-declare cdriscv_pkg.sv cdriscv_sync.sv cdriscv_safety_ctrl.sv safety_fv.sv
+read_slang --top safety_fv --allow-use-before-declare cdriscv_pkg.sv cdriscv_sync.sv cdriscv_cfg_parity.sv cdriscv_safety_ctrl.sv safety_fv.sv
 prep -top safety_fv
 [files]
 rtl/core/cdriscv_pkg.sv
 rtl/common/cdriscv_sync.sv
+rtl/common/cdriscv_cfg_parity.sv
 rtl/safety/cdriscv_safety_ctrl.sv
 verif/formal/safety_fv.sv

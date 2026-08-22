@@ -59,6 +59,7 @@ module cdriscv_csr
 
     // outputs to the core
     output logic [31:0] mtvec_o,
+    output logic        cfg_err_o,       // level: mtvec parity mismatch
     output logic [31:0] mepc_o,
     output logic        irq_pending_o,
     output logic        irq_wake_o,      // any enabled interrupt pending (ignores mstatus.MIE)
@@ -292,5 +293,21 @@ module cdriscv_csr
   assign mstatus_mie_o  = mstatus_mie_q;
   assign sw_fault_o     = msafectrl_q[1];
   assign fault_out_en_o = msafectrl_q[0];
+
+  // ------------------------------------------------------------------
+  // Configuration parity (V29): mtvec.  92/92 latent in the campaign --
+  // a flipped trap vector is invisible until the trap that needs it.
+  // mtvec changes only on a committed CSR write, so the capture strobe
+  // is exact.  The other CSRs the hardware itself updates on traps
+  // (mstatus, mepc, mcause) cannot use this scheme and are covered by
+  // lockstep at the point of use.
+  // ------------------------------------------------------------------
+  cdriscv_cfg_parity #(.Width(32)) u_cfg_par (
+      .clk_i  (clk_i),
+      .rst_ni (rst_ni),
+      .cfg_i  (mtvec_q),
+      .wr_i   (csr_we && (addr_i == CSR_MTVEC)),
+      .err_o  (cfg_err_o)
+  );
 
 endmodule
