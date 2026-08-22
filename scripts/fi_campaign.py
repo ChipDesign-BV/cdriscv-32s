@@ -78,6 +78,7 @@ TARGETS = {
     23: "interrupt controller ENABLE",
     24: "machine timer MTIMECMP",
     25: "AMS channel mask",
+    26: "register file WRITE PATH (transient)",
 }
 
 MECHANISM = {

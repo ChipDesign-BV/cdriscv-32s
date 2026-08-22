@@ -5,6 +5,70 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V32 — V4-F3 answered, and the answer is "do not make the change" (2026-08-22)
+
+V31 showed the compare-vector recommendation was mis-scoped: the
+campaign injects into the register file's *storage*, and a write-port
+comparator cannot see that. The obvious repair was to add the fault
+class the change actually addresses. Target 26 does that — a
+one-cycle transient forced onto `rf_wdata` in the main core, applied
+on a cycle that really writes a register.
+
+(The first version applied it at an arbitrary cycle and had no effect
+on any of five samples, because most cycles do not write a register.
+It waits for `rf_we` now.)
+
+**400 write-path transients: 400 detected. None missed.**
+
+So the comparator adds nothing for this fault class either — not
+because the fault is harmless, but because lockstep already catches all
+of it. The corrupted register is read within a few instructions, the
+wrong value reaches a compared output, and the mismatch fires.
+
+### Which turns the question from coverage into latency
+
+| | write-path transients |
+|---|---|
+| detected today | 400 / 400 (100 %) |
+| detection latency, min | 5 cycles |
+| median | 10 cycles |
+| 90th percentile | 34 cycles |
+| worst observed | 41 cycles |
+| latency with the write port compared | 0–1 cycles |
+
+Every one is detected later than one cycle, so the change would improve
+every case. At 100 MHz it removes **up to about 410 ns** of detection
+latency on a fault class that is already fully covered.
+
+### The recommendation, reversed
+
+**Do not add `rd_addr` and `rf_wdata` to the lockstep compare vector.**
+
+Thirty-seven bits of compare vector, on the delay pipeline as well as
+the comparator, buys no coverage — 0 of 2 600 storage upsets, 0 of 400
+write-path transients — and removes a worst-case 410 ns from a
+detection latency that is already sub-microsecond. Unless the fault
+tolerant time interval being claimed is tight at that scale, which for
+a control loop it will not be, the trade is not worth making.
+
+If the FTTI *is* that tight, the number to argue from is the 41-cycle
+worst case measured here, not the 14 cycles the `tb_safety`
+characterisation happens to show — that test measures one injection,
+this measures four hundred.
+
+**V4-F3 is closed.** It was a correct observation about the design —
+the register write port genuinely is not compared — and the mitigation
+it proposed is not worth making. Those are different statements, and
+running them together for twenty-eight phases is the mistake this pair
+of findings corrects.
+
+### What the campaign gained
+
+Detection latency is now recorded for every run, not just outcome. A
+diagnostic argument needs both: coverage says whether a fault is found,
+latency says whether it is found in time, and an FTTI budget is spent
+on the second.
+
 ## Phase V31 — the compare-vector recommendation was mis-scoped (2026-08-22)
 
 V4-F3 has been open since phase V4 and I have restated it in nearly
@@ -2744,7 +2808,7 @@ architecture of that block: a monitor clocked by the clock it watches
 cannot report that clock's failure, and this test is what demonstrates
 the reference-domain design does.
 
-### V4-F3 — register write data is not directly compared (observation, re-scoped in V31)
+### V4-F3 — register write data is not directly compared (CLOSED in V32: real, not worth fixing)
 
 The lockstep compare vector carries the bus signals, the fault flags,
 sleep and the retire information — but not the register file write

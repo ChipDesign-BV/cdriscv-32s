@@ -110,6 +110,8 @@ module tb_fi;
   logic [4:0]             rfw_addr_dly [RfwDly:0];
   logic [31:0]            rfw_data_dly [RfwDly:0];
   bit                     rfw_mismatch, rfw_armed;
+  bit                     wpath_forced, wpath_arm;
+  int unsigned            det_cycle;
   int unsigned            d, rfw_wait;
 
   always_ff @(posedge clk or negedge rst_n) begin
@@ -157,6 +159,7 @@ module tb_fi;
     fetch_enable = 1'b0;
     cycle = 0;
     injected = 1'b0;
+    det_cycle = 0;
     if (!$value$plusargs("HEX=%s", hexfile)) $fatal(1);
     if (!$value$plusargs("TARGET=%d", target))   target   = 0;
     if (!$value$plusargs("BIT=%d", bitpos))      bitpos   = 0;
@@ -181,6 +184,13 @@ module tb_fi;
       cycle <= cycle + 1;
 
       if (!injected && (cycle == injcycle)) arm <= 1'b1;
+
+      // When the first mechanism reported, relative to the injection.
+      // Coverage is only half of a diagnostic argument: the other half
+      // is how long the fault went unreported, which is what an FTTI
+      // budget is spent on.
+      if (injected && (det_cycle == 0) && (dut.u_safety.status_q != 32'b0))
+        det_cycle <= cycle - injcycle;
 
       if (exit_seen || (cycle > maxcycle)) begin
         status_at_end = dut.u_safety.status_q;
@@ -209,12 +219,26 @@ module tb_fi;
         $display("FI target=%0d bit=%0d cycle=%0d exit=%08x golden=%08x exited=%0d status=%08x inj=%0d cfg=%08x_%08x_%08x",
                  target, bitpos, injcycle, exit_code, golden, exit_seen, status_at_end,
                  injected, cfg_safety, cfg_wdog, cfg_csr);
-        $display("FIRFW %0d", rfw_mismatch);
+        $display("FIRFW %0d %0d", rfw_mismatch, det_cycle);
         $finish;
       end
     end
   end
 
+
+  // Apply the write-path transient on the next cycle that writes a
+  // register, then release it: a fault on the path, not a stuck-at.
+  always @(negedge clk) begin
+    if (wpath_forced) begin
+      release dut.g_lockstep.u_core.u_core_main.rf_wdata;
+      wpath_forced = 1'b0;
+    end else if (wpath_arm && dut.g_lockstep.u_core.u_core_main.rf_we) begin
+      force dut.g_lockstep.u_core.u_core_main.rf_wdata =
+            dut.g_lockstep.u_core.u_core_main.rf_wdata ^ (32'b1 << b32);
+      wpath_arm    = 1'b0;
+      wpath_forced = 1'b1;
+    end
+  end
 
   // The deposit happens on the falling edge.  On the rising edge the
   // DUT's own flops assign, and the order between that and a bench
@@ -244,7 +268,7 @@ module tb_fi;
         idx   = bitpos % 31;
         b32   = bitpos % 32;
         b39   = bitpos % 39;
-        case (target % 26)
+        case (target % 27)
           0: dut.g_lockstep.u_core.u_core_main.u_regfile.rf_q[idx + 1] =
              dut.g_lockstep.u_core.u_core_main.u_regfile.rf_q[idx + 1] ^ (32'b1 << b32);
           1: dut.g_lockstep.u_core.u_core_main.u_if.buf_rdata_q[bitpos % 2] =
@@ -322,6 +346,27 @@ module tb_fi;
               dut.u_irq_ctrl.enable_q ^ (16'b1 << (bitpos % 16));
           24: dut.u_timer.mtimecmp_q[b32] = ~dut.u_timer.mtimecmp_q[b32];
           25: dut.u_ams.chmask_q = dut.u_ams.chmask_q ^ (8'b1 << (bitpos % 8));
+
+          // ---- a fault on the register write *path* -----------------
+          // V31: every other register-file target here corrupts the
+          // stored word, which parity covers and which a write-port
+          // comparator cannot see.  This one corrupts the value on its
+          // way in -- between the ALU or load result and the register
+          // file input -- which is the fault class the proposed
+          // compare-vector change actually addresses, and which the
+          // campaign could not previously sample.
+          //
+          // A force rather than a deposit, because rf_wdata is
+          // combinational: a deposit would be overwritten in the same
+          // delta by whatever drives it.  Released one cycle later by
+          // the block below, so this is a transient on the path and not
+          // a stuck-at.
+          // Armed here, applied by the block below on the next cycle
+          // that actually writes a register.  Injecting at an arbitrary
+          // cycle mostly lands where rf_we is low and does nothing at
+          // all -- the first version of this target had no effect on
+          // any of five sample cycles for exactly that reason.
+          26: wpath_arm = 1'b1;
 
           default: ;
         endcase
