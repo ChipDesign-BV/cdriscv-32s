@@ -144,7 +144,13 @@ module tb_fi;
                    ^ dut.u_safety.react_rst_q ^ {31'b0, dut.u_safety.ctrl_en_q};
         cfg_wdog   = {30'b0, dut.u_wdog.enable_q, dut.u_wdog.rst_en_q}
                    ^ dut.u_wdog.period_q;
-        cfg_csr    = dut.g_lockstep.u_core.u_core_main.u_csr.mtvec_q;
+        cfg_csr    = dut.g_lockstep.u_core.u_core_main.u_csr.mtvec_q
+                   ^ {31'b0, dut.u_clkmon.enable_q}
+                   ^ {8'b0, dut.u_clkmon.min_q}
+                   ^ {8'b0, dut.u_clkmon.max_q}
+                   ^ {16'b0, dut.u_irq_ctrl.enable_q}
+                   ^ dut.u_timer.mtimecmp_q[31:0]
+                   ^ {24'b0, dut.u_ams.chmask_q};
         $display("FI target=%0d bit=%0d cycle=%0d exit=%08x golden=%08x exited=%0d status=%08x inj=%0d cfg=%08x_%08x_%08x",
                  target, bitpos, injcycle, exit_code, golden, exit_seen, status_at_end,
                  injected, cfg_safety, cfg_wdog, cfg_csr);
@@ -182,7 +188,7 @@ module tb_fi;
         idx   = bitpos % 31;
         b32   = bitpos % 32;
         b39   = bitpos % 39;
-        case (target % 20)
+        case (target % 26)
           0: dut.g_lockstep.u_core.u_core_main.u_regfile.rf_q[idx + 1] =
              dut.g_lockstep.u_core.u_core_main.u_regfile.rf_q[idx + 1] ^ (32'b1 << b32);
           1: dut.g_lockstep.u_core.u_core_main.u_if.buf_rdata_q[bitpos % 2] =
@@ -246,6 +252,20 @@ module tb_fi;
           // of the pipeline is representative of all of them.
           19: dut.g_lockstep.u_core.g_delay.out_pipe_q[0][b32] =
               ~dut.g_lockstep.u_core.g_delay.out_pipe_q[0][b32];
+
+          // ---- the rest of the configuration ------------------------
+          // Every mechanism in this subsystem is armed by a register,
+          // and V28 showed that an upset in one of those is invisible.
+          // These six complete the set, so that the latent figure
+          // covers every mechanism rather than the four that happened
+          // to be in the list first.
+          20: dut.u_clkmon.enable_q = ~dut.u_clkmon.enable_q;
+          21: dut.u_clkmon.min_q    = dut.u_clkmon.min_q ^ (24'b1 << (bitpos % 24));
+          22: dut.u_clkmon.max_q    = dut.u_clkmon.max_q ^ (24'b1 << (bitpos % 24));
+          23: dut.u_irq_ctrl.enable_q =
+              dut.u_irq_ctrl.enable_q ^ (16'b1 << (bitpos % 16));
+          24: dut.u_timer.mtimecmp_q[b32] = ~dut.u_timer.mtimecmp_q[b32];
+          25: dut.u_ams.chmask_q = dut.u_ams.chmask_q ^ (8'b1 << (bitpos % 8));
 
           default: ;
         endcase

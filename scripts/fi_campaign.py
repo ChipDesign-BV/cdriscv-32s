@@ -65,6 +65,12 @@ TARGETS = {
     17: "mscratch",
     18: "core state machine",
     19: "lockstep delay pipeline",
+    20: "clock monitor CTRL.enable",
+    21: "clock monitor MIN",
+    22: "clock monitor MAX",
+    23: "interrupt controller ENABLE",
+    24: "machine timer MTIMECMP",
+    25: "AMS channel mask",
 }
 
 MECHANISM = {

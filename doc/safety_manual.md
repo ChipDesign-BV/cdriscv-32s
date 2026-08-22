@@ -104,16 +104,22 @@ used yet.
 
 * No FMEDA, no diagnostic coverage figures, no single point fault
   metric, no latent fault metric.
-* **The configuration registers are unprotected, and this has now been
-  measured rather than asserted.** Over 2 000 single event upsets across
-  a twenty-element fault list, **582 (29 %) left the safety
-  configuration corrupted while the workload produced a correct
-  result** — the safety controller's `ENABLE`, `REACT_IRQ`, `REACT_RST`
-  and `CTRL.enable`, the watchdog's `CTRL.enable`, and `mtvec` are each
-  100 % undetected. An upset in any of them switches a detector off and
-  nothing reports it. Any integration that relies on these mechanisms
-  should assume they can be silently disabled and should re-read the
-  configuration periodically. See finding V28.
+* **Every safety mechanism here is armed by a register, and not one of
+  those registers is protected.** Measured, not asserted: over 2 600
+  single event upsets across a twenty-six element fault list, **1 207
+  (46 %) left the configuration corrupted while the workload produced a
+  correct result**. Twelve elements are **100 % undetected** — the
+  safety controller's `ENABLE`, `REACT_IRQ`, `REACT_RST` and
+  `CTRL.enable`; the watchdog's `CTRL.enable`; the clock monitor's
+  `CTRL.enable`, `MIN` and `MAX`; the interrupt controller's `ENABLE`;
+  the machine timer's `MTIMECMP`; the AMS channel mask; and `mtvec`.
+  An upset in any of them switches a mechanism off or moves its
+  threshold, and nothing reports it.
+
+  **Integration consequence.** Do not rely on a mechanism staying armed.
+  Software must re-read and re-verify the safety configuration
+  periodically, at an interval short enough for the fault tolerant time
+  interval being claimed. See finding V29.
 * A fault injection campaign has been run: 3 000 single event upsets
   over a named list of nine state elements, across three workloads. No
   silent data corruption and no hangs; 41 % detected on the arithmetic
