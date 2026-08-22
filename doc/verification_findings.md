@@ -5,6 +5,65 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V39 — the counter path is fixed, proven equivalent, and the whole suite re-run (2026-08-22)
+
+V38's blocker is closed. `mcycle` and `minstret` are now
+`cdriscv_counter64` (rtl/common): four 16-bit segments whose carries
+are **predicted one cycle early into flip-flops from comparisons
+only** — after this cycle's update a segment reads all-ones iff it was
+written with `ffff`, incremented from `fffe`, or held at `ffff`. No
+adder feeds a prediction and no prediction feeds an adder
+combinationally, so the longest path through a counter is one 16-bit
+incrementer.
+
+The first attempt did not survive synthesis, and that is worth
+recording. The obvious split — `if (&low) high++` — is logically half
+the depth, and abc recognises `&low` as the carry-out of `low + 1`,
+shares the chain, and quietly rebuilds the same 64-bit ripple: measured
+75.9 → 77.0 MHz, critical path still `rd_ptr_q → minstret_q[63]`. A
+structural intention that synthesis is free to undo is not a fix; the
+prediction register is, because nothing can legally merge across a
+flip-flop.
+
+**Equivalence is proven, not argued.** Both the intermediate and the
+final form were checked against the original flat `q <= q + 64'd1` CSR
+file with yosys `equiv_make`/`equiv_induct` (8-step induction, 472 of
+472 points, software writes included — a write and an increment in the
+same cycle behave identically, per half). The counters are
+architecturally invisible, and the re-run suite agrees.
+
+Re-verified on the final RTL, all green: lint and lint-tb; sim, sw,
+block, cosim, cosim-random, safety, periph, trap, fence, regwalk, ams,
+rdback, reaction; all six formal benches; fi-arith (0 latent, 0 SDC,
+0 hang); **riscv-arch-test 85 of 85**.
+
+### The timing result, grouped honestly
+
+`make fmax` now reports path groups separately, because the previous
+single number was set by the SDC's placeholder 30 % IO budget rather
+than by the design. (The first grouped run also printed a slack of
+exactly 0.000 for every group — a Tcl query bug, `[$path slack]`
+failing silently — caught because a number that clean deserved
+suspicion, and fixed with `get_property`.)
+
+| group | worst slack | Fmax | limited by |
+|---|---|---|---|
+| **reg2reg** | **-2.348 ns** | **81.0 MHz** | fetch request decode into the I-TCM macro's `A_MEN` enable |
+| in2reg | +1.107 ns | meets 100 | placeholder input budget |
+| reg2out | -2.589 ns | (79.4) | placeholder output budget on `retire_valid_o` |
+
+Counter paths: gone from the top of every group. 75.9 → **81.0 MHz**
+on the design's own paths, and the remaining limiter is a different
+kind of problem: the request/grant/bank-enable decode from
+`u_if.rd_ptr_q` into the SRAM macro's memory-enable pin, part logic,
+part wire to a macro corner, part the macro's own setup. The candidate
+fixes — registering the TCM enable decode (costs a fetch cycle),
+precomputing enables a cycle early the same way the counters now do, or
+simply floorplanning the macros nearer the core — are implementation
+decisions, recorded here for whoever makes them. The 100 MHz target
+remains open by 2.35 ns, and it is no longer the performance counters'
+fault.
+
 ## Phase V38 — a placed and buffered Fmax: 76 MHz, and the path is the performance counter (2026-08-22)
 
 `make fmax` is new: the subsystem synthesised with its TCM storage

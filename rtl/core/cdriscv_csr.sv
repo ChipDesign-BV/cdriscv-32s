@@ -229,15 +229,10 @@ module cdriscv_csr
       mcause_irq_q   <= 1'b0;
       mcause_code_q  <= 5'b0;
       mtval_q        <= 32'b0;
-      mcycle_q       <= 64'b0;
-      minstret_q     <= 64'b0;
       msafestat_q    <= 32'b0;
       msafectrl_q    <= 32'b0;
     end else begin
       // hardware counters
-      mcycle_q <= mcycle_q + 64'd1;
-      if (instr_retired_i) minstret_q <= minstret_q + 64'd1;
-
       // sticky safety status
       msafestat_q <= msafestat_q | safety_evt;
 
@@ -257,10 +252,6 @@ module cdriscv_csr
             mcause_code_q <= csr_wdata[4:0];
           end
           CSR_MTVAL:     mtval_q       <= csr_wdata;
-          CSR_MCYCLE:    mcycle_q[31:0]    <= csr_wdata;
-          CSR_MCYCLEH:   mcycle_q[63:32]   <= csr_wdata;
-          CSR_MINSTRET:  minstret_q[31:0]  <= csr_wdata;
-          CSR_MINSTRETH: minstret_q[63:32] <= csr_wdata;
           CSR_MSAFESTAT: msafestat_q   <= (msafestat_q & ~csr_wdata) | safety_evt;  // W1C
           default: ;
         endcase
@@ -293,6 +284,32 @@ module cdriscv_csr
   assign mstatus_mie_o  = mstatus_mie_q;
   assign sw_fault_o     = msafectrl_q[1];
   assign fault_out_en_o = msafectrl_q[0];
+
+  // ------------------------------------------------------------------
+  // Hardware counters (V38): 64-bit in 16-bit segments with predicted
+  // carries, because a flat 64-bit increment was the subsystem's
+  // critical path.  Software writes win over the increment, per half,
+  // exactly as the flat form behaved.
+  // ------------------------------------------------------------------
+  cdriscv_counter64 u_mcycle (
+      .clk_i   (clk_i),
+      .rst_ni  (rst_ni),
+      .inc_i   (1'b1),
+      .wr_lo_i (csr_we && (addr_i == CSR_MCYCLE)),
+      .wr_hi_i (csr_we && (addr_i == CSR_MCYCLEH)),
+      .wdata_i (csr_wdata),
+      .q_o     (mcycle_q)
+  );
+
+  cdriscv_counter64 u_minstret (
+      .clk_i   (clk_i),
+      .rst_ni  (rst_ni),
+      .inc_i   (instr_retired_i),
+      .wr_lo_i (csr_we && (addr_i == CSR_MINSTRET)),
+      .wr_hi_i (csr_we && (addr_i == CSR_MINSTRETH)),
+      .wdata_i (csr_wdata),
+      .q_o     (minstret_q)
+  );
 
   // ------------------------------------------------------------------
   // Configuration parity (V29): mtvec.  92/92 latent in the campaign --
