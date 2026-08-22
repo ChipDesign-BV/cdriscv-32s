@@ -5,6 +5,64 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V27 — W2a argued against gates for all six machines (2026-08-22)
+
+The AMS sequencer and the core complete the set. **No state machine in
+coverage waiver W2a now rests on the RTL argument alone**: each has
+been forced into every encoding its synthesised state register allows,
+on a netlist mapped to real SG13G2 cells, and each recovers.
+
+| machine | encodings | criterion |
+|---------|-----------|-----------|
+| multiplier | 4 | returns to idle (V16) |
+| APB bridge | 16 | returns to idle |
+| LSU | 8 | returns to idle, bus responses tied high |
+| BIST | 16 | returns to idle **or** the measured terminal state |
+| AMS sequencer | 4 | returns to idle, conversion valid tied high |
+| core | 8 | state defined **and** still fetching |
+
+### The core needed a different question asked
+
+Its RTL enum is two bits with all four values used — `ST_RUN`,
+`ST_WAIT_LSU`, `ST_WAIT_MD`, `ST_SLEEP` — so the `default:` arm really
+is unreachable in the RTL, and W2a's entry for it looks like the
+weakest of the six.
+
+Synthesis makes it the most interesting. yosys re-encodes the machine
+to **three** bits, so the netlist has unused encodings the RTL never
+had. Waiver W2a's whole premise — that the arms exist for states the
+design should not be in — arrives at the gate level even for a machine
+that had no such states in the source.
+
+But every value of the *driven* bits maps to a legal state, so
+"recovers to a legal state" is true by construction and worth nothing
+as a check. What the bench asserts instead is that the state never goes
+X, and that the core is **still fetching** two hundred cycles later
+rather than wedged. That is the property that matters and it is not
+automatic.
+
+### On the generator
+
+`scripts/gen_fsm_bench.py` now also carries the module's parameters
+across as localparams, because port widths depend on them and a bench
+without them will not elaborate — the AMS interface has
+`AdcW`-dependent ports and failed on exactly that.
+
+Two of the six benches needed hand-finishing after generation: the BIST
+to measure its terminal state, the core to check fetching rather than a
+state value. That ratio seems about right for a generator whose job is
+to remove the port wiring, not to guess the acceptance criterion.
+
+### What is still not proven
+
+These are standalone netlists. `FSM_OPT` re-encodes differently in
+context — the multiplier's state is two bits alone and three inside the
+subsystem — so this establishes that yosys's FSM optimisation **does
+not delete the recovery**, which was the risk W2a named, and not that
+the shipped netlist's encodings behave identically. Checking that needs
+a bench that locates the re-encoded register in the flattened netlist
+rather than assuming its name, which V24 showed is not straightforward.
+
 ## Phase V26 — W2a for the BIST, by measuring instead of assuming (2026-08-22)
 
 `make gate-fsm-mbist` forces the synthesised BIST controller into all

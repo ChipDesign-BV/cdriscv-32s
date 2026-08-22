@@ -64,7 +64,7 @@ where this behaviour is exercised, not the functional tests — and the
 campaign has so far recorded no hang across 3 000 injections, which is
 the evidence that the recovery works.
 
-**Re-argued against the netlist for four of the six (2026-08-22).**
+**Re-argued against the netlist for all six (2026-08-22).**
 `make gate-fsm` forces the synthesised multiplier into each of the four
 encodings its two state flops allow; the unused one returns to idle,
 none produces X, and it computes correctly afterwards. `make
@@ -76,8 +76,17 @@ read. Both recoveries survive synthesis.
 `make gate-fsm-mbist` the BIST's sixteen, the latter synthesised at
 `Depth=16` so that a restarted march finishes inside the settle window.
 
-The AMS sequencer and the core have not been checked this way, so for
-those the waiver still rests on the RTL argument alone.
+`make gate-fsm-ams` and `make gate-fsm-core` complete the set. **No
+machine in this waiver now rests on the RTL argument alone.**
+
+The core needed a different check, and the reason is worth stating: its
+RTL enum is two bits with all four values used, so the `default:` arm
+is unreachable in the RTL — but synthesis re-encodes to **three** bits,
+and the netlist therefore has unused encodings the RTL never had. Every
+value of the driven bits maps to a legal state, so "recovers to a legal
+state" is true by construction and says nothing. What the check asserts
+instead is that the state never goes X and that the core is **still
+fetching** afterwards rather than wedged.
 
 **"Recovers" does not mean "returns to idle", and assuming it did cost
 three false failures.** The BIST legitimately ends a forced march in
