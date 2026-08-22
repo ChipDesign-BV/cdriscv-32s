@@ -64,7 +64,7 @@ where this behaviour is exercised, not the functional tests — and the
 campaign has so far recorded no hang across 3 000 injections, which is
 the evidence that the recovery works.
 
-**Re-argued against the netlist for three of the six (2026-08-22).**
+**Re-argued against the netlist for four of the six (2026-08-22).**
 `make gate-fsm` forces the synthesised multiplier into each of the four
 encodings its two state flops allow; the unused one returns to idle,
 none produces X, and it computes correctly afterwards. `make
@@ -72,13 +72,20 @@ gate-fsm-apb` does the same for the APB bridge over all sixteen
 encodings of its four-bit state, and then checks it still services a
 read. Both recoveries survive synthesis.
 
-`make gate-fsm-lsu` covers the LSU's eight encodings the same way.
+`make gate-fsm-lsu` covers the LSU's eight encodings and
+`make gate-fsm-mbist` the BIST's sixteen, the latter synthesised at
+`Depth=16` so that a restarted march finishes inside the settle window.
 
-The AMS sequencer, the BIST and the core have not been checked this
-way, so for those the waiver still rests on the RTL argument alone.
-The BIST is not merely unwritten: a forced state restarts a march over
-the whole array, so it needs either a small-depth build or a settle
-window of tens of thousands of cycles.
+The AMS sequencer and the core have not been checked this way, so for
+those the waiver still rests on the RTL argument alone.
+
+**"Recovers" does not mean "returns to idle", and assuming it did cost
+three false failures.** The BIST legitimately ends a forced march in
+`BS_DONE`, not `BS_IDLE`; both are quiescent and defined and both are a
+successful recovery. Its bench therefore *measures* the terminal state
+by running one normal BIST first, and accepts either. The right
+question is whether the machine reaches a defined state it can
+legitimately hold — not whether it reaches one particular state.
 
 **The environment matters as much as the netlist.** A machine whose
 handshake inputs are all tied low sits for ever in a legal state

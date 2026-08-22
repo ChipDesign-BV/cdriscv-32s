@@ -696,7 +696,29 @@ gate-fsm-lsu: $(BUILD)/gate/tb_fsm_cdriscv_lsu.vvp
 	$(VVP) $< | tee $(BUILD)/gate/fsm_lsu.log
 	@grep -q "PASS" $(BUILD)/gate/fsm_lsu.log
 
-gate: gate-alu gate-multdiv gate-ecc gate-fsm gate-fsm-apb gate-fsm-lsu gate-subsys
+# The BIST is synthesised at Depth=16.  At the real 4096 a forced state
+# restarts a march over the whole array and the settle window would have
+# to be tens of thousands of cycles; the state machine is the same
+# either way.
+$(BUILD)/gate/cdriscv_mbist_gate.v: $(GATE_PKG) rtl/safety/cdriscv_mbist.sv | $(BUILD)/gate
+	$(YOSYS) -p "plugin -i slang; \
+	  read_slang --top cdriscv_mbist -G Depth=16 $(GATE_PKG) rtl/safety/cdriscv_mbist.sv; \
+	  synth -top cdriscv_mbist -flatten; \
+	  dfflibmap -liberty $(GATE_LIB); \
+	  abc -liberty $(GATE_LIB); \
+	  opt_clean; \
+	  write_verilog -noattr $@" -l $(BUILD)/gate/mbist_synth.log
+
+$(BUILD)/gate/tb_fsm_cdriscv_mbist.vvp: $(BUILD)/gate/cdriscv_mbist_gate.v $(GATE_CELLS) \
+                                        $(GATE_UDP) verif/gate/tb_fsm_cdriscv_mbist.sv
+	$(IVERILOG) -g2012 -o $@ -s tb_fsm_cdriscv_mbist $(GATE_PKG) $^
+
+gate-fsm-mbist: $(BUILD)/gate/tb_fsm_cdriscv_mbist.vvp
+	$(VVP) $< | tee $(BUILD)/gate/fsm_mbist.log
+	@grep -q "PASS" $(BUILD)/gate/fsm_mbist.log
+
+gate: gate-alu gate-multdiv gate-ecc gate-fsm gate-fsm-apb gate-fsm-lsu \
+      gate-fsm-mbist gate-subsys
 
 # ------------------------------------------------- RISCOF (O1)
 # The architectural test suite is fetched, not vendored -- see
