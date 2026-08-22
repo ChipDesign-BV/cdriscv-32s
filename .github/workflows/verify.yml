@@ -1,0 +1,187 @@
+# SPDX-FileCopyrightText: 2026 ChipDesign B.V.
+# SPDX-License-Identifier: Apache-2.0
+#
+# cdriscv-32s continuous verification.
+#
+# NOTE: this workflow has never run on a real runner.  It is written
+# from the commands that pass locally in the IIC-OSIC-TOOLS container,
+# and the first run will need fixing.  Do not read a green badge into it
+# until one has actually happened.
+#
+# The jobs below gate everything the Makefile can check.  The cheap
+# work runs on every push; gate level simulation, static timing and the
+# fault injection campaign are nightly, because they take tens of
+# minutes each and a push gate that people wait on gets disabled.
+#
+# Cadence follows doc/verification_plan.md section 10: everything cheap
+# on every push, the expensive random regression nightly.
+
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # nightly, off the hour to avoid the crowd
+    - cron: '37 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  lint-and-block:
+    name: lint, block benches, smoke
+    runs-on: ubuntu-latest
+    container: hpretl/iic-osic-tools:2026.07
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint (hard gate, waivers in verif/lint/waivers.vlt)
+        run: make lint
+
+      - name: Lint the bench
+        run: make lint-tb
+
+      - name: Block benches
+        run: make block
+
+      - name: Build the smoke program
+        run: make sw
+
+      - name: Smoke simulation
+        run: make sim
+
+      - name: Generic synthesis, structural check
+        run: make synth
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-lint-and-block
+          path: build/*.log
+
+  cosim:
+    name: co-simulation against Spike
+    runs-on: ubuntu-latest
+    container: hpretl/iic-osic-tools:2026.07
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache the Spike build
+        id: spike-cache
+        uses: actions/cache@v4
+        with:
+          path: /opt/spike
+          key: spike-${{ runner.os }}-v1
+
+      - name: Build Spike
+        if: steps.spike-cache.outputs.cache-hit != 'true'
+        run: sh scripts/build_spike.sh /opt/spike
+
+      - name: Directed ISA program
+        run: make cosim SPIKE=/opt/spike/bin/spike
+
+      - name: Random programs (short, on every push)
+        if: github.event_name != 'schedule'
+        run: make cosim-random SPIKE=/opt/spike/bin/spike RANDOM_SEEDS=50
+
+      - name: Random programs (long, nightly)
+        if: github.event_name == 'schedule'
+        run: make cosim-random SPIKE=/opt/spike/bin/spike RANDOM_SEEDS=2000 RANDOM_LEN=800
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: failing-random-programs
+          path: build/random/
+
+  software-tests:
+    name: subsystem software tests
+    runs-on: ubuntu-latest
+    container: hpretl/iic-osic-tools:2026.07
+    steps:
+      - uses: actions/checkout@v4
+
+      # Each of these found something when it was written -- the safety
+      # tests three clock-domain defects, the fence test two decoder
+      # lines that had been wrongly waived, the read-back test a slot
+      # that raises a bus error where every other slot reads zero.
+      - name: Safety bench and safety software
+        run: make safety
+      - name: Peripherals
+        run: make periph
+      - name: Safety reactions
+        run: make reaction
+      - name: Traps
+        run: make trap
+      - name: AMS interface
+        run: make ams
+      - name: Register walk
+        run: make regwalk
+      - name: FENCE, FENCE.I and the writable CSRs
+        run: make fence
+      - name: Peripheral read-back
+        run: make rdback
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-software-tests
+          path: build/*.log
+
+  formal:
+    name: formal property benches
+    runs-on: ubuntu-latest
+    container: hpretl/iic-osic-tools:2026.07
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bounded model checking
+        run: make formal
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-formal
+          path: build/fv_*/logfile.txt
+
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    container: hpretl/iic-osic-tools:2026.07
+    steps:
+      - uses: actions/checkout@v4
+      - name: Line, toggle and functional coverage
+        run: make coverage
+      # Not a gate.  Objective O6 is met with reviewed waivers and O7 is
+      # at 100 %, but failing a build on a coverage percentage tempts
+      # people to waive rather than test.  The report is published and
+      # read instead.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: build/coverage.txt
+
+  nightly-deep:
+    name: gate level, timing and fault injection
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    container: hpretl/iic-osic-tools:2026.07
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Gate level simulation and illegal-state recovery
+        run: make gate
+
+      - name: Static timing
+        run: make sta
+
+      - name: Fault injection, all workloads
+        run: make fi FI_RUNS=2600
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-reports
+          path: |
+            build/fi_campaign*.txt
+            build/gate/sta.log
+            build/gate/*.log
