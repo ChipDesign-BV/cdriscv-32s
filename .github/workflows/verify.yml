@@ -31,7 +31,11 @@ jobs:
   lint-and-block:
     name: lint, block benches, smoke
     runs-on: ubuntu-latest
-    container: hpretl/iic-osic-tools:2026.07
+    container:
+      image: hpretl/iic-osic-tools:2026.07
+      # The image runs as an unprivileged user; the runner's /__w is owned by
+      # root, so actions/checkout fails with EACCES writing its state file.
+      options: --user root
     steps:
       - uses: actions/checkout@v4
 
@@ -62,7 +66,11 @@ jobs:
   cosim:
     name: co-simulation against Spike
     runs-on: ubuntu-latest
-    container: hpretl/iic-osic-tools:2026.07
+    container:
+      image: hpretl/iic-osic-tools:2026.07
+      # The image runs as an unprivileged user; the runner's /__w is owned by
+      # root, so actions/checkout fails with EACCES writing its state file.
+      options: --user root
     steps:
       - uses: actions/checkout@v4
 
@@ -97,7 +105,11 @@ jobs:
   software-tests:
     name: subsystem software tests
     runs-on: ubuntu-latest
-    container: hpretl/iic-osic-tools:2026.07
+    container:
+      image: hpretl/iic-osic-tools:2026.07
+      # The image runs as an unprivileged user; the runner's /__w is owned by
+      # root, so actions/checkout fails with EACCES writing its state file.
+      options: --user root
     steps:
       - uses: actions/checkout@v4
 
@@ -131,7 +143,11 @@ jobs:
   formal:
     name: formal property benches
     runs-on: ubuntu-latest
-    container: hpretl/iic-osic-tools:2026.07
+    container:
+      image: hpretl/iic-osic-tools:2026.07
+      # The image runs as an unprivileged user; the runner's /__w is owned by
+      # root, so actions/checkout fails with EACCES writing its state file.
+      options: --user root
     steps:
       - uses: actions/checkout@v4
       - name: Bounded model checking
@@ -145,7 +161,11 @@ jobs:
   coverage:
     name: coverage
     runs-on: ubuntu-latest
-    container: hpretl/iic-osic-tools:2026.07
+    container:
+      image: hpretl/iic-osic-tools:2026.07
+      # The image runs as an unprivileged user; the runner's /__w is owned by
+      # root, so actions/checkout fails with EACCES writing its state file.
+      options: --user root
     steps:
       - uses: actions/checkout@v4
       - name: Line, toggle and functional coverage
@@ -164,7 +184,11 @@ jobs:
     name: gate level, timing and fault injection
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    container: hpretl/iic-osic-tools:2026.07
+    container:
+      image: hpretl/iic-osic-tools:2026.07
+      # The image runs as an unprivileged user; the runner's /__w is owned by
+      # root, so actions/checkout fails with EACCES writing its state file.
+      options: --user root
     steps:
       - uses: actions/checkout@v4
 
