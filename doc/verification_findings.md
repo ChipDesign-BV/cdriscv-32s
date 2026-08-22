@@ -5,6 +5,87 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V29 — every mechanism is armed by an unprotected register (2026-08-22)
+
+V28 added the safety controller's configuration to the fault list and
+found 29 % of upsets latent. This phase completes the set — the clock
+monitor's window and enable, the interrupt controller's enable, the
+timer's compare value, the AMS channel mask — and the figure is worse
+because the earlier list was still partial.
+
+**Twenty-six elements, 2 600 injections:**
+
+| outcome | count | share |
+|---------|-------|-------|
+| detected | 646 | 24.8 % |
+| silent, result correct, configuration intact | 747 | 28.7 % |
+| **latent — correct result, configuration corrupted** | **1 207** | **46.4 %** |
+| silent data corruption | 0 | 0 % |
+| hang | 0 | 0 % |
+
+**Twelve elements are 100 % latent. Not one injection out of 1 207 was
+detected:**
+
+| element | latent / injections |
+|---------|--------------------|
+| safety controller `ENABLE` | 99 / 99 |
+| safety controller `REACT_IRQ` | 95 / 95 |
+| safety controller `REACT_RST` | 101 / 101 |
+| safety controller `CTRL.enable` | 107 / 107 |
+| watchdog `CTRL.enable` | 113 / 113 |
+| clock monitor `CTRL.enable` | 102 / 102 |
+| clock monitor `MIN` | 107 / 107 |
+| clock monitor `MAX` | 94 / 94 |
+| interrupt controller `ENABLE` | 110 / 110 |
+| machine timer `MTIMECMP` | 97 / 97 |
+| AMS channel mask | 90 / 90 |
+| `mtvec` | 92 / 92 |
+
+### The single sentence this reduces to
+
+**Every safety mechanism in this subsystem is armed by a register, and
+not one of those registers is protected.** An upset in any of them
+switches the mechanism off, or moves its threshold, and the design goes
+on producing correct results with nothing to say it has been
+disarmed.
+
+### The detection rate is a property of the fault list
+
+| fault list | elements | detected |
+|------------|---------|----------|
+| original (datapath only) | 9 | 41.0 % |
+| plus safety controller and watchdog | 20 | 31.9 % |
+| plus every other mechanism's configuration | 26 | **24.8 %** |
+
+The design did not change between those three rows. The number fell by
+sixteen points because the list stopped excluding the least protected
+state. Any diagnostic coverage figure quoted without its fault list is
+worth nothing, and this is the demonstration.
+
+### What it corresponds to
+
+This is the shape of the ISO 26262 **latent fault metric** — faults in
+a safety mechanism that are not themselves detected. `safety_manual.md`
+lists that metric as not computed, and it still is not: computing it
+needs a full FMEDA with failure rates per element, not injection counts
+over a hand-picked list. But the qualitative finding is now firm and
+measured: **the latent fault metric for this design, computed today,
+would be poor**, and the reason is a single structural gap rather than
+a scatter of small ones.
+
+### Not fixed here
+
+The fix is a design change — parity on the configuration registers, or
+a periodic read-back-and-compare in software, or shadow registers with
+a comparator. Which one is an architecture decision with area, software
+and diagnostic-interval consequences, and it is not made in a
+verification phase.
+
+What verification has done is turn "the configuration registers are
+unprotected" from a remark someone wrote after reading the RTL into a
+number with a fault list attached: **1 207 of 2 600, and twelve
+elements at 100 %.**
+
 ## Phase V28 — the fault list was flattering the design (2026-08-22)
 
 Every report of this campaign so far has carried the same caveat: the
