@@ -781,7 +781,7 @@ gate: gate-alu gate-multdiv gate-ecc gate-fsm gate-fsm-apb gate-fsm-lsu \
 # wraps its .align directives in ".option rvc", so the assembler pads with c.nop
 # and that padding lands in the executable stream.  An RV32I core must trap on a
 # 16-bit encoding -- and Spike traps at the same address.  See verif/riscof/README.md.
-RISCOF_SUITE := verif/riscof/arch-test-3.5.3/riscv-test-suite
+RISCOF_SUITE := verif/riscof/riscv-arch-test/riscv-test-suite
 
 # A separate build with a larger instruction memory: the architectural
 # tests do not fit in the 4096 words the subsystem defaults to.
@@ -801,9 +801,23 @@ riscof: $(BUILD)/tb_cosim_arch.vvp
 	@test -d $(RISCOF_SUITE) || { \
 	  echo "riscv-arch-test not present: see verif/riscof/README.md"; \
 	  exit 1; }
+	cd verif/riscof && riscof testlist --config=config.ini \
+	  --suite=riscv-arch-test/riscv-test-suite/ \
+	  --env=riscv-arch-test/riscv-test-suite/env
+	# Drop the pmp group.  Those tests gate on "verify (PMP['implemented'])",
+	# and riscof only evaluates "check" clauses when selecting tests, so all 42
+	# are selected on any RV32 I+Zicsr core.  This core implements no PMP and
+	# has no U mode.  See verif/riscof/upstream-issues.md.
+	cd verif/riscof && python3 -c "import yaml,sys; \
+	  d=yaml.safe_load(open('riscof_work/test_list.yaml')); \
+	  k=[t for t in d if '/pmp/' in d[t]['test_path']]; \
+	  [d.pop(t) for t in k]; \
+	  yaml.safe_dump(d, open('riscof_work/test_list_filtered.yaml','w')); \
+	  sys.stderr.write('riscof: dropped %d pmp tests, running %d\\n' % (len(k), len(d)))"
 	cd verif/riscof && riscof run --config=config.ini \
-	  --suite=arch-test-3.5.3/riscv-test-suite/ \
-	  --env=arch-test-3.5.3/riscv-test-suite/env --no-browser
+	  --suite=riscv-arch-test/riscv-test-suite/ \
+	  --env=riscv-arch-test/riscv-test-suite/env --no-browser \
+	  --testfile=riscof_work/test_list_filtered.yaml
 
 # ------------------------------------------------- static timing (O8)
 # OpenSTA against the same SG13G2 library the netlist is mapped to.
