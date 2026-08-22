@@ -843,8 +843,12 @@ $(BUILD)/tb_fi.vvp: $(RTL) verif/fi/tb_fi.sv | $(BUILD)
 # nothing is what a safety mechanism exists to prevent.
 fi: fi-arith fi-trap fi-mem
 
+# --golden-cfg is the safety configuration signature from a fault-free
+# run.  Without it a fault that switches a detector off is reported as
+# silent-ok, which is the most misleading label available.
 fi-arith: $(BUILD)/tb_fi.vvp $(BUILD)/fi_workload.hex $(BUILD)/dtcm_zero.hex
 	$(PYTHON) scripts/fi_campaign.py --runs $(FI_RUNS) --seed $(FI_SEED) \
+	  --golden-cfg 00000001_ffffffff_00000128 \
 	  | tee $(BUILD)/fi_campaign.txt
 
 # Workload B exists because workload A reported mepc and mstatus.MIE as

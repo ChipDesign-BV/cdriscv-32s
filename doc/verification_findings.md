@@ -5,6 +5,93 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V28 — the fault list was flattering the design (2026-08-22)
+
+Every report of this campaign so far has carried the same caveat: the
+fault list is nine named state elements, not the design's flops. This
+phase extends it to **twenty**, and the result is that the previous
+numbers were not merely incomplete — they were **biased**.
+
+The nine original targets were all datapath: register file, fetch
+buffer, program counter, CSRs the workload uses, the memories. The
+eleven added are the state that *watches* the datapath — the safety
+controller's own configuration, the watchdog's, the lockstep delay
+pipeline, the core's state machine.
+
+**Detection over 2 000 injections falls from 41.0 % to 31.9 %** simply
+by asking about the second group. Nothing changed in the design.
+
+### "silent-ok" was hiding the worst outcome the campaign can produce
+
+The bigger finding is what the old classification called those runs.
+
+An upset in `safety_ctrl.enable_q` does not corrupt a result. It
+switches a fault source off. The workload then runs to completion,
+produces exactly the right checksum, reports no fault — and the
+mechanism that was supposed to be watching is gone. The campaign
+called that **silent-ok**, which is the most misleading label
+available: the workload passing is not evidence of anything when the
+thing that would have complained is the thing that was hit.
+
+The bench now emits a signature of the safety configuration and the
+driver classifies a run whose configuration changed as **latent**:
+
+| outcome | count | share |
+|---------|-------|-------|
+| detected | 638 | 31.9 % |
+| silent, result correct, configuration intact | 780 | 39.0 % |
+| **latent — result correct, safety configuration corrupted** | **582** | **29.1 %** |
+| silent data corruption | 0 | 0 % |
+| hang | 0 | 0 % |
+
+Six elements are **100 % latent**, every injection, no exceptions:
+
+| element | latent / injections |
+|---------|--------------------|
+| safety controller `ENABLE` | 98 / 98 |
+| safety controller `REACT_IRQ` | 102 / 102 |
+| safety controller `REACT_RST` | 104 / 104 |
+| safety controller `CTRL.enable` | 98 / 98 |
+| watchdog `CTRL.enable` | 89 / 89 |
+| `mtvec` | 91 / 91 |
+
+`mtvec` belongs in that list for a slightly different reason: it is not
+a detector, but an upset in it sends the *next* trap to the wrong
+address, and nothing notices until a trap happens. Same shape of
+problem — the damage is real and deferred.
+
+`safety_ctrl.status_q` is the mirror image: **101 of 101 detected**.
+Flipping a status bit sets a fault bit, so the register that records
+faults reports its own corruption. So does the lockstep delay pipeline,
+100 of 100 — the comparator's own storage is fully covered by the
+comparator.
+
+### What this does and does not change
+
+It does not change the design. `safety_manual.md` has said since the
+first draft that the safety controller's configuration registers are
+unprotected — that note was written from reading the RTL. **This is the
+first time it has been measured**, and it is worth more as a number
+than as a remark: 29 % of upsets in this fault list produce a run that
+looks perfect and is not.
+
+It does not mean the design is worse than it was. It means the
+published detection rate was measured over a fault list that excluded
+the least protected state, and reporting 41 % from that list was
+flattering.
+
+And it sharpens what the campaign is for. Zero SDC across every run so
+far is a real result about the datapath. It says nothing about latent
+faults, because SDC and latency are different failure modes and only
+one of them was being counted.
+
+### The obvious next question
+
+Protecting configuration registers — parity or a periodic
+read-back-and-compare by software — is a design decision, not a
+verification one, and is not made here. What verification can now say
+is what it would be worth: **582 of 2 000**.
+
 ## Phase V27 — W2a argued against gates for all six machines (2026-08-22)
 
 The AMS sequencer and the core complete the set. **No state machine in
