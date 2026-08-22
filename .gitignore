@@ -14,4 +14,5 @@ runs/
 # `riscof arch-test --clone`, not vendored here.  riscof_work is run
 # output.
 verif/riscof/riscv-arch-test/
+verif/riscof/arch-test-3.5.3/
 verif/riscof/riscof_work/

@@ -93,7 +93,14 @@ class spike(pluginTemplate):
 
             execute = "@cd "+testentry['work_dir']+";"
 
-            cmd = self.compile_cmd.format(testentry['isa'].lower(), self.xlen) + ' ' + test + ' -o ' + elf
+            # Same Zicsr/Zifencei split as on the DUT side: a 2022
+            # vintage suite predates it and -march=rv32i will not
+            # assemble fence.i with modern binutils.
+            _march = testentry['isa'].lower()
+            for _e in ('_zicsr', '_zifencei'):
+                if _e not in _march:
+                    _march += _e
+            cmd = self.compile_cmd.format(_march, self.xlen) + ' ' + test + ' -o ' + elf
 
             #TODO: we are using -D to enable compile time macros. If your
             #      toolchain is not riscv-gcc you may want to change the below code

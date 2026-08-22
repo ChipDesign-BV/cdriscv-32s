@@ -781,7 +781,13 @@ RISCOF_SUITE := verif/riscof/riscv-arch-test/riscv-test-suite
 
 # A separate build with a larger instruction memory: the architectural
 # tests do not fit in the 4096 words the subsystem defaults to.
-RISCOF_ITCM ?= 16384
+# The architectural tests need far more memory than any other bench
+# here.  jal-01.S spans 437928 words because JAL has a plus/minus 1 MiB
+# range and the test exercises the extremes; beq-01.S needs 57296.  At
+# too small a size the image is silently truncated at load and the
+# symptom is a bus error around cycle 90, which says nothing about the
+# cause.
+RISCOF_ITCM ?= 524288
 
 $(BUILD)/tb_cosim_arch.vvp: $(RTL) verif/core/tb_cosim.sv | $(BUILD)
 	$(IVERILOG) -g2012 -Ptb_cosim.ItcmWords=$(RISCOF_ITCM) -o $@ -s tb_cosim \
