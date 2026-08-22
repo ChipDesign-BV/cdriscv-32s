@@ -5,6 +5,80 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V35 — the three misaligned-load failures were the bench, not the core; 62 of 62 pass (2026-08-22)
+
+The three failures left open by V34 — `misalign-lh-01`, `misalign-lhu-01`,
+`misalign-lw-01` — are a defect in this repository's RISCOF environment. The
+core is architecturally correct. With the environment fixed the suite is
+**62 passed, 0 failed**, and objective O1 is met.
+
+Each failing test differed from the reference in exactly one signature word.
+The trap record the arch-test handler writes is four words — vector+mode,
+`mcause`, `mepc` relative to `rvtest_prolog_done`, `mtval` relative to an
+anchor — and for `misalign-lh-01` it read:
+
+| word | field | DUT | reference |
+|---|---|---|---|
+| 4 | vector + mode | `0000008f` | `0000008f` |
+| 5 | `mcause` | `00000004` | `00000004` |
+| 6 | rel `mepc` | `00000108` | `00000108` |
+| 7 | rel `mtval` | `fffffe55` | `ffffffe5` |
+
+`mcause` 4 is load-address-misaligned and both agree. Rel `mepc` 0x108 over
+`rvtest_prolog_done` at 0x8000000c is 0x80000114, which is the `lh` itself, and
+both agree. So the core took the right trap on the right instruction. Only the
+address disagreed, and by a constant 0x190 = 400 bytes across all three tests.
+
+The faulting address is not in dispute either. The load is `lh a1,1365(a0)`
+with `a0` = 0x8000031c, giving 0x80000871, and running the same ELF under Spike
+with `-l --log-commits` prints `tval 0x80000871` — the value the core produces.
+What differs is what the handler subtracts from it. For `mcause` 4 the handler
+anchors `mtval` on `mtrap_sigptr`, and the distance from the faulting datum to
+that anchor is not the same in the two builds:
+
+```
+              rvtest_data   mtrap_sigptr   gap
+DUT build      80000870      80000a1c      0x1ac = 428
+Spike build    80002070      8000208c      0x01c =  28
+```
+
+400 bytes of ours, sitting between the data and the signature. They come from
+`verif/riscof/cdriscv/env/model_test.h`, which expanded `RVMODEL_DATA_SECTION`
+inside `RVMODEL_DATA_BEGIN`, ahead of `begin_signature`. On RISC-V `.align 8`
+means 2⁸ = 256 bytes, not 8, and that block contains two of them:
+
+```
+rvtest_data      80000870
+rvtest_data_end  80000880
+begin_regstate   80000900     <- 256-byte aligned
+end_regstate     80000a00     <- 256 bytes further on
+begin_signature  80000a10
+```
+
+Spike's environment expands the same block inside `RVMODEL_DATA_END`, past
+`end_signature`, where its padding cannot land between the data and the anchor.
+The fix is to do the same. One line moved; all three tests pass.
+
+Two things are worth keeping from this.
+
+The first is that the framework's relative encoding is not as
+layout-independent as it looks. It removes the load offset, but the anchor is
+`mtrap_sigptr`, so any difference in how much the DUT environment places
+between `rvtest_data` and the signature is silently folded into the recorded
+`mtval`. Only exceptions whose `mtval` is a data address are affected, which is
+why the misaligned **loads** failed while the misaligned **stores** and every
+branch and jump test passed — their anchors are elsewhere. Three failures out
+of sixty-two looked like a narrow defect in the core. It was a property of the
+whole environment that only three tests were positioned to expose.
+
+The second is the shape of the diagnosis. V34 recorded the failure as open and
+declined to guess, and the guess that was available at the time — the reference
+values looked like sign-extended bytes and the DUT's like sign-extended
+halfwords, so perhaps the load-size decode was wrong — was entirely wrong. The
+values were never data. They were addresses, and the byte pattern was
+coincidence. Reading the two ELF symbol tables took less time than testing that
+hypothesis would have taken.
+
 ## Phase V34 — RISCOF runs, 59 of 62 pass, and three failures worth chasing (2026-08-22)
 
 Objective O1 has a result. Following the decision to try an older suite
@@ -73,6 +147,11 @@ a missing check. It is something about what is left behind afterwards.
 architectural suite exists to find: three of 62 tests, one coherent
 class, not visible to any test written from the same understanding of
 the design as the RTL.
+
+> **Resolved by V35.** The defect was in this repository's RISCOF environment,
+> not in the core: 400 bytes of `.align 8` padding ahead of the signature. The
+> paragraphs here stand as written at the time, including the sign-extension
+> guess, which was wrong.
 
 **No conclusion about conformance is drawn here.** 59 of 62 is not a
 pass, the three that fail are a real disagreement with the golden

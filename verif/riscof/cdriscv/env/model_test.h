@@ -31,13 +31,19 @@
 
 #define RVMODEL_BOOT
 
+// RVMODEL_DATA_SECTION must expand AFTER end_signature, never before
+// begin_signature.  ".align 8" is 2**8 = 256 bytes on RISC-V, so this block
+// carries ~400 bytes of padding with it; in front of the signature that
+// padding sits between rvtest_data and mtrap_sigptr, and the arch-test trap
+// handler records mtval *relative to mtrap_sigptr*.  The same faulting
+// address then encodes as a different number than in the reference build.
+// See finding V35.
 #define RVMODEL_DATA_BEGIN                                              \
-  RVMODEL_DATA_SECTION                                                  \
   .align 4; .global begin_signature; begin_signature:
 
 #define RVMODEL_DATA_END                                                \
   .align 4; .global end_signature; end_signature:                       \
-  .align 4;
+  RVMODEL_DATA_SECTION
 
 // No console on this subsystem: the signature is the only output.
 #define RVMODEL_IO_INIT
