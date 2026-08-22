@@ -7,34 +7,36 @@
 > [!CAUTION]
 > **NOT VERIFIED YET — DO NOT USE YET.**
 >
-> This banner said "phase V0, no coverage collected, nothing
-> synthesised" for far longer than it was true. It is now accurate as
-> of phase V18 of [doc/verification_plan.md](doc/verification_plan.md),
-> and the status table below is generated from runs that are in the
-> repository.
+> This banner comes off when the O1–O7 gate of
+> [doc/verification_plan.md](doc/verification_plan.md) is met — "may be
+> used in a project" by the plan's own definition — and not before. The
+> audit below is against that gate's criteria, verbatim, from runs that
+> are in the repository.
 >
-> **What has been done.** The RTL lints clean and is co-simulated
-> against Spike over millions of instructions; there are block benches,
-> six formal property benches, seventeen simulation targets, 96 % line
-> coverage (100 % with reviewed waivers), 100 % functional coverage
-> over 65 cover points, 3 000 fault injections with no silent data
-> corruption, synthesis to IHP SG13G2 cells with the software tests
-> re-run on the netlist, and static timing. **Nine functional defects
-> have been found and fixed**, several of which broke a safety
-> mechanism outright.
+> | # | Objective | Criterion | State |
+> |---|-----------|-----------|-------|
+> | O1 | ISA conformance | `riscv-arch-test` passes vs Spike | **met** — 85 of 85, current suite, unmodified |
+> | O2 | golden-model random co-simulation | **≥ 10⁹ instructions**, zero mismatches | **open** — 5.6 × 10⁶ so far, zero mismatches; three orders of magnitude of compute remain |
+> | O3 | block benches | all directed tests pass | **met** |
+> | O4 | safety mechanisms fire, and only then | fires + stays-quiet test per mechanism | **met** — benches plus ~10⁴ fault injections |
+> | O5 | structural cleanliness | lint clean, documented waivers | **met** |
+> | O6 | code coverage | **100 % stmt/branch, ≥ 95 % toggle**, reviewed waivers | **open** — 96.0 % line, 92.5 % toggle |
+> | O7 | functional coverage | cross matrices closed | **met** — 65 of 65 cover points |
 >
-> **Why it still says do not use.** No architectural test suite
-> (RISCOF) has been run, so conformance to the RISC-V specification
-> rests on Spike co-simulation of the programs that happen to exist. No
-> FMEDA and no diagnostic coverage figure. No timing closure — static
-> timing runs, but the reset nets have no buffer tree and no Fmax can
-> be quoted. Nothing has been laid out and nothing has been near
-> silicon. Every finding raised so far is now closed.
+> Also true, and not part of that gate: configuration-register upsets
+> are hardware-detected (latent 46.4 % → 0, measured); a placed and
+> buffered netlist runs at 81 MHz against a 100 MHz target; twelve
+> functional defects have been found and fixed; CI runs the whole
+> gate on every push.
 >
-> **Do not use yet** — not in a product, not in a tapeout, not as a
-> reference, and above all not in anything that has to be safe. No
-> functional safety claim of any kind is made, and no compliance with
-> ISO 26262, IEC 61508 or any other standard.
+> **Beyond O1–O7**, use in a *safety* context additionally needs O8–O9
+> (gate-level simulation with SDF, the fault campaign feeding an FMEDA)
+> and the FMEDA itself, which is outside the plan. No functional safety
+> claim of any kind is made, and no compliance with ISO 26262,
+> IEC 61508 or any other standard.
+>
+> **Do not use yet** — not in a product, not in a tapeout, and above
+> all not in anything that has to be safe.
 
 ## What it is
 
