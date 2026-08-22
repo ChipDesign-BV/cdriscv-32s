@@ -5,6 +5,79 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V34 — RISCOF runs, 59 of 62 pass, and three failures worth chasing (2026-08-22)
+
+Objective O1 has a result. Following the decision to try an older suite
+release before patching anything: **`riscv-arch-test` 3.5.3, the newest
+release that predates the compressed-padding change** — the `.option
+rvc` around `.align` entered the suite in late 2022 and 3.6.0
+(2023-01-25) is the first release carrying it.
+
+**59 tests passed, 3 failed**, over 62 selected: 38 from I, 8 from M,
+15 from privilege, 1 Zifencei.
+
+Nothing in the suite was modified.
+
+### What it took to get there
+
+Five things, none of them about the core:
+
+* **The suite is much bigger than any other bench here.** `jal-01.S`
+  spans **437 928 words** because JAL has a ±1 MiB range and the test
+  exercises the extremes; `beq-01.S` needs 57 296. The bench I-TCM is
+  now 524 288 words for RISCOF only. Undersized, the image is silently
+  truncated at load and the symptom is a bus error around cycle 90,
+  which says nothing about the cause — it cost three iterations to
+  recognise.
+* **`-march=rv32i` does not assemble `fence.i`.** Finding V0-F3
+  arriving from a third direction: RISCOF passes the ISA the *test*
+  declares, and a 2022 suite predates the Zicsr/Zifencei split. Both
+  plugins now append the extensions.
+* **`jobs` defaults to 1** in the plugin template. One test that never
+  halts then blocks the whole run behind it — the first five tests
+  finished in five seconds and the sixth sat on the cycle limit.
+* **The cycle bound was 8 000 000.** A test that has not finished in
+  400 000 is not going to; bounding it turns a hang into a failure,
+  which is a result.
+* Two tests are excluded, both for reasons external to the design:
+  `cebreak-01.S`, a C extension test **selected by a typo in the
+  suite** — its regex is `.*I.*Zicsr.*.C*`, and `C*` matches *zero*
+  occurrences of C, so it selects on cores without the extension (the
+  other 26 C tests use `.*C.*` correctly, and current releases have
+  fixed it); and `jalr-01.S`, which modern binutils rejects with
+  `illegal operands 'la x0,5b'` — loading an address into `x0`.
+
+### The three failures: misaligned loads
+
+`misalign-lh-01.S`, `misalign-lhu-01.S` and `misalign-lw-01.S` fail.
+`misalign-sh-01.S` and `misalign-sw-01.S` **pass**.
+
+Loads and stores behaving differently is a specific enough asymmetry to
+be worth chasing rather than dismissing. The signatures differ in
+**3 words of 72**:
+
+```
+word 9   DUT fffffe4d   reference ffffffdd
+word 13  DUT fffffe4e   reference ffffffde
+word 17  DUT fffffe4f   reference ffffffdf
+```
+
+The reference values look like sign-extended *bytes* (`0xdd`, `0xde`,
+`0xdf`); the DUT's look like sign-extended *halfwords* (`0xfe4d`,
+`0xfe4e`, `0xfe4f`). The core does detect misalignment —
+`cdriscv_core.sv` raises `EXC_LOAD_MISALIGN` on a word access with
+`addr[1:0] != 0` and a half access with `addr[0] != 0` — so this is not
+a missing check. It is something about what is left behind afterwards.
+
+**This is open and unexplained**, and it is exactly what the
+architectural suite exists to find: three of 62 tests, one coherent
+class, not visible to any test written from the same understanding of
+the design as the RTL.
+
+**No conclusion about conformance is drawn here.** 59 of 62 is not a
+pass, the three that fail are a real disagreement with the golden
+model, and the next phase's job is to find out which side is right.
+
 ## Phase V33 — how long a fault goes unreported (2026-08-22)
 
 V32 needed detection latency for one fault class and the campaign now

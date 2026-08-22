@@ -41,7 +41,11 @@ class cdriscv(pluginTemplate):
         # Number of parallel jobs that can be spawned off by RISCOF
         # for various actions performed in later functions, specifically to run the tests in
         # parallel on the DUT executable. Can also be used in the build function if required.
-        self.num_jobs = str(config['jobs'] if 'jobs' in config else 1)
+        # Default 1 in the template.  One test that never halts then
+        # blocks the whole run behind it, which is what happened: the
+        # first five tests finished in five seconds and the sixth sat
+        # on the cycle limit.
+        self.num_jobs = str(config['jobs'] if 'jobs' in config else 8)
 
         # Path to the directory where this python file is located. Collect it from the config.ini
         self.pluginpath=os.path.abspath(config['pluginpath'])
@@ -153,7 +157,16 @@ class cdriscv(pluginTemplate):
 
           # substitute all variables in the compile command that we created in the initialize
           # function
-          cmd = self.compile_cmd.format(testentry['isa'].lower(), self.xlen, test, elf, compile_macros)
+          # Modern binutils split Zicsr and Zifencei out of the base ISA
+          # strings, so `-march=rv32i` no longer assembles `fence.i` or
+          # any csr instruction.  RISCOF passes the ISA the *test*
+          # declares, which for a 2022-vintage suite predates the split.
+          # This is finding V0-F3 arriving from a third direction.
+          march = testentry['isa'].lower()
+          for ext in ('_zicsr', '_zifencei'):
+              if ext not in march:
+                  march += ext
+          cmd = self.compile_cmd.format(march, self.xlen, test, elf, compile_macros)
 
 	  # if the user wants to disable running the tests and only compile the tests, then
 	  # the "else" clause is executed below assigning the sim command to simple no action
@@ -187,10 +200,10 @@ class cdriscv(pluginTemplate):
               '--gap-fill 0 --pad-to $$(riscv{0}-unknown-elf-nm {1} '
               '| awk \'/ end_signature$$/ {{print "0x"$$1}}\') '
               '{1} my.bin && '
-              'python3 {2}/scripts/mkimage.py my.bin my.hex --words 16384 '
+              'python3 {2}/scripts/mkimage.py my.bin my.hex --words 524288 '
               '>/dev/null && '
               'vvp {2}/build/tb_cosim_arch.vvp +HEX=my.hex +QUIET '
-              '+MAXRETIRE=2000000 +MAXCYCLES=8000000 '
+              '+MAXRETIRE=200000 +MAXCYCLES=400000 '
               '+TOHOST=$$(riscv{0}-unknown-elf-nm {1} '
               '| awk \'/ tohost$$/ {{print $$1}}\') '
               '+SIGBEGIN=$$(riscv{0}-unknown-elf-nm {1} '
