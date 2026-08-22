@@ -40,18 +40,34 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Tool environment
-        # The image puts its tools under /foss/tools and sets PATH only from
-        # /etc/profile.d/iic-osic-tools-setup.sh, which a login shell sources
-        # and an Actions step's shell does not.  Without this every step dies
-        # with "verilator: command not found" and make exit 127.
+        # The image keeps its tools outside the default PATH and sets them up
+        # from a login profile, which an Actions step's shell never sources.
+        # Without this every step dies with "verilator: command not found".
+        # Sourcing the profile is tried first; if the image has moved things,
+        # fall back to locating each tool and adding its directory.
         run: |
           set -e
           set +u   # the setup script reads variables it does not always set
-          . /etc/profile.d/iic-osic-tools-setup.sh >/dev/null 2>&1 || true
+          for f in /etc/profile.d/iic-osic-tools-setup.sh /headless/.bashrc; do
+            [ -r "$f" ] && . "$f" >/dev/null 2>&1 || true
+          done
           set -u
+          for d in /foss/tools/bin /foss/tools/sak /foss/tools/klayout \
+                   /foss/tools/kactus2 /foss/tools/osic-multitool; do
+            [ -d "$d" ] && PATH="$d:$PATH"
+          done
+          for t in verilator iverilog yosys vvp sby verilator_coverage; do
+            command -v "$t" >/dev/null 2>&1 && continue
+            d=$(find / -xdev -name "$t" -type f -perm -u+x 2>/dev/null | head -1)
+            [ -n "$d" ] && PATH="$(dirname "$d"):$PATH"
+          done
           echo "PATH=$PATH" >> "$GITHUB_ENV"
           echo "PYTHONPATH=${PYTHONPATH:-}" >> "$GITHUB_ENV"
-          command -v verilator iverilog yosys
+          echo "--- resolved ---"
+          for t in verilator iverilog yosys vvp sby verilator_coverage; do
+            printf '%-20s %s\n' "$t" "$(command -v "$t" 2>/dev/null || echo MISSING)"
+          done
+          command -v verilator >/dev/null   # hard gate: the rest is pointless without it
 
       - name: Lint (hard gate, waivers in verif/lint/waivers.vlt)
         run: make lint
@@ -89,18 +105,34 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Tool environment
-        # The image puts its tools under /foss/tools and sets PATH only from
-        # /etc/profile.d/iic-osic-tools-setup.sh, which a login shell sources
-        # and an Actions step's shell does not.  Without this every step dies
-        # with "verilator: command not found" and make exit 127.
+        # The image keeps its tools outside the default PATH and sets them up
+        # from a login profile, which an Actions step's shell never sources.
+        # Without this every step dies with "verilator: command not found".
+        # Sourcing the profile is tried first; if the image has moved things,
+        # fall back to locating each tool and adding its directory.
         run: |
           set -e
           set +u   # the setup script reads variables it does not always set
-          . /etc/profile.d/iic-osic-tools-setup.sh >/dev/null 2>&1 || true
+          for f in /etc/profile.d/iic-osic-tools-setup.sh /headless/.bashrc; do
+            [ -r "$f" ] && . "$f" >/dev/null 2>&1 || true
+          done
           set -u
+          for d in /foss/tools/bin /foss/tools/sak /foss/tools/klayout \
+                   /foss/tools/kactus2 /foss/tools/osic-multitool; do
+            [ -d "$d" ] && PATH="$d:$PATH"
+          done
+          for t in verilator iverilog yosys vvp sby verilator_coverage; do
+            command -v "$t" >/dev/null 2>&1 && continue
+            d=$(find / -xdev -name "$t" -type f -perm -u+x 2>/dev/null | head -1)
+            [ -n "$d" ] && PATH="$(dirname "$d"):$PATH"
+          done
           echo "PATH=$PATH" >> "$GITHUB_ENV"
           echo "PYTHONPATH=${PYTHONPATH:-}" >> "$GITHUB_ENV"
-          command -v verilator iverilog yosys
+          echo "--- resolved ---"
+          for t in verilator iverilog yosys vvp sby verilator_coverage; do
+            printf '%-20s %s\n' "$t" "$(command -v "$t" 2>/dev/null || echo MISSING)"
+          done
+          command -v verilator >/dev/null   # hard gate: the rest is pointless without it
 
       - name: Cache the Spike build
         id: spike-cache
@@ -142,18 +174,34 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Tool environment
-        # The image puts its tools under /foss/tools and sets PATH only from
-        # /etc/profile.d/iic-osic-tools-setup.sh, which a login shell sources
-        # and an Actions step's shell does not.  Without this every step dies
-        # with "verilator: command not found" and make exit 127.
+        # The image keeps its tools outside the default PATH and sets them up
+        # from a login profile, which an Actions step's shell never sources.
+        # Without this every step dies with "verilator: command not found".
+        # Sourcing the profile is tried first; if the image has moved things,
+        # fall back to locating each tool and adding its directory.
         run: |
           set -e
           set +u   # the setup script reads variables it does not always set
-          . /etc/profile.d/iic-osic-tools-setup.sh >/dev/null 2>&1 || true
+          for f in /etc/profile.d/iic-osic-tools-setup.sh /headless/.bashrc; do
+            [ -r "$f" ] && . "$f" >/dev/null 2>&1 || true
+          done
           set -u
+          for d in /foss/tools/bin /foss/tools/sak /foss/tools/klayout \
+                   /foss/tools/kactus2 /foss/tools/osic-multitool; do
+            [ -d "$d" ] && PATH="$d:$PATH"
+          done
+          for t in verilator iverilog yosys vvp sby verilator_coverage; do
+            command -v "$t" >/dev/null 2>&1 && continue
+            d=$(find / -xdev -name "$t" -type f -perm -u+x 2>/dev/null | head -1)
+            [ -n "$d" ] && PATH="$(dirname "$d"):$PATH"
+          done
           echo "PATH=$PATH" >> "$GITHUB_ENV"
           echo "PYTHONPATH=${PYTHONPATH:-}" >> "$GITHUB_ENV"
-          command -v verilator iverilog yosys
+          echo "--- resolved ---"
+          for t in verilator iverilog yosys vvp sby verilator_coverage; do
+            printf '%-20s %s\n' "$t" "$(command -v "$t" 2>/dev/null || echo MISSING)"
+          done
+          command -v verilator >/dev/null   # hard gate: the rest is pointless without it
 
       # Each of these found something when it was written -- the safety
       # tests three clock-domain defects, the fence test two decoder
@@ -194,18 +242,34 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Tool environment
-        # The image puts its tools under /foss/tools and sets PATH only from
-        # /etc/profile.d/iic-osic-tools-setup.sh, which a login shell sources
-        # and an Actions step's shell does not.  Without this every step dies
-        # with "verilator: command not found" and make exit 127.
+        # The image keeps its tools outside the default PATH and sets them up
+        # from a login profile, which an Actions step's shell never sources.
+        # Without this every step dies with "verilator: command not found".
+        # Sourcing the profile is tried first; if the image has moved things,
+        # fall back to locating each tool and adding its directory.
         run: |
           set -e
           set +u   # the setup script reads variables it does not always set
-          . /etc/profile.d/iic-osic-tools-setup.sh >/dev/null 2>&1 || true
+          for f in /etc/profile.d/iic-osic-tools-setup.sh /headless/.bashrc; do
+            [ -r "$f" ] && . "$f" >/dev/null 2>&1 || true
+          done
           set -u
+          for d in /foss/tools/bin /foss/tools/sak /foss/tools/klayout \
+                   /foss/tools/kactus2 /foss/tools/osic-multitool; do
+            [ -d "$d" ] && PATH="$d:$PATH"
+          done
+          for t in verilator iverilog yosys vvp sby verilator_coverage; do
+            command -v "$t" >/dev/null 2>&1 && continue
+            d=$(find / -xdev -name "$t" -type f -perm -u+x 2>/dev/null | head -1)
+            [ -n "$d" ] && PATH="$(dirname "$d"):$PATH"
+          done
           echo "PATH=$PATH" >> "$GITHUB_ENV"
           echo "PYTHONPATH=${PYTHONPATH:-}" >> "$GITHUB_ENV"
-          command -v verilator iverilog yosys
+          echo "--- resolved ---"
+          for t in verilator iverilog yosys vvp sby verilator_coverage; do
+            printf '%-20s %s\n' "$t" "$(command -v "$t" 2>/dev/null || echo MISSING)"
+          done
+          command -v verilator >/dev/null   # hard gate: the rest is pointless without it
       - name: Bounded model checking
         run: make formal
       - uses: actions/upload-artifact@v4
@@ -226,18 +290,34 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Tool environment
-        # The image puts its tools under /foss/tools and sets PATH only from
-        # /etc/profile.d/iic-osic-tools-setup.sh, which a login shell sources
-        # and an Actions step's shell does not.  Without this every step dies
-        # with "verilator: command not found" and make exit 127.
+        # The image keeps its tools outside the default PATH and sets them up
+        # from a login profile, which an Actions step's shell never sources.
+        # Without this every step dies with "verilator: command not found".
+        # Sourcing the profile is tried first; if the image has moved things,
+        # fall back to locating each tool and adding its directory.
         run: |
           set -e
           set +u   # the setup script reads variables it does not always set
-          . /etc/profile.d/iic-osic-tools-setup.sh >/dev/null 2>&1 || true
+          for f in /etc/profile.d/iic-osic-tools-setup.sh /headless/.bashrc; do
+            [ -r "$f" ] && . "$f" >/dev/null 2>&1 || true
+          done
           set -u
+          for d in /foss/tools/bin /foss/tools/sak /foss/tools/klayout \
+                   /foss/tools/kactus2 /foss/tools/osic-multitool; do
+            [ -d "$d" ] && PATH="$d:$PATH"
+          done
+          for t in verilator iverilog yosys vvp sby verilator_coverage; do
+            command -v "$t" >/dev/null 2>&1 && continue
+            d=$(find / -xdev -name "$t" -type f -perm -u+x 2>/dev/null | head -1)
+            [ -n "$d" ] && PATH="$(dirname "$d"):$PATH"
+          done
           echo "PATH=$PATH" >> "$GITHUB_ENV"
           echo "PYTHONPATH=${PYTHONPATH:-}" >> "$GITHUB_ENV"
-          command -v verilator iverilog yosys
+          echo "--- resolved ---"
+          for t in verilator iverilog yosys vvp sby verilator_coverage; do
+            printf '%-20s %s\n' "$t" "$(command -v "$t" 2>/dev/null || echo MISSING)"
+          done
+          command -v verilator >/dev/null   # hard gate: the rest is pointless without it
       - name: Line, toggle and functional coverage
         run: make coverage
       # Not a gate.  Objective O6 is met with reviewed waivers and O7 is
@@ -263,18 +343,34 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Tool environment
-        # The image puts its tools under /foss/tools and sets PATH only from
-        # /etc/profile.d/iic-osic-tools-setup.sh, which a login shell sources
-        # and an Actions step's shell does not.  Without this every step dies
-        # with "verilator: command not found" and make exit 127.
+        # The image keeps its tools outside the default PATH and sets them up
+        # from a login profile, which an Actions step's shell never sources.
+        # Without this every step dies with "verilator: command not found".
+        # Sourcing the profile is tried first; if the image has moved things,
+        # fall back to locating each tool and adding its directory.
         run: |
           set -e
           set +u   # the setup script reads variables it does not always set
-          . /etc/profile.d/iic-osic-tools-setup.sh >/dev/null 2>&1 || true
+          for f in /etc/profile.d/iic-osic-tools-setup.sh /headless/.bashrc; do
+            [ -r "$f" ] && . "$f" >/dev/null 2>&1 || true
+          done
           set -u
+          for d in /foss/tools/bin /foss/tools/sak /foss/tools/klayout \
+                   /foss/tools/kactus2 /foss/tools/osic-multitool; do
+            [ -d "$d" ] && PATH="$d:$PATH"
+          done
+          for t in verilator iverilog yosys vvp sby verilator_coverage; do
+            command -v "$t" >/dev/null 2>&1 && continue
+            d=$(find / -xdev -name "$t" -type f -perm -u+x 2>/dev/null | head -1)
+            [ -n "$d" ] && PATH="$(dirname "$d"):$PATH"
+          done
           echo "PATH=$PATH" >> "$GITHUB_ENV"
           echo "PYTHONPATH=${PYTHONPATH:-}" >> "$GITHUB_ENV"
-          command -v verilator iverilog yosys
+          echo "--- resolved ---"
+          for t in verilator iverilog yosys vvp sby verilator_coverage; do
+            printf '%-20s %s\n' "$t" "$(command -v "$t" 2>/dev/null || echo MISSING)"
+          done
+          command -v verilator >/dev/null   # hard gate: the rest is pointless without it
 
       - name: Gate level simulation and illegal-state recovery
         run: make gate
