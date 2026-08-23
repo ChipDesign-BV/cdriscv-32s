@@ -161,6 +161,16 @@ _start:
     li   a0, 14
     bnez t1, fail               /* REACT_RST must be untouched */
 
+    /* CFG_SRC (V37): with no configuration parity fault latched, the
+     * source register must read zero -- and reading it at all is the
+     * point, because this read arm existed for a day with no test on
+     * it.  The fault-present case is the bench half's job
+     * (tb_safety.sv), since raising a real parity error takes a
+     * deposit into a register, which software cannot do. */
+    lw   t1, 0x28(s0)
+    li   a0, 30
+    bnez t1, fail
+
     /* ---- memory BIST: read only ----------------------------------- */
     li   s0, MBIST
     lw   t1, 0x00(s0)           /* CTRL is write only, reads as zero */

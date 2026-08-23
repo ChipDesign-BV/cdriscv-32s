@@ -429,6 +429,70 @@ module tb_safety;
     release dut.u_wdog.rst_en_q;
     release dut.u_wdog.enable_q;
 
+    // ---- configuration parity (V37) --------------------------------
+    // Software cannot raise a real parity error: writing a register
+    // rebaselines its parity by design.  Only a deposit -- the SEU
+    // model -- creates the mismatch, so the bench owns these checks.
+
+    // The circular case first, because it is the reason the mechanism
+    // exists: flip the safety controller's own CTRL.enable.  Before
+    // V37 this was the fault that could never be reported -- the
+    // register the fault disabled was the one that would have recorded
+    // it.  Now it must latch STATUS bit 13 and raise the interrupt
+    // with no configuration's permission.
+    do_reset();
+    repeat (50) @(posedge clk);
+    report("cfg parity: quiet before the flip",
+           (dut.u_safety.status_q == 32'b0) && (dut.u_safety.cfg_src_q == 7'b0),
+           $sformatf("status=%08x cfg_src=%02x",
+                     dut.u_safety.status_q, dut.u_safety.cfg_src_q));
+
+    @(negedge clk);
+    dut.u_safety.ctrl_en_q = 1'b0;      // deposit: the controller is disarmed
+    latency = 0;
+    fork : wait_cfg
+      begin
+        while (dut.u_safety.status_q[13] !== 1'b1) begin
+          @(posedge clk);
+          latency++;
+        end
+      end
+      begin repeat (100) @(posedge clk); end
+    join_any
+    disable wait_cfg;
+    report("cfg parity: a flip of CTRL.enable latches STATUS[13] ungated",
+           (dut.u_safety.status_q[13] === 1'b1) && (latency <= 4),
+           $sformatf("status=%08x after %0d cycles",
+                     dut.u_safety.status_q, latency));
+    report("cfg parity: the interrupt rises without asking REACT_IRQ",
+           (dut.u_safety.irq_o === 1'b1),
+           "irq_o low with STATUS[13] set");
+    report("cfg parity: CFG_SRC names this controller's own group",
+           (dut.u_safety.cfg_src_q[0] === 1'b1),
+           $sformatf("cfg_src=%02x", dut.u_safety.cfg_src_q));
+
+    // Restoring the bit clears the live mismatch but must not clear
+    // the sticky record -- a fault that heals itself still happened.
+    @(negedge clk);
+    dut.u_safety.ctrl_en_q = 1'b1;
+    repeat (5) @(posedge clk);
+    report("cfg parity: the record is sticky after the flip heals",
+           (dut.u_safety.status_q[13] === 1'b1),
+           $sformatf("status=%08x", dut.u_safety.status_q));
+
+    // A second group, for the attribution path: the timer's MTIMECMP,
+    // 97 of 97 latent before V37.
+    do_reset();
+    repeat (50) @(posedge clk);
+    @(negedge clk);
+    dut.u_timer.mtimecmp_q[33] = ~dut.u_timer.mtimecmp_q[33];
+    repeat (6) @(posedge clk);
+    report("cfg parity: an MTIMECMP flip is caught and attributed",
+           (dut.u_safety.status_q[13] === 1'b1) &&
+           (dut.u_safety.cfg_src_q[4] === 1'b1),
+           $sformatf("status=%08x cfg_src=%02x",
+                     dut.u_safety.status_q, dut.u_safety.cfg_src_q));
+
     if (errors == 0) $display("[tb_safety] PASS: %0d checks", checks);
     else             $display("[tb_safety] FAIL: %0d of %0d checks", errors, checks);
     $finish;
