@@ -20,10 +20,14 @@ while [ "$TOTAL" -lt "$TARGET" ] && [ "$BATCH" -lt 4000 ]; do
   OUT=$(SPIKE=/headless/verif-tools/spike/bin/spike VVP=vvp \
         python3 verif/core/random_regress.py \
         --seeds 500 --start "$S" --count 2000 --loops 20 --stall 30 \
-        --vvp build/obj_cosim/tb_cosim_vl 2>&1 | tail -1)
+        --vvp build/obj_cosim/tb_cosim_vl 2>&1 | tail -2 | tr '\n' ' ')
   echo "$(date -u +%H:%M:%S) batch=$BATCH start=$S :: $OUT" >> "$LOG"
+  # The runner's last line is "[random] PASS" or "[random] FAIL: ...";
+  # the instruction count is on the line before it.  tail -1 once caught
+  # only the PASS line, failed the "programs match" test, and stopped a
+  # perfectly healthy run after its first passing batch.
   case "$OUT" in
-    *"programs match"*) : ;;
+    *"programs match"*"PASS"*) : ;;
     *) echo "MISMATCH OR ERROR in batch $BATCH -- stopping" >> "$LOG"; exit 1 ;;
   esac
   N=$(echo "$OUT" | grep -oE "[0-9]+ instructions" | grep -oE "[0-9]+")
