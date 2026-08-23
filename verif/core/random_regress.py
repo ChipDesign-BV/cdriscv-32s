@@ -79,7 +79,13 @@ def main():
             continue
         elf, hexf = built
         r = sh([sys.executable, os.path.join(HERE, "cosim.py"), elf,
-                "--hex", hexf, "--vvp", args.runner, "--count", "20000",
+                # The retire bound must scale with the program, or every
+                # seed longer than the old fixed 20000 fails with "stream
+                # lengths differ" -- which is exactly how a whole marathon
+                # batch died on 2026-08-23.  count*loops is the loop body's
+                # retire count; 2x + slack covers prologue and branches.
+                "--hex", hexf, "--vvp", args.runner,
+                "--count", str(args.count * max(args.loops, 1) * 2 + 4096),
                 "--stall", str(args.stall)])
         out = r.stdout.strip()
         if r.returncode == 0:
