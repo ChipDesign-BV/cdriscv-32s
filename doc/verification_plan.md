@@ -1,15 +1,12 @@
 # cdriscv-32s verification plan
 
-> **Status: execution has started at phase V0.** Every criterion below
-> is a target until the README status table says otherwise.
->
-> **Progress, 2026-08-20:** phase V0 is complete — `make lint`,
-> `make lint-tb`, `make sw` and `make sim` all pass, and the subsystem
-> boots and runs the smoke program to completion with the lockstep pair
-> active. One design bug and six portability or flow issues were found
-> and are logged in `verification_findings.md`. Everything from V1
-> onwards is still ahead. The status table in the README is the
-> authoritative summary.
+> **Status, 2026-08-23: execution is at phase V39.** Five of the seven
+> objectives in the O1–O7 gate are met; O2 (10⁹ random co-simulated
+> instructions) is grinding in `scripts/o2_marathon.sh` and O6
+> (coverage closure) is open. Thirty-nine phases are logged in
+> `verification_findings.md`; twelve functional defects found and
+> fixed. The README status table is the authoritative summary and the
+> caution banner there audits this gate directly.
 >
 > Scope: the design as it stands today — RV32IM_Zicsr_Zifencei, single or
 > dual core, with the subsystem of `cdriscv_subsys.sv`. The ISA
@@ -23,15 +20,15 @@ Anything not on this list is not claimed.
 
 | # | Objective | Sign-off criterion |
 |---|-----------|--------------------|
-| O1 | The core implements the specified ISA | RISCOF run of `riscv-arch-test` for RV32I, M, Zicsr, Zifencei and the M-mode privileged tests passes, against Spike or the Sail model as reference — **met** (V35): 62 of 62 on suite 3.5.3, unmodified |
-| O2 | The core matches a golden model on arbitrary code | ≥ 10^9 instructions of randomly generated code co-simulated against Spike with zero mismatches on retire PC, instruction, register write and memory access |
-| O3 | Every block behaves as its header comment says | Block level bench per block, all directed tests in section 5 pass |
-| O4 | Every safety mechanism fires when it should, and only then | Section 7 matrix complete: each mechanism has at least one test that triggers it and one that proves it stays quiet |
-| O5 | No structural surprises for synthesis | Zero inferred latches, zero combinational loops, zero multiply-driven nets, lint clean with a documented waiver file |
-| O6 | Code coverage | 100 % statement and branch, ≥ 95 % toggle, with a reviewed waiver for each exclusion |
-| O7 | Functional coverage | The cross matrices in section 8 closed |
+| O1 | The core implements the specified ISA | RISCOF run of `riscv-arch-test` for RV32I, M, Zicsr, Zifencei and the M-mode privileged tests passes, against Spike or the Sail model as reference — **met** (V36): 85 of 85 on the current suite, unmodified, built with `-mno-relax` |
+| O2 | The core matches a golden model on arbitrary code | ≥ 10^9 instructions of randomly generated code co-simulated against Spike with zero mismatches on retire PC, instruction, register write and memory access — **open, in progress**: ~5 × 10^7 accumulated, zero mismatches, marathon running |
+| O3 | Every block behaves as its header comment says | Block level bench per block, all directed tests in section 5 pass — **met** |
+| O4 | Every safety mechanism fires when it should, and only then | Section 7 matrix complete: each mechanism has at least one test that triggers it and one that proves it stays quiet — **met**, including the V37 configuration parity |
+| O5 | No structural surprises for synthesis | Zero inferred latches, zero combinational loops, zero multiply-driven nets, lint clean with a documented waiver file — **met** |
+| O6 | Code coverage | 100 % statement and branch, ≥ 95 % toggle, with a reviewed waiver for each exclusion — **open**: 96.0 % line, 92.5 % toggle |
+| O7 | Functional coverage | The cross matrices in section 8 closed — **met**: 65 of 65 cover points hit |
 | O8 | The design behaves the same after synthesis | Gate level simulation of the smoke program and a subset of the arch tests, with SDF |
-| O9 | Diagnostic coverage is measured, not asserted | Fault injection campaign of section 9 complete, results feed the FMEDA |
+| O9 | Diagnostic coverage is measured, not asserted | Fault injection campaign of section 9 complete, results feed the FMEDA — campaigns run (~10^4 upsets, classified, latencies measured); the FMEDA handoff is not started |
 
 O1–O7 are the gate for "may be used in a project". O8–O9 are the gate
 for "may be used in a safety context", together with the FMEDA that is

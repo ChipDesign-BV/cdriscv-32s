@@ -16,7 +16,7 @@
 > | # | Objective | Criterion | State |
 > |---|-----------|-----------|-------|
 > | O1 | ISA conformance | `riscv-arch-test` passes vs Spike | **met** — 85 of 85, current suite, unmodified |
-> | O2 | golden-model random co-simulation | **≥ 10⁹ instructions**, zero mismatches | **open** — 5.6 × 10⁶ so far, zero mismatches; three orders of magnitude of compute remain |
+> | O2 | golden-model random co-simulation | **≥ 10⁹ instructions**, zero mismatches | **open** — ~5 × 10⁷ so far, zero mismatches; the marathon run for the rest is in progress (`scripts/o2_marathon.sh`) |
 > | O3 | block benches | all directed tests pass | **met** |
 > | O4 | safety mechanisms fire, and only then | fires + stays-quiet test per mechanism | **met** — benches plus ~10⁴ fault injections |
 > | O5 | structural cleanliness | lint clean, documented waivers | **met** |
@@ -92,7 +92,7 @@ either detected by a mechanism that reports it, or bounded by one.
 | [rtl/periph/](rtl/periph/) | timer, interrupt controller, AMS interface |
 | [rtl/common/](rtl/common/) | clock domain crossing primitives |
 | [rtl/cdriscv_subsys.sv](rtl/cdriscv_subsys.sv) | subsystem top level |
-| [tb/](tb/) | smoke bench and smoke program (never run) |
+| [tb/](tb/) | smoke bench and smoke program |
 | [scripts/](scripts/) | ECC generator, memory image builder |
 | [flow/](flow/) | LibreLane starting point (never run) |
 | [doc/](doc/) | architecture, register map, safety manual draft, verification plan, integration guide |
@@ -153,23 +153,20 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Peripheral read-back (`make rdback`) | **pass** | 26 checks over six blocks. Every APB read arm, unmapped offsets, and the first software-driven memory BIST run |
 | FENCE / FENCE.I / writable CSRs (`make fence`) | **pass** | 10 checks. Neither fence instruction had ever executed despite the ISA string; `mcause`, `mtval`, `msafestat` had never been written. FENCE.I is documented as **not observable** on this core — see V12-O1 |
 | Block bench: clock monitor (`make block-clkmon`) | **pass** | 17 checks. Owns the clock generator, so it can stop the system clock — the only way to reach the "clock lost" path. **Found three defects: V11-F1, V11-F2, V11-F3** |
-| Block benches: everything else | **not run** | plan section 5 |
-| Architectural test suite | **not run** | plan objective O1 |
 | Co-simulation vs Spike (`make cosim`) | **pass** | 208 instructions: PCs, register writes **and memory accesses** all identical, mutation tested; Verilator and Icarus agree |
 | Random program co-simulation (`make cosim-random`) | **pass** | **1000/1000 programs, 16 885 968 instructions** with memory accesses compared; an earlier 2000-program run compared 33 760 012 instructions without them |
-| Co-simulation at scale | **not met** | objective O2 wants 10^9; the above is 3.4 % of it. Throughput is now ~43 000 instr/s, so the rest is machine time rather than rework. Memory accesses are now compared; CSR state that no instruction reads back is not |
+| Co-simulation at scale | **in progress** | objective O2 wants 10^9 instructions; ~5 x 10^7 accumulated across recorded runs, and `scripts/o2_marathon.sh` is grinding the rest in resumable 500-program batches (cumulative count in `build/o2_marathon.log`; a mismatch stops the run and keeps the failing seed) |
 | Formal: fetch stage (`make formal-if`) | **pass** | BMC to depth 20, 5 properties, mutation tested; bounded, not a proof |
 | Formal: SEC-DED code (`make formal-ecc`) | **pass** | **proof** over all 2^32 data values and all error positions, mutation tested |
 | Formal: interconnect (`make formal-bus`) | **pass** | 5 routing, arbitration and no-lost-response properties, mutation tested |
 | Formal: decoder (`make formal-dec`) | **pass** | **proof** over all 2^32 encodings that a rejected instruction has no architectural effect |
 | Formal: LSU (`make formal-lsu`) | **pass** | one access in flight, aligned addresses, byte enables vs a reference, completion only on a response |
 | Formal: safety controller (`make formal-safety`) | **pass** | faults are sticky, the lock holds, the reset request cannot sustain itself (guards V7-F1) |
-| CI workflow | written, **never run, not installed** | [ci/github-workflow-verify.yml](ci/github-workflow-verify.yml); needs a token with GitHub's `workflow` scope to install, then a first run |
-| Line coverage (`make coverage`) | **96.3 %**, or **100 % with waivers** | **objective O6 met**: every exclusion has a reviewed waiver in [coverage_waivers.md](verif/coverage_waivers.md). The 14 waived lines are all `default:` arms over fully enumerated selectors. Earlier entries in this table reported a mixed line+toggle figure by mistake — see V7-M1 |
-| Toggle coverage | 94.8 % | reported separately, as it should have been from the start |
+| CI workflow | **installed, green** | [.github/workflows/verify.yml](.github/workflows/verify.yml): lint+block, cosim, software, formal and coverage on every push, gate/timing/fault-injection nightly. Five environment failure layers were peeled to get here (checkout permissions, tool PATH, dash-vs-bash, `LD_LIBRARY_PATH`) — a green badge only means something because the first runs failed honestly |
+| Line coverage (`make coverage`) | **96.0 %** | 357 of 372 source lines with every point covered; waivers in [verif/coverage_waivers.md](verif/coverage_waivers.md). **Objective O6 open**: the criterion is 100 % statement/branch with reviewed waivers, and the denominator just grew with the parity and counter modules |
+| Toggle coverage | **92.5 %** | criterion is >= 95 %; part of objective O6, open |
 | Functional coverage (`make coverage`) | **100 %** | **objective O7 met**: 65 `cover` points bound into the RTL, all hit. Found four safety mechanisms no test had provoked and two decoder lines wrongly waived — see [verification_findings.md](doc/verification_findings.md) |
 | Synthesis (`make synth`) | **pass** | yosys via slang: no latches, no combinational loops, 52 614 cells with 64-word TCMs |
-| Gate level simulation | **not run** | |
 | FMEDA / diagnostic coverage | **not started** | the pilot campaign is a first input, not a coverage figure |
 | Fault injection (`make fi`) | **~10 000 upsets, 0 SDC, 0 hangs, 0 latent** | V29 measured **46.4 % latent** — 1 207 of 2 600 runs finished correctly with a safety mechanism silently disabled, 12 configuration registers 100 % undetected. Every configuration register group now carries hardware parity latching STATUS bit 13 **ungated** (V37): same campaign, same seed — **latent 0**, all previously-latent elements detected at a 2-cycle median, contract formally proven. See [verification_findings.md](doc/verification_findings.md) |
-| Safety manual | draft outline only | |
+| Safety manual | substantive draft | mechanisms, measured latencies, the configuration-parity story and its residual gaps, integration guidance; the FMEDA it feeds is not started |

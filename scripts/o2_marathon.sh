@@ -10,7 +10,10 @@ LOG=build/o2_marathon.log
 TARGET=1000000000
 TOTAL=$(grep -oE "cumulative=[0-9]+" "$LOG" 2>/dev/null | tail -1 | cut -d= -f2)
 TOTAL=${TOTAL:-0}
-BATCH=$(grep -cE "batch=" "$LOG" 2>/dev/null || echo 0)
+# grep -c prints 0 AND exits 1 on no match; an `|| echo 0` fallback here
+# once produced "0\n0", failed the integer test, and silently skipped the
+# whole loop.  grep -c's output alone is already always a number.
+BATCH=$(grep -cE " batch=" "$LOG" 2>/dev/null); BATCH=${BATCH:-0}
 echo "$(date -u +%F' '%H:%M:%S) resume total=$TOTAL batch=$BATCH" >> "$LOG"
 while [ "$TOTAL" -lt "$TARGET" ] && [ "$BATCH" -lt 4000 ]; do
   S=$((1000 + BATCH * 500))

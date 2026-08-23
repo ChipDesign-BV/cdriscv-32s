@@ -89,6 +89,18 @@ what makes the check bits testable.
 7. Set `mtvec`, enable the interrupts that are needed, enter the control
    loop and service the watchdog from one well defined place in it.
 
+Configuration registers guard themselves: every group above carries a
+hardware parity bit, and a mismatch latches safety controller STATUS
+bit 13 **ungated** — it raises the safety interrupt and the error pin
+regardless of `ENABLE`, `CTRL.enable` and `REACT_*`, precisely because
+those are the registers the fault may have corrupted. `CFG_SRC` (0x28)
+names the group. The interrupt handler for bit 13 should rewrite the
+named group's configuration (which rebaselines the parity) and then
+W1C the bit. Periodic software re-reads of the configuration (the
+pattern measured in finding V30) are no longer required for single-bit
+detection; they remain worthwhile as defence in depth and are the only
+mechanism that catches a double-bit upset within one group.
+
 ## 6. Files
 
 | Path | Contents |

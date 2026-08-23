@@ -107,12 +107,28 @@ corrupt a code word on purpose to prove the detection path works.
 | Clock monitor against a reference clock | `cdriscv_clkmon` | clock loss, frequency drift |
 | Bus error responder | `cdriscv_bus` | access to unmapped addresses |
 | Range check on ADC results, analog flags | `cdriscv_ams_if` | analog domain failure |
+| Configuration register parity | `cdriscv_cfg_parity`, one per register group | an upset silently disarming or re-tuning any mechanism above |
 | Fault collection and reaction | `cdriscv_safety_ctrl` | reports and reacts |
 
 Every mechanism ends in `cdriscv_safety_ctrl`, which holds one sticky
 status bit per source and a configurable reaction (interrupt, reset
 request, external error pin). The configuration can be locked until the
 next reset.
+
+One status bit is different by design. Configuration parity errors
+latch STATUS bit 13 **ungated** — not maskable by `ENABLE` or
+`CTRL.enable`, with the interrupt and error pin reaction hardwired
+rather than taken from `REACT_*` — because the register a fault
+disabled may be the one that would have recorded it (findings V29/V37;
+measured effect: latent configuration upsets 46.4 % → 0). `CFG_SRC`
+(0x28) names the register group that raised it.
+
+The 64-bit `mcycle`/`minstret` counters are implemented as four 16-bit
+segments with carries predicted one cycle early into flip-flops
+(`cdriscv_counter64`) — architecturally identical to a flat 64-bit
+increment (proven by sequential equivalence), at a quarter of the carry
+depth, after V38 measured the flat increment as the subsystem's
+critical path.
 
 The external error pin has two modes. In level mode it is asserted when
 a fault is latched. In toggle mode it carries a square wave while the
