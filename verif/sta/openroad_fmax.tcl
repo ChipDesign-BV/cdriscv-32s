@@ -77,7 +77,7 @@ report_checks -path_delay max -fields {slew cap fanout} -digits 3 \
     -path_group reg2reg -group_path_count 3
 puts ""
 puts "==== fmax ===="
-set period 10.0
+set period 20.0
 foreach grp {reg2reg in2reg reg2out} {
     set paths [find_timing_paths -path_group $grp -sort_by_slack -group_path_count 1]
     if {[llength $paths] == 0} { continue }

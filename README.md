@@ -24,8 +24,10 @@
 >
 > Also measured: configuration-register upsets hardware-detected
 > (latent 46.4 % → 0), diagnostic latency median 2–4 cycles, zero
-> silent data corruption over ~10⁴ injections, and a placed-and-
-> buffered netlist at 81 MHz against a 100 MHz target. Twelve
+> silent data corruption over ~10⁴ injections, and **timing closed at
+> the 50 MHz integration target** (worst slack +0.04 ns, TNS 0 on the
+> placed and buffered netlist; 81 MHz capability when constrained
+> harder). Twelve
 > functional defects were found and fixed on the way; CI re-runs the
 > gate on every push.
 >
@@ -146,7 +148,7 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Register walk (`make regwalk`) | **pass** | 16 checks: timer prescaler and roll-over, interrupt edge mode and claim, watchdog window mode, safety pin registers, the unread CSRs |
 | Memory back-pressure (`make cosim-stall`) | **pass** | identical streams vs Spike at 0–90 % grant stall rates; **300/300 random programs, 2 828 026 instructions** at 35 % stall |
 | Architectural test suite (`make riscof`) | **85 of 85 pass** | **objective O1 met.** Current `riscv-arch-test`, unmodified: 39 I, 8 M, 22 hints, 15 privilege, 1 Zifencei. Built with `-mno-relax`, which is what makes the suite usable on a core without the C extension. The 43 `pmp` tests are dropped: they gate PMP on a clause RISCOF does not evaluate, and this core has no PMP. See V35/V36 in [verification_findings.md](doc/verification_findings.md) and [upstream-issues.md](verif/riscof/upstream-issues.md) |
-| Static timing (`make sta`, `make fmax`) | **reg2reg 81.0 MHz placed and buffered** | OpenROAD place + repair with the TCMs as four real IHP SRAM macros; path groups reported separately so the SDC's placeholder 30 % IO budget cannot set the headline. The V38 counter path is **fixed** (`cdriscv_counter64`, segmented with predicted carries, proven sequentially equivalent) — the limiter is now fetch decode into the I-TCM macro's enable pin, **-2.35 ns short of the 100 MHz target**, with candidate fixes recorded in V39. Hold (unbuffered check) **+0.184 ns** |
+| Static timing (`make sta`, `make fmax`) | **closed at 50 MHz** | OpenROAD place + repair with the TCMs as four real IHP SRAM macros, path groups reported separately: at the 20 ns target **reg2reg +1.83 ns, in2reg +4.70 ns, reg2out +0.04 ns, TNS 0**. Capability when constrained at 10 ns: 81.0 MHz reg2reg (V39), limited by fetch decode into the I-TCM macro enable — those fix options are now optional headroom. Hold (unbuffered check) **+0.184 ns** |
 | Gate level simulation (`make gate`) | **3 blocks + the whole subsystem** | objective O8: ALU, multiplier and SEC-DED plus `cdriscv_subsys` synthesised to real IHP SG13G2 cells with the TCMs black-boxed — **5 433 flops, 529 175 µm²** — and four software tests run on the netlist with **cycle counts identical to RTL**. Also an illegal-state recovery check that re-argues waiver W2a against the gates. Functional only: every delay in the library is zero, so this says nothing about timing |
 | Peripheral read-back (`make rdback`) | **pass** | 26 checks over six blocks. Every APB read arm, unmapped offsets, and the first software-driven memory BIST run |
 | FENCE / FENCE.I / writable CSRs (`make fence`) | **pass** | 10 checks. Neither fence instruction had ever executed despite the ISA string; `mcause`, `mtval`, `msafestat` had never been written. FENCE.I is documented as **not observable** on this core — see V12-O1 |

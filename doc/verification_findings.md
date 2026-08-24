@@ -5,6 +5,30 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V41 — timing closure at the reduced 50 MHz target (2026-08-24)
+
+The integration target was reduced from 100 MHz to 50 MHz by the
+integrator's decision, and at 20 ns the placed-and-buffered netlist
+**closes: worst slack +0.04 ns, total negative slack zero.** By group:
+reg2reg +1.83 ns, in2reg +4.70 ns, reg2out +0.04 ns — the last with
+the placeholder 6 ns output budget still in place, so even the number
+that belongs to the integration clears.
+
+Two readings of the result, both worth keeping. At the 50 MHz
+constraint the resizer stops optimizing the moment timing is met, so
+the +1.83 ns reg2reg slack is what closure looks like, not what the
+netlist can do; the 10 ns runs of V39 remain the capability statement,
+**81 MHz** on the design's own paths. And the V39 fix options for the
+I-TCM enable path — registered or predicted enable decode, macro
+floorplanning — go from required to optional headroom: nothing needs
+them at 50 MHz, and they are on record if the target ever moves back
+up.
+
+The area moved from 2.582 to 2.580 mm² between the 10 ns and 20 ns
+runs: the resizer downsized once it no longer needed the drive
+strength. Slower targets are cheaper, which everyone knows and a
+measurement still says better.
+
 ## Phase V40 — the O1–O7 gate is met (2026-08-24)
 
 The two objectives that were open are closed, and with them the gate
