@@ -120,12 +120,12 @@ module tb_sdf_subsys;
   // ------------------------------------------------------------------
   reg [1023:0] sdf_file;
   initial begin
-    if (!$value$plusargs("SDF=%s", sdf_file)) begin
-      $display("[TB-SDF] ERROR: +SDF=<file> is required");
-      $finish;
+    if ($value$plusargs("SDF=%s", sdf_file)) begin
+      $sdf_annotate(sdf_file, dut);
+      $display("[TB-SDF] annotated %0s", sdf_file);
+    end else begin
+      $display("[TB-SDF] running WITHOUT SDF annotation (cell zero-delays)");
     end
-    $sdf_annotate(sdf_file, dut);
-    $display("[TB-SDF] annotated %0s", sdf_file);
   end
 
   // ------------------------------------------------------------------
@@ -222,11 +222,23 @@ module tb_sdf_subsys;
     fetch_enable = 1'b1;
   end
 
+  // Diagnostics: is the machine alive at all?
+  integer retires;
+  initial retires = 0;
+  always @(posedge clk) if (retire_valid === 1'b1) begin
+    retires = retires + 1;
+    if (retires <= 5)
+      $display("[TB-SDF] retire %0d: pc=%08x instr=%08x", retires, retire_pc, retire_instr);
+  end
+
   initial begin
     cycle = 0;
     forever begin
       @(posedge clk);
       cycle = cycle + 1;
+      if (cycle % 500 == 0)
+        $display("[TB-SDF] cycle %0d: retires=%0d retire_valid=%b fault_any=%b core_sleep=%b",
+                 cycle, retires, retire_valid, fault_any, core_sleep);
       if (exit_seen) begin
         if (exit_code == 32'b0) $display("[TB-SDF] PASS after %0d cycles", cycle);
         else                    $display("[TB-SDF] FAIL, exit code %08x", exit_code);

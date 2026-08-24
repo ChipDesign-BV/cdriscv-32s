@@ -89,6 +89,14 @@ foreach grp {reg2reg in2reg reg2out} {
 puts "reg2reg is the design's number; in2reg/reg2out carry the SDC's"
 puts "placeholder 30 % IO budget and belong to the integration, not the core."
 
+# Constants leave the resizer as named nets (one_/zero_) with nothing
+# driving them; simulated as-is the reset synchroniser's D input is X
+# and the whole netlist is dead -- found by O8's first annotated run.
+# Tie cells give the constants real drivers, for the netlist and for
+# the eventual layout alike.
+insert_tiecells sg13g2_tiehi/L_HI
+insert_tiecells sg13g2_tielo/L_LO
+
 # ---------------------------------------------------------------- O8 handoff
 # The repaired netlist and its SDF, for gate-level simulation with real
 # delays (verification plan O8).  The netlist written here is NOT the

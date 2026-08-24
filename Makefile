@@ -826,11 +826,15 @@ $(BUILD)/gate/tb_sdf_subsys.vvp: $(BUILD)/gate/cdriscv_subsys_pd_final.v \
 	  $(SRAM_V)/RM_IHPSG13_1P_core_behavioral_bm_bist.v \
 	  verif/gate/tb_sdf_subsys.sv
 
-gate-sdf: $(BUILD)/gate/tb_sdf_subsys.vvp sw
+$(BUILD)/gate/cdriscv_subsys_pd_sim.sdf: $(BUILD)/gate/cdriscv_subsys_pd.sdf \
+                                         scripts/sdf_sim_filter.py
+	$(PYTHON) scripts/sdf_sim_filter.py $< $@
+
+gate-sdf: $(BUILD)/gate/tb_sdf_subsys.vvp $(BUILD)/gate/cdriscv_subsys_pd_sim.sdf sw
 	$(VVP) $(BUILD)/gate/tb_sdf_subsys.vvp \
 	  +ITCM_HEX=$(BUILD)/prog.itcm.hex \
 	  +DTCM_HEX=$(BUILD)/prog.dtcm.hex \
-	  +SDF=$(BUILD)/gate/cdriscv_subsys_pd.sdf \
+	  +SDF=$(BUILD)/gate/cdriscv_subsys_pd_sim.sdf \
 	  | tee $(BUILD)/gate/sdf_smoke.log
 	@grep -q "PASS" $(BUILD)/gate/sdf_smoke.log
 

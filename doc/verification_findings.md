@@ -5,6 +5,59 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V42 — gate-level simulation with SDF runs, and found a flow defect (2026-08-25)
+
+`make gate-sdf` is new, and it is the first half of objective O8: the
+OpenROAD placed-and-repaired netlist — SRAM macros, inserted buffers,
+resized gates — simulating the smoke program with its own SDF
+annotated, cell delays and timing checks live, at the 20 ns target
+clock. **PASS in 301 cycles by this bench's count**, program loaded
+into the four macro banks and retiring from address zero.
+
+### The find: OpenROAD leaves constants undriven
+
+The first run was all X, and the trail was worth walking. Annotation
+was exonerated (all X without SDF too), the cell models were exonerated
+(a single flip-flop resolves correctly under `-gspecify`), the macro
+preload was exonerated (bank contents verified in-simulation). The
+probe that settled it read a flop's pins directly: clock toggling,
+**RESET_B = X**. Six buffers upstream sat the reset synchroniser, its
+data input wired to a net named `one_` — and `one_`, along with
+`zero_`, had **no driver anywhere in the netlist**: 950 references,
+zero drivers. OpenROAD's resizer names constant nets expecting tie
+cells, and this flow never inserted any, so every constant in the
+design — including the `1'b1` that feeds the reset synchroniser — was
+X, and the netlist was dead on arrival.
+
+`insert_tiecells` for the SG13G2 tiehi/tielo cells is now part of the
+flow, which matters beyond simulation: a netlist with undriven
+constant nets would have been just as wrong handed to layout. This is
+the second time gate-level work has caught a flow defect that RTL
+verification could not see (the first was V17's silently-ignored
+blackbox), and it is the standing argument for O8 existing at all.
+
+### The accepted limitation, stated
+
+Icarus cannot create intermodpath delays for SDF `INTERCONNECT`
+entries sourced at top-level port bits, and follows the failure with
+an assertion (`vvp` SIGABRT). `scripts/sdf_sim_filter.py` therefore
+strips the 120 829 INTERCONNECT entries for simulation and keeps the
+606 000 lines of IOPATH cell delays and timing checks. Nothing is
+thereby unverified: the interconnect delays this removes are exactly
+the placement-estimated numbers OpenSTA analyses in `make fmax`, so
+wire timing is checked in the tool built for it and functional timing
+behaviour in the simulator. The SRAM macros' own SDF cells do not
+annotate either (their flat dotted instance names defeat Icarus's
+scope lookup); their timing lives in the behavioural model and, again,
+in STA.
+
+### What O8 still needs
+
+The criterion is the smoke program *and a subset of the architectural
+tests* on gates with SDF. The bench and flow now exist; running a
+handful of arch tests through them is the remaining work, bounded by
+simulation runtime rather than by unknowns.
+
 ## Phase V41 — timing closure at the reduced 50 MHz target (2026-08-24)
 
 The integration target was reduced from 100 MHz to 50 MHz by the
