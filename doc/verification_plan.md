@@ -11,9 +11,9 @@
 > authoritative summary.
 >
 > Scope: the design as it stands today — RV32IM_Zicsr_Zifencei, single or
-> dual core, with the subsystem of `cdriscv_subsys.sv`. The ISA
-> extensions discussed in `isa_extension_plan.md` are explicitly out of
-> scope here and add their own verification work.
+> dual core, with the subsystem of `cdriscv_subsys.sv`. Possible
+> future ISA extensions are explicitly out of scope here and add their
+> own verification work.
 
 ## 1. Objectives and sign-off criteria
 

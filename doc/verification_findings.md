@@ -3765,7 +3765,7 @@ proper.
 instructions in 1674 cycles, CPI 7.9**. Of that, roughly 560 cycles are
 the seventeen 33-cycle multiply and divide instructions, which leaves
 about CPI 5.7 for everything else — still far above the 1.5–2.5 range
-predicted in `benchmark_plan.md` section 7.
+predicted in the benchmark plan (since removed from the repository).
 
 The structural cause is the single entry instruction buffer. The fetch
 stage only issues the next request in the cycle the buffer is being
@@ -3783,7 +3783,7 @@ floor** for straight-line code, before loads, taken branches and
 multiply/divide are added.
 
 This is the first entry in the improvement backlog that
-`benchmark_plan.md` section 8 asks for. The fix is a deeper prefetch
+the benchmark plan (since removed) asked for. The fix is a deeper prefetch
 (issue the next request while the current instruction is still
 executing, and buffer two words rather than one), which is contained
 entirely in `cdriscv_if_stage.sv`. It should be measured, not assumed:

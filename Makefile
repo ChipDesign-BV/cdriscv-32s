@@ -802,6 +802,38 @@ $(BUILD)/tb_cosim_arch.vvp: $(RTL) verif/core/tb_cosim.sv | $(BUILD)
 	$(IVERILOG) -g2012 -Ptb_cosim.ItcmWords=$(RISCOF_ITCM) -o $@ -s tb_cosim \
 	  $(RTL) verif/core/tb_cosim.sv
 
+# ------------------------------------------------- gate + SDF (O8)
+# The placed-and-repaired netlist with its own SDF, real cell and
+# estimated interconnect delays, at the 20 ns target clock.  The
+# netlist and SDF come out of `make fmax`; the cell models keep their
+# specify blocks (only the ifnone paths Icarus rejects are removed),
+# and the SRAM macros simulate as the vendor behavioural model.
+# `=` not `:=`: SRAM_PDK is defined further down in the fmax section,
+# and an immediate assignment here would capture it empty.
+SRAM_V = $(SRAM_PDK)/verilog
+
+$(BUILD)/gate/sg13g2_cells_sdf.v: $(GATE_PDK)/verilog/sg13g2_stdcell.v \
+                                  scripts/sdf_specify_fixup.py | $(BUILD)/gate
+	$(PYTHON) scripts/sdf_specify_fixup.py $< $@
+
+$(BUILD)/gate/tb_sdf_subsys.vvp: $(BUILD)/gate/cdriscv_subsys_pd_final.v \
+                                 $(BUILD)/gate/sg13g2_cells_sdf.v $(GATE_UDP) \
+                                 verif/gate/tb_sdf_subsys.sv
+	$(IVERILOG) -g2012 -gspecify -ginterconnect -DFUNCTIONAL -o $@ -s tb_sdf_subsys \
+	  $(BUILD)/gate/cdriscv_subsys_pd_final.v \
+	  $(BUILD)/gate/sg13g2_cells_sdf.v $(GATE_UDP) \
+	  $(SRAM_V)/RM_IHPSG13_1P_2048x64_c2_bm_bist.v \
+	  $(SRAM_V)/RM_IHPSG13_1P_core_behavioral_bm_bist.v \
+	  verif/gate/tb_sdf_subsys.sv
+
+gate-sdf: $(BUILD)/gate/tb_sdf_subsys.vvp sw
+	$(VVP) $(BUILD)/gate/tb_sdf_subsys.vvp \
+	  +ITCM_HEX=$(BUILD)/prog.itcm.hex \
+	  +DTCM_HEX=$(BUILD)/prog.dtcm.hex \
+	  +SDF=$(BUILD)/gate/cdriscv_subsys_pd.sdf \
+	  | tee $(BUILD)/gate/sdf_smoke.log
+	@grep -q "PASS" $(BUILD)/gate/sdf_smoke.log
+
 riscof: $(BUILD)/tb_cosim_arch.vvp
 	@test -d $(RISCOF_SUITE) || { \
 	  echo "riscv-arch-test not present: see verif/riscof/README.md"; \

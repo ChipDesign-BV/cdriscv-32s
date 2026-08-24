@@ -106,8 +106,6 @@ either detected by a mechanism that reports it, or bounded by one.
 * [doc/verification_plan.md](doc/verification_plan.md) — what must be done before this IP may be used
 * [doc/verification_findings.md](doc/verification_findings.md) — running log of what verification has found
 
-
-
 ## Building
 
 ```sh

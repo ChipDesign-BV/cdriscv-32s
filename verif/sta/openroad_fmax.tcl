@@ -89,4 +89,13 @@ foreach grp {reg2reg in2reg reg2out} {
 puts "reg2reg is the design's number; in2reg/reg2out carry the SDC's"
 puts "placeholder 30 % IO budget and belong to the integration, not the core."
 
+# ---------------------------------------------------------------- O8 handoff
+# The repaired netlist and its SDF, for gate-level simulation with real
+# delays (verification plan O8).  The netlist written here is NOT the
+# input netlist: repair inserted buffers and resized gates, and
+# simulating the input netlist against this SDF would annotate cells
+# that do not exist.
+write_verilog build/gate/cdriscv_subsys_pd_final.v
+write_sdf -corner default build/gate/cdriscv_subsys_pd.sdf
+
 exit
