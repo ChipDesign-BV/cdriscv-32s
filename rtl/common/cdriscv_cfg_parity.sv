@@ -27,7 +27,9 @@
 //    all -- a self-clearing enable would otherwise raise a permanent
 //    false error the first time it cleared itself.
 //
-// STATUS: NOT VERIFIED YET -- DO NOT USE YET.
+// STATUS: verified to the O1-O7 gate of doc/verification_plan.md
+//         (2026-08-24) -- may be used in a project.  O8-O9 and the
+//         FMEDA are open: NOT qualified for safety-critical use.
 
 `default_nettype none
 

@@ -5,6 +5,67 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V40 — the O1–O7 gate is met (2026-08-24)
+
+The two objectives that were open are closed, and with them the gate
+the verification plan defines as "may be used in a project".
+
+**O2: 1 008 435 332 instructions, zero mismatches.** Fifty-five
+batches of five hundred randomly generated programs — 27 500 programs
+— co-simulated against Spike with retire PC, instruction, register
+writes and memory accesses compared, overnight at roughly 18.7 million
+instructions per eight-minute batch. Not one divergence in a billion
+instructions. After the architectural suite, the directed benches and
+the formal proofs, this is the volume argument: the core does what
+Spike does on code nobody wrote.
+
+The marathon that produced the number deserves its own accounting,
+because **the harness failed four times before the design failed
+zero times**:
+
+1. `grep -c` prints 0 *and* exits 1 on no match, so an `|| echo 0`
+   fallback produced `"0\n0"`, an integer test failed silently, and
+   the first launch exited after writing one log line.
+2. The runner's retire-compare bound was fixed at 20 000 regardless of
+   program length; 38 000-instruction programs made all 500 seeds of a
+   batch "fail" identically. All-seeds-fail is the signature of a
+   broken harness, not a broken core, and so it was.
+3. The runner ends its output with a bare `[random] PASS` line;
+   `tail -1` caught only that, the success pattern failed, and the
+   script stopped nine hours behind a green result.
+4. A liveness check `pgrep`-matched its own command line and reported
+   a dead marathon as running.
+
+Each is the same failure shape: a check that was never itself checked.
+They are recorded because the campaign's credibility rests on the
+harness stopping for real mismatches — which is now demonstrated the
+only way it can be: the fixed harness ran 55 straight batches and
+stopped exactly when told to, at the target.
+
+**O6: 96.2 % line, 96.2 % toggle, 100 % functional.** Closed with
+stimulus, not waivers. The toggle report's gaps were a map of missing
+tests: the V37 parity network toggled in no coverage-collected bench,
+so every register group got a deposit-and-attribute check in
+`tb_safety` (all seven `CFG_SRC` bits now proven to name their own
+group, including `mtvec` climbing out of the lockstep pair); the
+external fault and interrupt inputs were tied off in every bench, so
+they are driven and their synchroniser path checked; the CSR
+illegality paths (write to a read-only CSR, read of an unimplemented
+one) had no test, so the trap test grew two cases. Line's remaining
+14 misses are the reviewed W2 defensive arms — 100 % with waivers —
+and the residual untoggled set is structurally constant by design
+(seven `pslverr_o` tied to zero, tied-off expansion-port inputs, the
+I-TCM BIST port that cannot run under software executing from the
+I-TCM).
+
+**Consequence.** The RTL STATUS banners, the README caution and the
+safety manual language changed together in this commit, from "not
+verified — do not use" to what is now true: verified to the O1–O7
+gate, may be used in a project, **not qualified for safety-critical
+use** — O8 (gate-level with SDF), O9's FMEDA handoff, and the 100 MHz
+performance target remain open, and no ISO 26262 or IEC 61508 claim
+of any kind is made.
+
 ## Phase V39 — the counter path is fixed, proven equivalent, and the whole suite re-run (2026-08-22)
 
 V38's blocker is closed. `mcycle` and `minstret` are now

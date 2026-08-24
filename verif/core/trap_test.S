@@ -227,6 +227,20 @@ r13: li  a0, 14
     li   t0, CAUSE_ECALL
     bne  s8, t0, fail
 
+/* --- 20: write to a read-only CSR --------------------------------- */
+    la   s7, r20
+    csrw mvendorid, t0          /* addr[11:10]=11: read only by spec */
+r20: li  a0, 20
+    li   t0, CAUSE_ILLEGAL
+    bne  s8, t0, fail
+
+/* --- 21: read of an unimplemented CSR ------------------------------ */
+    la   s7, r21
+    csrr t1, 0x345              /* machine range, not implemented */
+r21: li  a0, 21
+    li   t0, CAUSE_ILLEGAL
+    bne  s8, t0, fail
+
 pass:
     li   t0, EXIT_REG
     sw   zero, 0(t0)

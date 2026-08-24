@@ -15,7 +15,9 @@
 // wrap-around.  The data master reaches everything, and wins the I-TCM
 // arbitration, so a data access can never be starved by the fetcher.
 //
-// STATUS: NOT VERIFIED YET -- DO NOT USE YET.
+// STATUS: verified to the O1-O7 gate of doc/verification_plan.md
+//         (2026-08-24) -- may be used in a project.  O8-O9 and the
+//         FMEDA are open: NOT qualified for safety-critical use.
 
 `default_nettype none
 

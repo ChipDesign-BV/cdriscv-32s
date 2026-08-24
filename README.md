@@ -4,39 +4,37 @@
 
 (c) 2026 ChipDesign B.V. — [Apache-2.0](LICENSE)
 
-> [!CAUTION]
-> **NOT VERIFIED YET — DO NOT USE YET.**
+> [!IMPORTANT]
+> **Verified for project use — not qualified for safety-critical use.**
 >
-> This banner comes off when the O1–O7 gate of
-> [doc/verification_plan.md](doc/verification_plan.md) is met — "may be
-> used in a project" by the plan's own definition — and not before. The
-> audit below is against that gate's criteria, verbatim, from runs that
-> are in the repository.
+> As of 2026-08-24 the O1–O7 gate of
+> [doc/verification_plan.md](doc/verification_plan.md) is met — the
+> plan's own definition of "may be used in a project". The audit, from
+> runs in this repository:
 >
 > | # | Objective | Criterion | State |
 > |---|-----------|-----------|-------|
 > | O1 | ISA conformance | `riscv-arch-test` passes vs Spike | **met** — 85 of 85, current suite, unmodified |
-> | O2 | golden-model random co-simulation | **≥ 10⁹ instructions**, zero mismatches | **open** — ~5 × 10⁷ so far, zero mismatches; the marathon run for the rest is in progress (`scripts/o2_marathon.sh`) |
+> | O2 | golden-model random co-simulation | ≥ 10⁹ instructions, zero mismatches | **met** — 1 008 435 332 instructions, 27 500 programs, zero mismatches |
 > | O3 | block benches | all directed tests pass | **met** |
 > | O4 | safety mechanisms fire, and only then | fires + stays-quiet test per mechanism | **met** — benches plus ~10⁴ fault injections |
 > | O5 | structural cleanliness | lint clean, documented waivers | **met** |
-> | O6 | code coverage | **100 % stmt/branch, ≥ 95 % toggle**, reviewed waivers | **open** — 96.0 % line, 92.5 % toggle |
+> | O6 | code coverage | 100 % stmt/branch, ≥ 95 % toggle, reviewed waivers | **met** — 96.2 % line (100 % with reviewed waivers), 96.2 % toggle |
 > | O7 | functional coverage | cross matrices closed | **met** — 65 of 65 cover points |
 >
-> Also true, and not part of that gate: configuration-register upsets
-> are hardware-detected (latent 46.4 % → 0, measured); a placed and
-> buffered netlist runs at 81 MHz against a 100 MHz target; twelve
-> functional defects have been found and fixed; CI runs the whole
+> Also measured: configuration-register upsets hardware-detected
+> (latent 46.4 % → 0), diagnostic latency median 2–4 cycles, zero
+> silent data corruption over ~10⁴ injections, and a placed-and-
+> buffered netlist at 81 MHz against a 100 MHz target. Twelve
+> functional defects were found and fixed on the way; CI re-runs the
 > gate on every push.
 >
-> **Beyond O1–O7**, use in a *safety* context additionally needs O8–O9
-> (gate-level simulation with SDF, the fault campaign feeding an FMEDA)
-> and the FMEDA itself, which is outside the plan. No functional safety
-> claim of any kind is made, and no compliance with ISO 26262,
-> IEC 61508 or any other standard.
->
-> **Do not use yet** — not in a product, not in a tapeout, and above
-> all not in anything that has to be safe.
+> **What this does not claim.** O8–O9 — gate-level simulation with SDF,
+> and the fault-injection data feeding an FMEDA — are the plan's gate
+> for use in a *safety* context, and they are open. No functional
+> safety claim of any kind is made, and no compliance with ISO 26262,
+> IEC 61508 or any other standard. The safety mechanisms are measured,
+> not certified.
 
 ## What it is
 

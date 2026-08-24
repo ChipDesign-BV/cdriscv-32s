@@ -1,12 +1,14 @@
 # cdriscv-32s verification plan
 
-> **Status, 2026-08-23: execution is at phase V39.** Five of the seven
-> objectives in the O1–O7 gate are met; O2 (10⁹ random co-simulated
-> instructions) is grinding in `scripts/o2_marathon.sh` and O6
-> (coverage closure) is open. Thirty-nine phases are logged in
-> `verification_findings.md`; twelve functional defects found and
-> fixed. The README status table is the authoritative summary and the
-> caution banner there audits this gate directly.
+> **Status, 2026-08-24: the O1–O7 gate is MET** — by the plan's own
+> definition, the IP may be used in a project. O2 closed at
+> 1 008 435 332 random instructions co-simulated against Spike with
+> zero mismatches; O6 closed at 96.2 % line (100 % with the reviewed
+> W2 waivers), 96.2 % toggle, 100 % functional. Forty phases are
+> logged in `verification_findings.md`; twelve functional defects
+> found and fixed. **O8–O9 and the FMEDA remain open: not qualified
+> for safety-critical use.** The README status table is the
+> authoritative summary.
 >
 > Scope: the design as it stands today — RV32IM_Zicsr_Zifencei, single or
 > dual core, with the subsystem of `cdriscv_subsys.sv`. The ISA
@@ -21,11 +23,11 @@ Anything not on this list is not claimed.
 | # | Objective | Sign-off criterion |
 |---|-----------|--------------------|
 | O1 | The core implements the specified ISA | RISCOF run of `riscv-arch-test` for RV32I, M, Zicsr, Zifencei and the M-mode privileged tests passes, against Spike or the Sail model as reference — **met** (V36): 85 of 85 on the current suite, unmodified, built with `-mno-relax` |
-| O2 | The core matches a golden model on arbitrary code | ≥ 10^9 instructions of randomly generated code co-simulated against Spike with zero mismatches on retire PC, instruction, register write and memory access — **open, in progress**: ~5 × 10^7 accumulated, zero mismatches, marathon running |
+| O2 | The core matches a golden model on arbitrary code | ≥ 10^9 instructions of randomly generated code co-simulated against Spike with zero mismatches on retire PC, instruction, register write and memory access — **met** (V40): 1 008 435 332 instructions, 27 500 programs, zero mismatches |
 | O3 | Every block behaves as its header comment says | Block level bench per block, all directed tests in section 5 pass — **met** |
 | O4 | Every safety mechanism fires when it should, and only then | Section 7 matrix complete: each mechanism has at least one test that triggers it and one that proves it stays quiet — **met**, including the V37 configuration parity |
 | O5 | No structural surprises for synthesis | Zero inferred latches, zero combinational loops, zero multiply-driven nets, lint clean with a documented waiver file — **met** |
-| O6 | Code coverage | 100 % statement and branch, ≥ 95 % toggle, with a reviewed waiver for each exclusion — **open**: 96.0 % line, 92.5 % toggle |
+| O6 | Code coverage | 100 % statement and branch, ≥ 95 % toggle, with a reviewed waiver for each exclusion — **met** (V40): 96.2 % line (100 % with reviewed W2 waivers), 96.2 % toggle |
 | O7 | Functional coverage | The cross matrices in section 8 closed — **met**: 65 of 65 cover points hit |
 | O8 | The design behaves the same after synthesis | Gate level simulation of the smoke program and a subset of the arch tests, with SDF |
 | O9 | Diagnostic coverage is measured, not asserted | Fault injection campaign of section 9 complete, results feed the FMEDA — campaigns run (~10^4 upsets, classified, latencies measured); the FMEDA handoff is not started |

@@ -9,7 +9,9 @@
 //   mafestat (0x7c0)  sticky core-local fault status, write-1-to-clear
 //   msafectrl(0x7c1)  core-local safety control
 //
-// STATUS: NOT VERIFIED YET -- DO NOT USE YET.
+// STATUS: verified to the O1-O7 gate of doc/verification_plan.md
+//         (2026-08-24) -- may be used in a project.  O8-O9 and the
+//         FMEDA are open: NOT qualified for safety-critical use.
 
 `default_nettype none
 

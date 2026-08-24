@@ -99,8 +99,11 @@ fault on a fetch).
 
 ## 5. Known gaps
 
-These are known and unresolved. They are the reason the IP must not be
-used yet.
+These are known and unresolved. As of 2026-08-24 the O1–O7 gate of the
+verification plan is met, so the IP **may be used in a project**; the
+gaps below are the reason it remains **not qualified for
+safety-critical use** — O8–O9 and the FMEDA are the gate for that, and
+they are open.
 
 * No FMEDA, no diagnostic coverage figures, no single point fault
   metric, no latent fault metric.

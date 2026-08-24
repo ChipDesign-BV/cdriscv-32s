@@ -19,7 +19,9 @@
 // Comparison starts once the checker is out of reset.  A mismatch is
 // reported for one cycle; the safety controller latches it.
 //
-// STATUS: NOT VERIFIED YET -- DO NOT USE YET.
+// STATUS: verified to the O1-O7 gate of doc/verification_plan.md
+//         (2026-08-24) -- may be used in a project.  O8-O9 and the
+//         FMEDA are open: NOT qualified for safety-critical use.
 
 `default_nettype none
 

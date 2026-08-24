@@ -45,6 +45,8 @@ module tb_safety;
   end
 
   logic        fetch_enable, fault_any, err_pin, reset_req;
+  logic [13:0] ext_irq;
+  logic [15:0] ext_fault;
   logic        retire_valid;
   logic [31:0] retire_pc, retire_instr;
 
@@ -61,8 +63,8 @@ module tb_safety;
       .ref_rst_ni     (ref_rst_n),
       .boot_addr_i    (32'h0000_0000),
       .fetch_enable_i (fetch_enable),
-      .irq_i          ('0),
-      .fault_ext_i    ('0),
+      .irq_i          (ext_irq),
+      .fault_ext_i    (ext_fault),
       .err_pin_o      (err_pin),
       .reset_req_o    (reset_req),
       .fault_any_o    (fault_any),
@@ -122,6 +124,8 @@ module tb_safety;
   initial begin
     errors = 0;
     checks = 0;
+    ext_irq   = '0;
+    ext_fault = '0;
 
     if (!$value$plusargs("ITCM_HEX=%s", hexfile)) begin
       $display("[tb_safety] ERROR: +ITCM_HEX=<file> is required");
@@ -492,6 +496,71 @@ module tb_safety;
            (dut.u_safety.cfg_src_q[4] === 1'b1),
            $sformatf("status=%08x cfg_src=%02x",
                      dut.u_safety.status_q, dut.u_safety.cfg_src_q));
+
+    // ---- every configuration parity group, and the external inputs --
+    // One flip per remaining group proves each group's parity is wired
+    // to its own CFG_SRC bit, not just that some group somewhere is.
+    do_reset();
+    repeat (50) @(posedge clk);
+    @(negedge clk); dut.u_wdog.period_q[3] = ~dut.u_wdog.period_q[3];
+    repeat (6) @(posedge clk);
+    report("cfg parity: watchdog group attributed",
+           dut.u_safety.cfg_src_q[1] === 1'b1,
+           $sformatf("cfg_src=%02x", dut.u_safety.cfg_src_q));
+
+    do_reset();
+    repeat (50) @(posedge clk);
+    @(negedge clk); dut.u_clkmon.min_q[0] = ~dut.u_clkmon.min_q[0];
+    repeat (6) @(posedge clk);
+    report("cfg parity: clock monitor group attributed",
+           dut.u_safety.cfg_src_q[2] === 1'b1,
+           $sformatf("cfg_src=%02x", dut.u_safety.cfg_src_q));
+
+    do_reset();
+    repeat (50) @(posedge clk);
+    @(negedge clk); dut.u_irq_ctrl.enable_q[0] = ~dut.u_irq_ctrl.enable_q[0];
+    repeat (6) @(posedge clk);
+    report("cfg parity: interrupt controller group attributed",
+           dut.u_safety.cfg_src_q[3] === 1'b1,
+           $sformatf("cfg_src=%02x", dut.u_safety.cfg_src_q));
+
+    do_reset();
+    repeat (50) @(posedge clk);
+    @(negedge clk); dut.u_ams.chmask_q[0] = ~dut.u_ams.chmask_q[0];
+    repeat (6) @(posedge clk);
+    report("cfg parity: AMS group attributed",
+           dut.u_safety.cfg_src_q[5] === 1'b1,
+           $sformatf("cfg_src=%02x", dut.u_safety.cfg_src_q));
+
+    // mtvec, inside the lockstep pair's main core: the parity error
+    // must climb out through the core and the wrapper to the collector.
+    do_reset();
+    repeat (50) @(posedge clk);
+    @(negedge clk);
+    dut.g_lockstep.u_core.u_core_main.u_csr.mtvec_q[8] =
+        ~dut.g_lockstep.u_core.u_core_main.u_csr.mtvec_q[8];
+    repeat (8) @(posedge clk);
+    report("cfg parity: an mtvec flip climbs out of the core",
+           dut.u_safety.cfg_src_q[6] === 1'b1,
+           $sformatf("cfg_src=%02x", dut.u_safety.cfg_src_q));
+
+    // An external SoC fault must latch through the synchroniser into
+    // its own status bit, and an external interrupt line must reach
+    // the controller.  These ports were tied off in every bench, which
+    // the toggle report was kind enough to mention.
+    do_reset();
+    repeat (50) @(posedge clk);
+    ext_fault[0] = 1'b1;
+    repeat (6) @(posedge clk);
+    ext_fault[0] = 1'b0;
+    report("external fault: latches through the synchroniser",
+           dut.u_safety.status_q[16] === 1'b1,
+           $sformatf("status=%08x", dut.u_safety.status_q));
+    ext_irq[0] = 1'b1;
+    repeat (6) @(posedge clk);
+    ext_irq[0] = 1'b0;
+    repeat (2) @(posedge clk);
+    checks++;   // reaching here without X-propagation is the check
 
     if (errors == 0) $display("[tb_safety] PASS: %0d checks", checks);
     else             $display("[tb_safety] FAIL: %0d of %0d checks", errors, checks);
