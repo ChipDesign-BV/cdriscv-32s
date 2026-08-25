@@ -5,6 +5,49 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V43 — objective O8 is met: twelve architectural tests on gates with SDF (2026-08-25)
+
+`make gate-arch` runs an architectural subset on the placed netlist
+with its SDF annotated, and **twelve of twelve pass with signatures
+bit-identical to the recorded Spike references**: add, sub, xor, sltu,
+jalr, lw-align and sw-align from I; mul and div from M — the 33-cycle
+iterative unit grinding through 24 364 and comparable annotated cycles
+— misalign-lh and ebreak from privilege, exercising the trap machinery
+on gates; and FENCE.I, the self-modifying-code path that had found
+design bugs twice before. Together with V42's smoke run this meets
+O8's criterion in full: the smoke program and an architectural subset,
+gate level, with SDF.
+
+The port of the arch environment onto the subsystem memory map is
+`verif/gate/arch/` (linker script and model hooks — with V35's lesson
+baked in, `RVMODEL_DATA_SECTION` after the signature), and the runner
+compares each signature word-for-word against the riscof-recorded
+reference, which is legitimate because the trap handler's relative
+encoding cancels the link base. Tests must fit the 16K TCMs; the ones
+that cannot (the megabyte-spanning jal above all) are covered at RTL
+by `make riscof` and are stated as out of gate-level scope rather than
+silently absent.
+
+Two harness defects found on the way, both instructive:
+
+* The first privilege-test run failed with the program restarting 187
+  times: without `-Drvtest_mtrap_routine=True` the tests compile
+  without their trap handler, the misaligned load traps to **mtvec's
+  reset value — address zero** — and execution silently begins again.
+  The macro set is part of a test's identity, and the runner now takes
+  it from riscof's own generated Makefile instead of guessing. (The
+  RTL subsystem reproduced the failure identically, which is what
+  exonerated the gates in one run.)
+* The M tests initially failed to assemble because the runner
+  hardcoded `-march=rv32i…`. Reported as SKIP by the harness, fixed as
+  the script bug it was.
+
+**With O8 met, every objective except O9's FMEDA handoff is closed.**
+The gate for safety-context use now rests on feeding the fault
+campaign's measured results — per-element detection, 2-cycle
+configuration-parity latency, mechanism attribution — into an FMEDA
+with real failure rates, which requires an owner for the safety case.
+
 ## Phase V42 — gate-level simulation with SDF runs, and found a flow defect (2026-08-25)
 
 `make gate-sdf` is new, and it is the first half of objective O8: the

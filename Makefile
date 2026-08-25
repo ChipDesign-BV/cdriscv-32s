@@ -830,6 +830,18 @@ $(BUILD)/gate/cdriscv_subsys_pd_sim.sdf: $(BUILD)/gate/cdriscv_subsys_pd.sdf \
                                          scripts/sdf_sim_filter.py
 	$(PYTHON) scripts/sdf_sim_filter.py $< $@
 
+# The O8 architectural subset: every suite is represented, every
+# signature compared word-for-word against the Spike reference riscof
+# recorded.  Tests must fit the 16K TCMs; the big ones (jal's megabyte
+# spans) are covered at RTL by `make riscof` and cannot be gate tests.
+GATE_ARCH_TESTS := I/add-01 I/sub-01 I/xor-01 I/sltu-01 I/jalr-01 \
+                   I/lw-align-01 I/sw-align-01 M/mul-01 M/div-01 \
+                   privilege/misalign-lh-01 privilege/ebreak Zifencei/Fencei
+
+gate-arch: $(BUILD)/gate/tb_sdf_subsys.vvp $(BUILD)/gate/cdriscv_subsys_pd_sim.sdf
+	scripts/gate_arch_subset.sh $(GATE_ARCH_TESTS) \
+	  | tee $(BUILD)/gate/gate_arch.log
+
 gate-sdf: $(BUILD)/gate/tb_sdf_subsys.vvp $(BUILD)/gate/cdriscv_subsys_pd_sim.sdf sw
 	$(VVP) $(BUILD)/gate/tb_sdf_subsys.vvp \
 	  +ITCM_HEX=$(BUILD)/prog.itcm.hex \

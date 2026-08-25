@@ -31,9 +31,11 @@
 > functional defects were found and fixed on the way; CI re-runs the
 > gate on every push.
 >
-> **What this does not claim.** O8–O9 — gate-level simulation with SDF,
-> and the fault-injection data feeding an FMEDA — are the plan's gate
-> for use in a *safety* context, and they are open. No functional
+> **What this does not claim.** The safety-context gate is now down to
+> one item: **O8 is met** (smoke plus twelve architectural tests on the
+> placed netlist with SDF, V42/V43); **O9's FMEDA handoff remains
+> open** — the fault campaigns are measured and done, and their results
+> await an FMEDA with real failure rates and a safety-case owner. No functional
 > safety claim of any kind is made, and no compliance with ISO 26262,
 > IEC 61508 or any other standard. The safety mechanisms are measured,
 > not certified.
@@ -147,7 +149,7 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Memory back-pressure (`make cosim-stall`) | **pass** | identical streams vs Spike at 0–90 % grant stall rates; **300/300 random programs, 2 828 026 instructions** at 35 % stall |
 | Architectural test suite (`make riscof`) | **85 of 85 pass** | **objective O1 met.** Current `riscv-arch-test`, unmodified: 39 I, 8 M, 22 hints, 15 privilege, 1 Zifencei. Built with `-mno-relax`, which is what makes the suite usable on a core without the C extension. The 43 `pmp` tests are dropped: they gate PMP on a clause RISCOF does not evaluate, and this core has no PMP. See V35/V36 in [verification_findings.md](doc/verification_findings.md) and [upstream-issues.md](verif/riscof/upstream-issues.md) |
 | Static timing (`make sta`, `make fmax`) | **closed at 50 MHz** | OpenROAD place + repair with the TCMs as four real IHP SRAM macros, path groups reported separately: at the 20 ns target **reg2reg +1.83 ns, in2reg +4.70 ns, reg2out +0.04 ns, TNS 0**. Capability when constrained at 10 ns: 81.0 MHz reg2reg (V39), limited by fetch decode into the I-TCM macro enable — those fix options are now optional headroom. Hold (unbuffered check) **+0.184 ns** |
-| Gate level simulation (`make gate`, `make gate-sdf`) | **smoke passes on the placed netlist with SDF** | zero-delay: 3 blocks + subsystem on SG13G2 cells, cycle-identical to RTL. **With timing (V42)**: the OpenROAD placed-and-repaired netlist, SRAM macros and inserted buffers included, runs the smoke program with its own SDF annotated at the 20 ns clock — and the bring-up caught a real flow defect, constants left undriven for want of tie cells. Objective O8 completes with an arch-test subset on this flow |
+| Gate level simulation (`make gate`, `make gate-sdf`, `make gate-arch`) | **objective O8 met** | zero-delay: 3 blocks + subsystem, cycle-identical to RTL. With timing (V42/V43): the OpenROAD placed netlist — SRAM macros, buffers, tie cells — runs the smoke program **and twelve architectural tests** with its own SDF annotated at the 20 ns clock, every signature bit-identical to the Spike reference. The bring-up caught undriven constants that would have reached layout |
 | Peripheral read-back (`make rdback`) | **pass** | 26 checks over six blocks. Every APB read arm, unmapped offsets, and the first software-driven memory BIST run |
 | FENCE / FENCE.I / writable CSRs (`make fence`) | **pass** | 10 checks. Neither fence instruction had ever executed despite the ISA string; `mcause`, `mtval`, `msafestat` had never been written. FENCE.I is documented as **not observable** on this core — see V12-O1 |
 | Block bench: clock monitor (`make block-clkmon`) | **pass** | 17 checks. Owns the clock generator, so it can stop the system clock — the only way to reach the "clock lost" path. **Found three defects: V11-F1, V11-F2, V11-F3** |

@@ -29,7 +29,7 @@ Anything not on this list is not claimed.
 | O5 | No structural surprises for synthesis | Zero inferred latches, zero combinational loops, zero multiply-driven nets, lint clean with a documented waiver file — **met** |
 | O6 | Code coverage | 100 % statement and branch, ≥ 95 % toggle, with a reviewed waiver for each exclusion — **met** (V40): 96.2 % line (100 % with reviewed W2 waivers), 96.2 % toggle |
 | O7 | Functional coverage | The cross matrices in section 8 closed — **met**: 65 of 65 cover points hit |
-| O8 | The design behaves the same after synthesis | Gate level simulation of the smoke program and a subset of the arch tests, with SDF |
+| O8 | The design behaves the same after synthesis | Gate level simulation of the smoke program and a subset of the arch tests, with SDF — **met** (V42/V43): smoke plus twelve arch tests on the placed netlist, SDF annotated, signatures bit-identical to Spike |
 | O9 | Diagnostic coverage is measured, not asserted | Fault injection campaign of section 9 complete, results feed the FMEDA — campaigns run (~10^4 upsets, classified, latencies measured); the FMEDA handoff is not started |
 
 O1–O7 are the gate for "may be used in a project". O8–O9 are the gate

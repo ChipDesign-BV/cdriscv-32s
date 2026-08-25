@@ -242,6 +242,7 @@ module tb_sdf_subsys;
       if (exit_seen) begin
         if (exit_code == 32'b0) $display("[TB-SDF] PASS after %0d cycles", cycle);
         else                    $display("[TB-SDF] FAIL, exit code %08x", exit_code);
+        dump_signature;
         $finish;
       end
       if (cycle >= max_cycles) begin
@@ -250,5 +251,35 @@ module tb_sdf_subsys;
       end
     end
   end
+
+  // ------------------------------------------------------------------
+  // Signature dump for the arch-test subset (O8): read the D-TCM banks
+  // back and write the data bits of each code word, one per line, the
+  // format riscof compares.  +SIGBEGIN/+SIGEND are byte addresses in
+  // the D-TCM window (0x1000_0000 base).
+  // ------------------------------------------------------------------
+  integer sig_begin, sig_end, sig_fd, w;
+  reg [1023:0] sig_file;
+  reg [63:0]   sig_word;
+
+  task dump_signature;
+    begin
+      if ($value$plusargs("SIGFILE=%s", sig_file) &&
+          $value$plusargs("SIGBEGIN=%h", sig_begin) &&
+          $value$plusargs("SIGEND=%h", sig_end)) begin
+        sig_fd = $fopen(sig_file, "w");
+        for (w = (sig_begin - 'h10000000) >> 2;
+             w < (sig_end - 'h10000000) >> 2; w = w + 1) begin
+          if (w[11])
+            sig_word = dut.\u_dtcm.g_bank[1].u_bank .i_SRAM_1P_behavioral_bm_bist.memory[w[10:0]];
+          else
+            sig_word = dut.\u_dtcm.g_bank[0].u_bank .i_SRAM_1P_behavioral_bm_bist.memory[w[10:0]];
+          $fdisplay(sig_fd, "%08x", sig_word[31:0]);
+        end
+        $fclose(sig_fd);
+        $display("[TB-SDF] signature written to %0s", sig_file);
+      end
+    end
+  endtask
 
 endmodule
