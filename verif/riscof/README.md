@@ -98,42 +98,10 @@ the same faulting address then encodes as a different number than in the
 reference build, and every misaligned-**load** test fails while everything
 else passes. See finding V35.
 
-## How this looked before `-mno-relax` (kept for the record)
+## History
 
-The paragraphs below were written when the workaround was pinning the suite
-to release 3.5.3. They remain accurate as a description of the failure mode;
-the resolution has since improved from "pin an old release" to "build with
-`-mno-relax`", which runs the current suite unmodified. The whole story is in
-[upstream-issues.md](upstream-issues.md) and findings V34–V36.
-
-**The reference model traps in the same place the DUT does.** Spike on
-`add-01.S`:
-
-```
-core 0: 0x800002c8 (0x00000001) c.nop
-core 0: exception trap_illegal_instruction, epc 0x800002c8
-```
-
-So the 128 signature files an earlier run produced are not references:
-Spike was spinning in its trap path and the `--instructions` bound was
-dumping whatever was in memory. A file being produced is not a result.
-
-**The blocker is the test suite, not either model**, and that is now
-proven from both sides rather than inferred from one. The DUT traps at
-the first piece of alignment padding, and so does the reference:
-
-```
-800002c8:  0001       nop     <-- c.nop, 16-bit
-```
-
-`env/arch_test.h` does `.option rvc` in three places, unconditionally,
-so that `.align` can pad with `c.nop`. The ELF attribute says
-`rv32i2p1` and the padding is compressed regardless. On a core with the
-C extension that is harmless; **this core is RV32IM_Zicsr_Zifencei and
-must trap on a 16-bit encoding** — correctly, and the padding is in the
-straight-line stream, not skipped.
-
-Patching `arch_test.h` would make the run pass and would also mean the
-result no longer came from the official suite, which is the whole point
-of running it. So it has not been patched. **No conformance claim can
-be made from this directory** and the README status table says so.
+The suite was first unrunnable (the `LA` macro's `c.nop` padding traps
+any non-C core — `-mno-relax` resolves it), then pinned to release
+3.5.3, then unpinned. The whole trail, including the three misaligned-
+load failures that turned out to be this repository's own environment
+defect, is findings V34–V36 and [upstream-issues.md](upstream-issues.md).

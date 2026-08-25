@@ -107,9 +107,10 @@ either detected by a mechanism that reports it, or bounded by one.
 * [doc/architecture.md](doc/architecture.md) — how it is built and why
 * [doc/register_map.md](doc/register_map.md) — address map, CSRs, every peripheral register
 * [doc/integration.md](doc/integration.md) — ports, clocking, reset, CDC, boot sequence
-* [doc/safety_manual.md](doc/safety_manual.md) — draft: mechanisms, assumptions of use, known gaps
-* [doc/verification_plan.md](doc/verification_plan.md) — what must be done before this IP may be used
-* [doc/verification_findings.md](doc/verification_findings.md) — running log of what verification has found
+* [doc/safety_manual.md](doc/safety_manual.md) — mechanisms, assumptions of use, remaining gaps
+* [doc/verification_plan.md](doc/verification_plan.md) — the objectives and their results
+* [doc/verification_findings.md](doc/verification_findings.md) — the evidence log, V0–V44
+* [doc/fmeda.md](doc/fmeda.md) — FMEDA: measured populations and coverage, assumed rates, derived metrics
 
 ## Building
 
@@ -129,47 +130,27 @@ export PATH="/foss/tools/bin:/foss/tools/verilator/bin:$PATH"
 
 ## Status
 
-Verification progress against [doc/verification_plan.md](doc/verification_plan.md).
-Findings are logged in [doc/verification_findings.md](doc/verification_findings.md).
+Every objective of [doc/verification_plan.md](doc/verification_plan.md)
+has a result. The banner above audits the gate; the detail and every
+number's provenance live in
+[doc/verification_findings.md](doc/verification_findings.md) (phases
+V0–V44, newest first). Summary, one line per area:
 
-| Item | State | Evidence |
+| Area | State | Evidence |
 |------|-------|----------|
-| RTL written | yes | |
-| Lint (`make lint`) | **pass** | hard gate, no `-Wno-fatal`; waivers justified in [verif/lint/waivers.vlt](verif/lint/waivers.vlt) |
-| Bench lint (`make lint-tb`) | **pass** | |
-| Software build (`make sw`) | **pass** | `rv32im_zicsr_zifencei`, ECC encoded memory image |
-| Smoke simulation (`make sim`) | **pass** | boots, 395 cycles, lockstep active, no fault raised |
-| Block bench: ALU (`make block-alu`) | **pass** | 453 840 vectors vs an independent model, mutation tested |
-| Block bench: SEC-DED (`make block-ecc`) | **pass** | 209 308 checks, all 39 single and all 741 double bit error positions, mutation tested |
-| Block bench: mul/div (`make block-multdiv`) | **pass** | 4800 vectors, constant 33-cycle latency asserted, V0-A1 invariant checked |
-| Safety mechanisms, software half (`make safety`) | **pass** | 9 checks: injection self tests, sticky status, masking, software fault |
-| Safety mechanisms, bench half (`make safety-bench`) | **pass** | 7 checks: forced faults in the checker core, clock stopped/slow/fast, each with a quiet case |
-| Peripherals and interrupts (`make periph`) | **pass** | 8 checks: timer, all three interrupt causes, WFI, watchdog serviced and timed out, D-TCM memory BIST |
-| Safety reactions (`make reaction`) | **pass** | 9 checks: clock monitor configured through its registers, configuration lock, reset request with self-recognised restart |
-| Traps and illegal encodings (`make trap`) | **pass** | 21 checks: every exception cause with mcause/mepc/mtval, one reserved encoding per opcode group, and a negative control |
-| AMS interface (`make ams`) | **pass** | 12 checks: limits and range faults, conversion time-out, trim output, analog test bus |
-| Register walk (`make regwalk`) | **pass** | 16 checks: timer prescaler and roll-over, interrupt edge mode and claim, watchdog window mode, safety pin registers, the unread CSRs |
-| Memory back-pressure (`make cosim-stall`) | **pass** | identical streams vs Spike at 0–90 % grant stall rates; **300/300 random programs, 2 828 026 instructions** at 35 % stall |
-| Architectural test suite (`make riscof`) | **85 of 85 pass** | **objective O1 met.** Current `riscv-arch-test`, unmodified: 39 I, 8 M, 22 hints, 15 privilege, 1 Zifencei. Built with `-mno-relax`, which is what makes the suite usable on a core without the C extension. The 43 `pmp` tests are dropped: they gate PMP on a clause RISCOF does not evaluate, and this core has no PMP. See V35/V36 in [verification_findings.md](doc/verification_findings.md) and [upstream-issues.md](verif/riscof/upstream-issues.md) |
-| Static timing (`make sta`, `make fmax`) | **closed at 50 MHz** | OpenROAD place + repair with the TCMs as four real IHP SRAM macros, path groups reported separately: at the 20 ns target **reg2reg +1.83 ns, in2reg +4.70 ns, reg2out +0.04 ns, TNS 0**. Capability when constrained at 10 ns: 81.0 MHz reg2reg (V39), limited by fetch decode into the I-TCM macro enable — those fix options are now optional headroom. Hold (unbuffered check) **+0.184 ns** |
-| Gate level simulation (`make gate`, `make gate-sdf`, `make gate-arch`) | **objective O8 met** | zero-delay: 3 blocks + subsystem, cycle-identical to RTL. With timing (V42/V43): the OpenROAD placed netlist — SRAM macros, buffers, tie cells — runs the smoke program **and twelve architectural tests** with its own SDF annotated at the 20 ns clock, every signature bit-identical to the Spike reference. The bring-up caught undriven constants that would have reached layout |
-| Peripheral read-back (`make rdback`) | **pass** | 26 checks over six blocks. Every APB read arm, unmapped offsets, and the first software-driven memory BIST run |
-| FENCE / FENCE.I / writable CSRs (`make fence`) | **pass** | 10 checks. Neither fence instruction had ever executed despite the ISA string; `mcause`, `mtval`, `msafestat` had never been written. FENCE.I is documented as **not observable** on this core — see V12-O1 |
-| Block bench: clock monitor (`make block-clkmon`) | **pass** | 17 checks. Owns the clock generator, so it can stop the system clock — the only way to reach the "clock lost" path. **Found three defects: V11-F1, V11-F2, V11-F3** |
-| Co-simulation vs Spike (`make cosim`) | **pass** | 208 instructions: PCs, register writes **and memory accesses** all identical, mutation tested; Verilator and Icarus agree |
-| Random program co-simulation (`make cosim-random`) | **pass** | **1000/1000 programs, 16 885 968 instructions** with memory accesses compared; an earlier 2000-program run compared 33 760 012 instructions without them |
-| Co-simulation at scale | **in progress** | objective O2 wants 10^9 instructions; ~5 x 10^7 accumulated across recorded runs, and `scripts/o2_marathon.sh` is grinding the rest in resumable 500-program batches (cumulative count in `build/o2_marathon.log`; a mismatch stops the run and keeps the failing seed) |
-| Formal: fetch stage (`make formal-if`) | **pass** | BMC to depth 20, 5 properties, mutation tested; bounded, not a proof |
-| Formal: SEC-DED code (`make formal-ecc`) | **pass** | **proof** over all 2^32 data values and all error positions, mutation tested |
-| Formal: interconnect (`make formal-bus`) | **pass** | 5 routing, arbitration and no-lost-response properties, mutation tested |
-| Formal: decoder (`make formal-dec`) | **pass** | **proof** over all 2^32 encodings that a rejected instruction has no architectural effect |
-| Formal: LSU (`make formal-lsu`) | **pass** | one access in flight, aligned addresses, byte enables vs a reference, completion only on a response |
-| Formal: safety controller (`make formal-safety`) | **pass** | faults are sticky, the lock holds, the reset request cannot sustain itself (guards V7-F1) |
-| CI workflow | **installed, green** | [.github/workflows/verify.yml](.github/workflows/verify.yml): lint+block, cosim, software, formal and coverage on every push, gate/timing/fault-injection nightly. Five environment failure layers were peeled to get here (checkout permissions, tool PATH, dash-vs-bash, `LD_LIBRARY_PATH`) — a green badge only means something because the first runs failed honestly |
-| Line coverage (`make coverage`) | **96.0 %** | 357 of 372 source lines with every point covered; waivers in [verif/coverage_waivers.md](verif/coverage_waivers.md). **Objective O6 open**: the criterion is 100 % statement/branch with reviewed waivers, and the denominator just grew with the parity and counter modules |
-| Toggle coverage | **92.5 %** | criterion is >= 95 %; part of objective O6, open |
-| Functional coverage (`make coverage`) | **100 %** | **objective O7 met**: 65 `cover` points bound into the RTL, all hit. Found four safety mechanisms no test had provoked and two decoder lines wrongly waived — see [verification_findings.md](doc/verification_findings.md) |
-| Synthesis (`make synth`) | **pass** | yosys via slang: no latches, no combinational loops, 52 614 cells with 64-word TCMs |
-| FMEDA (`scripts/fmeda.py`) | **SPFM 99.6 %, LFM 91.4 %** under stated assumptions | **objective O9 met** (V44): measured populations and diagnostic coverage, assumed 130 nm-class failure rates flagged for replacement with foundry data. The V37 configuration parity is worth 8 LFM points — without it the architecture misses the ASIL D latent-fault bar. See [doc/fmeda.md](doc/fmeda.md) |
-| Fault injection (`make fi`) | **~10 000 upsets, 0 SDC, 0 hangs, 0 latent** | V29 measured **46.4 % latent** — 1 207 of 2 600 runs finished correctly with a safety mechanism silently disabled, 12 configuration registers 100 % undetected. Every configuration register group now carries hardware parity latching STATUS bit 13 **ungated** (V37): same campaign, same seed — **latent 0**, all previously-latent elements detected at a 2-cycle median, contract formally proven. See [verification_findings.md](doc/verification_findings.md) |
-| Safety manual | substantive draft | mechanisms, measured latencies, the configuration-parity story and its residual gaps, integration guidance; the FMEDA it feeds is not started |
+| Lint & structure | **clean** | `make lint lint-tb`, hard gate; waivers argued in [verif/lint/waivers.vlt](verif/lint/waivers.vlt) |
+| Directed benches | **all pass** | 17 targets: blocks (ALU, SEC-DED, mul/div, clkmon), safety both halves, reactions, peripherals, traps, AMS, register walk, read-back, FENCE/FENCE.I, back-pressure |
+| Co-simulation vs Spike | **O2 met** | 1 008 435 332 random instructions, 27 500 programs, zero mismatches on PC, instruction, register and memory writes (V40); plus directed and stall-sweep runs |
+| Architectural suite | **85 of 85** | current `riscv-arch-test`, unmodified, built `-mno-relax` (V36); `make riscof` |
+| Formal | **6 benches pass** | full proofs for SEC-DED (all 2³² words, every 1–2-bit error) and decoder (all 2³² encodings); BMC elsewhere; ungated config-parity contract proven; mutation tested |
+| Coverage | **O6/O7 met** | 96.2 % line (100 % with [reviewed waivers](verif/coverage_waivers.md)), 96.2 % toggle, 100 % functional over 65 cover points (V40) |
+| Fault injection | **0 SDC, 0 hangs, 0 latent** | ~10⁴ classified upsets; latent was **46.4 %** before the V37 configuration parity, zero after, detection median 2–4 cycles (V29/V33/V37); `make fi` |
+| Timing | **closed at 50 MHz** | placed and buffered, reg2reg +1.83 ns, TNS 0; 81 MHz capability at tighter constraint (V39/V41); `make fmax` |
+| Gate level | **O8 met** | zero-delay netlist cycle-identical to RTL; smoke + 12 architectural tests on the placed netlist with SDF, signatures bit-exact vs Spike (V42/V43); `make gate gate-sdf gate-arch` |
+| FMEDA | **SPFM 99.6 % / LFM 91.4 %** | under stated assumed failure rates — see [doc/fmeda.md](doc/fmeda.md) for what is measured vs assumed (V44); `scripts/fmeda.py` |
+| CI | **green** | [verify.yml](.github/workflows/verify.yml): full gate on every push, gate-level/timing/fault-injection nightly |
+
+Twelve functional defects and two flow defects were found and fixed on
+the way; four tool defects were reported upstream. The wrong guesses
+are preserved in the findings next to the measurements that corrected
+them.

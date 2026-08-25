@@ -149,16 +149,14 @@ they are open.
   solely on the safety controller's configurable reactions: STATUS
   bit 13's hardwired interrupt and pin exist precisely because the
   configured path may be what the fault corrupted.
-* A fault injection campaign has been run: 3 000 single event upsets
-  over a named list of nine state elements, across three workloads. No
-  silent data corruption and no hangs; 41 % detected on the arithmetic
-  workload, 57 % on the trap and interrupt one, 43 % on the memory
-  one. This is not a diagnostic coverage figure and must not be quoted
-  as one: the fault list is nine elements rather than the flop list,
-  and the spread between the two workloads is the point — detection
-  depends on what the software makes live, so any figure quoted has to
-  name the workload it was measured on. See `verification_findings.md`,
-  phase V9.
+* Fault-injection campaigns total ~10⁴ classified upsets across three
+  workloads and up to 27 state elements: zero silent data corruption,
+  zero hangs, zero latent (post-V37). Detection depends on what the
+  software makes live — the early campaigns measured 41–57 % across
+  workloads on a nine-element list (V9) — so no figure here is a
+  diagnostic coverage claim without its fault list and workload named.
+  The FMEDA ([fmeda.md](fmeda.md)) is where the measured coverage
+  meets failure rates.
 * No gate level fault injection.
 * The clock monitor's software interface was defective until 2026-08-21
   in three ways, all now fixed and all documented as V11-F1 to V11-F3 in

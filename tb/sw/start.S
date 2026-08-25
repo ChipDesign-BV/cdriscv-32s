@@ -7,7 +7,7 @@
  * trap vector, exercises a few instructions and peripherals, then ends
  * the simulation through the exit register in the SoC expansion slot.
  *
- * STATUS: NOT VERIFIED YET -- DO NOT USE YET.
+ * STATUS: verified to plan gate O1-O7 (2026-08-24); see README for O8-O9/FMEDA caveats.
  */
 
     .equ PERIPH_BASE, 0x20000000

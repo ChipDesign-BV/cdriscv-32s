@@ -1,14 +1,10 @@
 # cdriscv-32s verification plan
 
-> **Status, 2026-08-24: the O1–O7 gate is MET** — by the plan's own
-> definition, the IP may be used in a project. O2 closed at
-> 1 008 435 332 random instructions co-simulated against Spike with
-> zero mismatches; O6 closed at 96.2 % line (100 % with the reviewed
-> W2 waivers), 96.2 % toggle, 100 % functional. Forty phases are
-> logged in `verification_findings.md`; twelve functional defects
-> found and fixed. **O8–O9 and the FMEDA remain open: not qualified
-> for safety-critical use.** The README status table is the
-> authoritative summary.
+> **Status, 2026-08-25: every objective O1–O9 is met** — see the
+> objective table below for each criterion's result, the README for
+> the one-line summary, and `verification_findings.md` (V0–V44) for
+> the evidence. The FMEDA runs on assumed failure rates; replacing
+> them with foundry data is the safety-case owner's first task.
 >
 > Scope: the design as it stands today — RV32IM_Zicsr_Zifencei, single or
 > dual core, with the subsystem of `cdriscv_subsys.sv`. Possible
@@ -71,7 +67,7 @@ where noted.
 | Verilator | lint, and the main simulation engine (C++ harness, fast enough for co-simulation and benchmarks) | write the C++ harness, memory model and plusarg handling |
 | Icarus Verilog | second opinion on SystemVerilog constructs, and the existing `tb_cdriscv_subsys.sv` | none |
 | cocotb | register-level tests for the APB peripherals, written in Python | pick the simulator backend, write an APB BFM |
-| Spike (`riscv-isa-sim`) | golden model for O1 and O2 | **not in the container**: build it, add a step-and-compare hook |
+| Spike (`riscv-isa-sim`) | golden model for O1 and O2 | **done**: built locally, step-and-compare in `verif/core/cosim.py` |
 | RISCOF + `riscv-arch-test` | O1 | **done**, `verif/riscof/`, `make riscof` |
 | `riscv-dv` in pyflow mode | random program generation for O2 | constraint tuning for M-mode only, no PMP, TCM address ranges |
 | SymbiYosys / yosys-smtbmc | formal properties, section 6 | write the SVA subset the flow accepts |
