@@ -105,8 +105,11 @@ gaps below are the reason it remains **not qualified for
 safety-critical use** — O8–O9 and the FMEDA are the gate for that, and
 they are open.
 
-* No FMEDA, no diagnostic coverage figures, no single point fault
-  metric, no latent fault metric.
+* The FMEDA exists ([fmeda.md](fmeda.md)): SPFM 99.6 %, LFM 91.4 %,
+  residual 0.87 FIT — **under assumed failure rates**. The gap that
+  remains is the data, not the analysis: foundry FIT figures, a
+  mission profile, and common-cause analysis for the lockstep pair,
+  per the handoff checklist in that document.
 * **Diagnostic latency has been measured** for the fault classes that
   are detected: median 4 cycles, worst observed 69 — 1.38 µs at the 50 MHz target
   — over 734 detections in a 2 700-injection campaign. The fast end is

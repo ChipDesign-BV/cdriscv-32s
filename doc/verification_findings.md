@@ -5,6 +5,46 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V44 — the FMEDA exists: SPFM 99.6 %, LFM 91.4 % under stated assumptions (2026-08-25)
+
+Objective O9's last step is done: the fault campaigns' measured results
+now feed an actual FMEDA — [doc/fmeda.md](fmeda.md), computed by
+`scripts/fmeda.py`, regenerable by anyone.
+
+The discipline of the document is its three number classes, labeled on
+every row: **measured** (5 658 flip-flops attributed per block from
+the placed netlist's register names, 319 488 SRAM bits, diagnostic
+coverage from ~10⁴ classified injections), **assumed** (the base
+failure rates — 700/400 FIT-per-Mbit soft errors, 20 FIT permanent,
+2 % multi-bit fraction — typical 130 nm-class literature values,
+flagged as the part a real safety case must replace with foundry
+data), and **derived** (the metrics).
+
+Under those assumptions: **SPFM 99.63 %, LFM 91.42 %, residual
+0.87 FIT** — numerically above the ASIL D thresholds. Stated with the
+document's own caveat: an architectural statement, not a
+certification.
+
+The most useful single number is a counterfactual. Recomputing with
+V37's configuration parity removed — every configuration register's
+coverage set to the zero V29 measured — gives **LFM 83.4 %**, below
+the ASIL D bar. One mechanism, added because a campaign measured a
+46.4 % latent rate and refused to call it acceptable, is the
+difference between the architecture clearing the latent-fault target
+and missing it.
+
+Where the residual lives is stated rather than smoothed: the
+triple-bit tail past SEC-DED (reducible by interleaving, deliberately
+not credited), and the checkers themselves — the lockstep compare
+structure and the safety controller's reaction wiring, which is where
+every DCLS architecture's residual lives and why the self-test hooks
+exist.
+
+**With this, every objective of the verification plan — O1 through
+O9 — has a result.** What remains is not verification: foundry failure
+rates, common-cause analysis for the lockstep pair, and a safety-case
+owner to adopt the handoff checklist in the document.
+
 ## Phase V43 — objective O8 is met: twelve architectural tests on gates with SDF (2026-08-25)
 
 `make gate-arch` runs an architectural subset on the placed netlist

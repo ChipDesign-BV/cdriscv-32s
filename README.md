@@ -31,11 +31,14 @@
 > functional defects were found and fixed on the way; CI re-runs the
 > gate on every push.
 >
-> **What this does not claim.** The safety-context gate is now down to
-> one item: **O8 is met** (smoke plus twelve architectural tests on the
-> placed netlist with SDF, V42/V43); **O9's FMEDA handoff remains
-> open** — the fault campaigns are measured and done, and their results
-> await an FMEDA with real failure rates and a safety-case owner. No functional
+> **The full plan, O1–O9, now has a result for every objective.** The
+> FMEDA exists ([doc/fmeda.md](doc/fmeda.md)): SPFM 99.6 %, LFM 91.4 %,
+> residual 0.87 FIT — **under assumed failure rates**, clearly labeled,
+> that a real safety case must replace with foundry data. An
+> architectural statement, not a certification: no ISO 26262 or
+> IEC 61508 compliance of any kind is claimed, and the remaining work
+> (foundry FIT data, common-cause analysis, safety-case ownership) is
+> listed in the document's handoff checklist. No functional
 > safety claim of any kind is made, and no compliance with ISO 26262,
 > IEC 61508 or any other standard. The safety mechanisms are measured,
 > not certified.
@@ -167,6 +170,6 @@ Findings are logged in [doc/verification_findings.md](doc/verification_findings.
 | Toggle coverage | **92.5 %** | criterion is >= 95 %; part of objective O6, open |
 | Functional coverage (`make coverage`) | **100 %** | **objective O7 met**: 65 `cover` points bound into the RTL, all hit. Found four safety mechanisms no test had provoked and two decoder lines wrongly waived — see [verification_findings.md](doc/verification_findings.md) |
 | Synthesis (`make synth`) | **pass** | yosys via slang: no latches, no combinational loops, 52 614 cells with 64-word TCMs |
-| FMEDA / diagnostic coverage | **not started** | the pilot campaign is a first input, not a coverage figure |
+| FMEDA (`scripts/fmeda.py`) | **SPFM 99.6 %, LFM 91.4 %** under stated assumptions | **objective O9 met** (V44): measured populations and diagnostic coverage, assumed 130 nm-class failure rates flagged for replacement with foundry data. The V37 configuration parity is worth 8 LFM points — without it the architecture misses the ASIL D latent-fault bar. See [doc/fmeda.md](doc/fmeda.md) |
 | Fault injection (`make fi`) | **~10 000 upsets, 0 SDC, 0 hangs, 0 latent** | V29 measured **46.4 % latent** — 1 207 of 2 600 runs finished correctly with a safety mechanism silently disabled, 12 configuration registers 100 % undetected. Every configuration register group now carries hardware parity latching STATUS bit 13 **ungated** (V37): same campaign, same seed — **latent 0**, all previously-latent elements detected at a 2-cycle median, contract formally proven. See [verification_findings.md](doc/verification_findings.md) |
 | Safety manual | substantive draft | mechanisms, measured latencies, the configuration-parity story and its residual gaps, integration guidance; the FMEDA it feeds is not started |
