@@ -99,14 +99,54 @@ either detected by a mechanism that reports it, or bounded by one.
 | [rtl/cdriscv_subsys.sv](rtl/cdriscv_subsys.sv) | subsystem top level |
 | [tb/](tb/) | smoke bench and smoke program |
 | [scripts/](scripts/) | ECC generator, memory image builder |
-| [flow/](flow/) | LibreLane starting point (never run) |
+| [flow/](flow/) | LibreLane 3 hardening flow: config and wrapper |
 | [doc/](doc/) | architecture, register map, safety manual draft, verification plan, integration guide |
+
+## Physical implementation (RTL2GDS)
+
+The subsystem hardens with **LibreLane 3** on the IHP SG13G2 PDK;
+`flow/` holds the configuration and the hardening wrapper, and
+`doc/integration.md` §8 is the integrator-facing summary.
+
+```sh
+cd flow && librelane --manual-pdk --pdk-root $PDK_ROOT config.json
+```
+
+**State: a GDS has been produced; signoff is not finished.** The flow
+runs through floorplan, PDN, placement, CTS, detailed routing,
+parasitic extraction, IR-drop and streamout (Magic and KLayout both
+emit a ~79 MB GDS). DRC, LVS and antenna signoff have **not** been
+completed yet, so no claim is made about them.
+
+| | Reference run |
+|---|---|
+| Die | 2.9 × 2.9 mm (8.41 mm²), 36 % utilisation — deliberately roomy |
+| Content | 49 649 standard cells, **4 SRAM macros**, 432 963 fill, 46 401 antenna diodes |
+| Memories | `RM_IHPSG13_1P_2048x64` × 4, two banks per TCM, corner-placed with 10 µm halos |
+| Clock | **40 ns (25 MHz)** |
+| IR drop | worst-case 1.20 V — negligible |
+
+**Why 25 MHz, and a correction.** The first full run was constrained at
+20 ns and met it at the typical corner while missing it **by 9 ns at
+the slow corner** (1.08 V, 125 °C), where 3 636 register-to-register
+paths failed. The earlier "closed at 50 MHz" statement came from a
+typical-corner-only script and was wrong as a closure claim; the
+constraint is now 40 ns and `make fmax` reads all three corners, slow
+first. Sign off setup at slow and hold at fast — see finding V45.
+
+Ten environment and configuration obstacles were found bringing this
+up, from an unparseable vendor SRAM model to the SRAM's third supply
+pin (`VDDARRAY!`) and OpenROAD's undriven constant nets; each is fixed
+in `flow/config.json` and explained in the findings. Two of them —
+missing tie cells and the undriven constants — would have produced a
+broken netlist for layout regardless of simulation, which is the
+argument for running the physical flow at all.
 
 ## Documentation
 
 * [doc/architecture.md](doc/architecture.md) — how it is built and why
 * [doc/register_map.md](doc/register_map.md) — address map, CSRs, every peripheral register
-* [doc/integration.md](doc/integration.md) — ports, clocking, reset, CDC, boot sequence
+* [doc/integration.md](doc/integration.md) — integration manual: deliverables, checklist, ports, clocking, reset, CDC, boot, safety hooks, DFT, physical implementation
 * [doc/safety_manual.md](doc/safety_manual.md) — mechanisms, assumptions of use, remaining gaps
 * [doc/verification_plan.md](doc/verification_plan.md) — the objectives and their results
 * [doc/verification_findings.md](doc/verification_findings.md) — the evidence log, V0–V44

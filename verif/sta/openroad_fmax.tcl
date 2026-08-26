@@ -20,8 +20,18 @@ read_lef $pdk/lef/sg13g2_tech.lef
 read_lef $pdk/lef/sg13g2_stdcell.lef
 read_lef $sram/lef/RM_IHPSG13_1P_2048x64_c2_bm_bist.lef
 
-read_liberty $pdk/lib/sg13g2_stdcell_typ_1p20V_25C.lib
-read_liberty $sram/lib/RM_IHPSG13_1P_2048x64_c2_bm_bist_typ_1p20V_25C.lib
+# THREE corners, not one.  Reading only the typical library is what
+# made this script report "closed at 50 MHz" for a design that missed
+# its constraint by 9 ns at the slow corner (finding V45).  The slow
+# corner is the binding one for setup; keep it first so a careless
+# reading of the output sees it first.
+define_corners slow typ fast
+read_liberty -corner slow $pdk/lib/sg13g2_stdcell_slow_1p08V_125C.lib
+read_liberty -corner slow $sram/lib/RM_IHPSG13_1P_2048x64_c2_bm_bist_slow_1p08V_125C.lib
+read_liberty -corner typ  $pdk/lib/sg13g2_stdcell_typ_1p20V_25C.lib
+read_liberty -corner typ  $sram/lib/RM_IHPSG13_1P_2048x64_c2_bm_bist_typ_1p20V_25C.lib
+read_liberty -corner fast $pdk/lib/sg13g2_stdcell_fast_1p32V_m40C.lib
+read_liberty -corner fast $sram/lib/RM_IHPSG13_1P_2048x64_c2_bm_bist_fast_1p32V_m55C.lib
 
 read_verilog $::env(GATE_NETLIST)
 link_design cdriscv_subsys
@@ -77,7 +87,7 @@ report_checks -path_delay max -fields {slew cap fanout} -digits 3 \
     -path_group reg2reg -group_path_count 3
 puts ""
 puts "==== fmax ===="
-set period 20.0
+set period 40.0
 foreach grp {reg2reg in2reg reg2out} {
     set paths [find_timing_paths -path_group $grp -sort_by_slack -group_path_count 1]
     if {[llength $paths] == 0} { continue }

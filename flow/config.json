@@ -1,10 +1,13 @@
 {
-    "//": "cdriscv-32s -- LibreLane starting point for hardening the subsystem.",
-    "//status": "NOT VERIFIED YET -- DO NOT USE YET. This flow has never been run.",
-    "DESIGN_NAME": "cdriscv_subsys",
+    "//": "cdriscv-32s -- LibreLane 3 RTL2GDS flow (findings V45).",
+    "//tcm": "The TCM storage uses the same macro-backed wrapper as the timing flow (verif/gate/cdriscv_tcm_macro.sv): two RM_IHPSG13_1P_2048x64 banks per TCM, so the arrays are silicon macros, not 320 kbit of flip-flops.",
+    "DESIGN_NAME": "cdriscv_subsys_hard",
+    "PDK": "ihp-sg13g2",
     "VERILOG_FILES": [
         "dir::../rtl/core/cdriscv_pkg.sv",
         "dir::../rtl/common/cdriscv_sync.sv",
+        "dir::../rtl/common/cdriscv_cfg_parity.sv",
+        "dir::../rtl/common/cdriscv_counter64.sv",
         "dir::../rtl/core/cdriscv_alu.sv",
         "dir::../rtl/core/cdriscv_decoder.sv",
         "dir::../rtl/core/cdriscv_regfile.sv",
@@ -19,22 +22,85 @@
         "dir::../rtl/safety/cdriscv_wdog.sv",
         "dir::../rtl/safety/cdriscv_clkmon.sv",
         "dir::../rtl/safety/cdriscv_mbist.sv",
-        "dir::../rtl/bus/cdriscv_tcm.sv",
+        "dir::../verif/gate/cdriscv_tcm_macro.sv",
         "dir::../rtl/bus/cdriscv_bus.sv",
         "dir::../rtl/bus/cdriscv_apb_bridge.sv",
         "dir::../rtl/periph/cdriscv_timer.sv",
         "dir::../rtl/periph/cdriscv_irq_ctrl.sv",
         "dir::../rtl/periph/cdriscv_ams_if.sv",
-        "dir::../rtl/cdriscv_subsys.sv"
+        "dir::../rtl/cdriscv_subsys.sv",
+        "dir::cdriscv_subsys_hard.sv"
     ],
     "CLOCK_PORT": "clk_i",
     "CLOCK_NET": "clk_i",
-    "CLOCK_PERIOD": 20,
-    "SYNTH_ELABORATE_ONLY": false,
-    "FP_CORE_UTIL": 35,
-    "PL_TARGET_DENSITY_PCT": 45,
+    "CLOCK_PERIOD": 40,
+    "PL_TARGET_DENSITY_PCT": 50,
+    "MACROS": {
+        "RM_IHPSG13_1P_2048x64_c2_bm_bist": {
+            "gds": [
+                "/foss/pdks/ihp-sg13g2/libs.ref/sg13g2_sram/gds/RM_IHPSG13_1P_2048x64_c2_bm_bist.gds"
+            ],
+            "lef": [
+                "/foss/pdks/ihp-sg13g2/libs.ref/sg13g2_sram/lef/RM_IHPSG13_1P_2048x64_c2_bm_bist.lef"
+            ],
+            "lib": {
+                "*": [
+                    "/foss/pdks/ihp-sg13g2/libs.ref/sg13g2_sram/lib/RM_IHPSG13_1P_2048x64_c2_bm_bist_typ_1p20V_25C.lib"
+                ]
+            },
+            "instances": {
+                "u_sub.u_itcm.g_bank[0].u_bank": {
+                    "location": [
+                        60,
+                        60
+                    ],
+                    "orientation": "N"
+                },
+                "u_sub.u_itcm.g_bank[1].u_bank": {
+                    "location": [
+                        2055,
+                        60
+                    ],
+                    "orientation": "N"
+                },
+                "u_sub.u_dtcm.g_bank[0].u_bank": {
+                    "location": [
+                        60,
+                        2210
+                    ],
+                    "orientation": "N"
+                },
+                "u_sub.u_dtcm.g_bank[1].u_bank": {
+                    "location": [
+                        2055,
+                        2210
+                    ],
+                    "orientation": "N"
+                }
+            }
+        }
+    },
+    "FP_PDN_MACRO_HOOKS": [
+        ".*u_bank.* VDD VSS VDD! VSS!",
+        ".*u_bank.* VDD VSS VDDARRAY! VSS!"
+    ],
+    "PL_MACRO_HALO": "10 10",
     "RUN_HEURISTIC_DIODE_INSERTION": true,
     "GRT_ALLOW_CONGESTION": false,
-    "//memories": "The TCM arrays are described behaviourally; for an ASIC run replace them with RAM macros before hardening, otherwise the flow will map ~320 kbit to flip-flops.",
-    "//tcm": "With ItcmWords = DtcmWords = 4096 the flip-flop mapping is far too large for a real block; set them to 256 for a first trial run."
+    "USE_SLANG": true,
+    "FP_SIZING": "absolute",
+    "DIE_AREA": [
+        0,
+        0,
+        2900,
+        2900
+    ],
+    "CORE_AREA": [
+        10,
+        10,
+        2890,
+        2890
+    ],
+    "FP_PDN_ENABLE_MACROS_GRID": true,
+    "//clock": "40 ns = 25 MHz.  Chosen after the first full RTL2GDS run: the design met 20 ns at the typical corner but missed it by 9 ns at slow (1.08 V, 125 C), which is the corner a safety IP must sign off against (finding V45)."
 }

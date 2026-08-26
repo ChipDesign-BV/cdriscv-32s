@@ -11,10 +11,12 @@
 # those paths as if they were related would produce violations that mean
 # nothing and hide the ones that do.
 
-# 20 ns: the integration target was reduced from 100 MHz to 50 MHz on
-# 2026-08-24.  The placed-and-buffered netlist runs at 81 MHz (V39), so
-# this closes with 3.7 ns of margin on the worst internal path.
-set period_sys 20.0
+# 40 ns = 25 MHz.  The target was 100 MHz, reduced to 50 MHz on
+# 2026-08-24, and reduced again to 25 MHz on 2026-08-26 when the first
+# full RTL2GDS run showed the design missing 20 ns by 9 ns at the SLOW
+# corner (1.08 V, 125 C).  The earlier "closed at 50 MHz" claim came
+# from a typical-corner-only analysis -- see finding V45.
+set period_sys 40.0
 set period_ref 1000.0
 
 create_clock -name clk     -period $period_sys [get_ports clk_i]
