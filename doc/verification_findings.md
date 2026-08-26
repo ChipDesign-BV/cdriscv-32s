@@ -5,6 +5,107 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V45 — RTL2GDS: DRC clean, LVS matches, and a corner-analysis correction (2026-08-26)
+
+The subsystem has been through a full RTL2GDS flow on IHP SG13G2 with
+LibreLane 3. All three signoff gates pass, and getting there corrected
+a timing claim this log had been carrying since V41.
+
+### The correction first
+
+V41 recorded "timing closed at the 50 MHz target, worst slack
++0.04 ns". That was **typical corner only**, because `make fmax` read
+exactly one Liberty file. The first hardening run put the same netlist
+through three corners and the slow one (1.08 V, 125 °C) missed 20 ns
+**by 8.99 ns with 3 636 register-to-register paths failing**. Typical
+passed; the corner a safety IP signs off against did not.
+
+The constraint is now **40 ns (25 MHz)**, set by the integrator, and
+`verif/sta/openroad_fmax.tcl` reads all three corners with slow first
+so a careless reading sees the binding number. Post-route at 40 ns:
+
+| Corner | Setup worst | Setup violations | Hold worst |
+|---|---|---|---|
+| slow 1.08 V 125 °C | **+2.05 ns** | 0 | +0.48 ns |
+| typ 1.20 V 25 °C | +13.29 ns | 0 | −0.04 ns |
+| fast 1.32 V −40 °C | +19.75 ns | 0 | −0.32 ns, 18 paths |
+
+Setup clean everywhere; the fast-corner hold paths are ordinary
+post-CTS work and the resizer is now asked for margin against them.
+
+**The lesson is not "we picked the wrong clock".** It is that a
+single-corner analysis reports a number that looks like closure and
+is not, and it did so here for two days without anything contradicting
+it. Multi-corner is now structural in the script rather than a
+discipline to remember.
+
+### Signoff
+
+| Gate | Result |
+|---|---|
+| Detailed routing | 0 violations |
+| **DRC**, IHP KLayout signoff deck | **clean** |
+| GDS XOR, Magic vs KLayout streamouts | agree |
+| **LVS**, netgen | **circuits match uniquely** — 56 387 devices, 48 945 nets, both sides |
+
+The design: 2.9 × 2.9 mm die, 49 649 standard cells, four
+`RM_IHPSG13_1P_2048x64` SRAM macros (two per TCM), 36 % utilisation,
+worst-case IR drop negligible at 1.20 V.
+
+### Eleven obstacles, and what two of them were worth
+
+Bringing the flow up took eleven fixes, all recorded in
+`flow/config.json`. Most were environment: a PyYAML build without its
+C loader, a PDK manager wanting write access, an unparseable vendor
+Verilog model, yosys' native front end versus `import pkg::*`.
+
+Two were real design-facing finds:
+
+* **OpenROAD emits named constant nets (`one_`, `zero_`) with no
+  drivers** unless tie cells are inserted. 950 references, no driver.
+  In simulation the reset synchroniser's data input was X and the
+  netlist was dead on arrival (V42); handed to layout it would have
+  been equally wrong.
+* **The SRAM macro has three supply pins**, not two: `VDD!`, `VSS!`
+  and the array supply **`VDDARRAY!`**. Missing the third is silent
+  until a post-route disconnected-pin check catches it — twelve
+  connections across four instances.
+
+### LVS: reading the failure rather than the verdict
+
+LVS first reported `*** MISMATCH ***` and "top level cell failed pin
+matching" — and the useful part was that **devices matched exactly**,
+96 048 on both sides, with nets differing by ten. Connectivity was
+right; the difference was power pins on a black-boxed macro, which the
+PDN straps and the netlist blackbox does not declare. Ignoring the
+vendor macro on both circuits — the standard treatment for a hard
+macro whose internals the vendor has verified — gives a unique match.
+A failure whose *shape* names its own cause is worth more than a
+verdict.
+
+### Two upstream defects
+
+* **LibreLane's netgen step crashes on designs with escaped
+  identifiers.** `netgen.py:265` does `json.loads()` on netgen's stats,
+  and flattened hierarchical names are Verilog escaped identifiers
+  containing a backslash; `\u` is an invalid JSON escape. The step
+  dies **even when LVS succeeds**, which is why the verdict above was
+  taken by running netgen directly.
+* **Magic DRC is single-threaded** and did not finish this die in over
+  three hours on one core of eight. The PDK ships a KLayout deck —
+  which is also IHP's own signoff deck — that completed clean in about
+  an hour on eight threads. The flow now selects it.
+
+### What this is not
+
+A GDS that passes DRC and LVS is not a tapeout. No CTS-quality clock
+tree review, no signal integrity, no ESD or antenna review beyond the
+flow's own check, no packaging, no test structures, and the FMEDA still
+runs on assumed failure rates (V44). What it *is*: evidence that the
+RTL hardens, that the physical result matches the netlist that was
+verified, and that the timing claim now survives the corner that
+matters.
+
 ## Phase V44 — the FMEDA exists: SPFM 99.6 %, LFM 91.4 % under stated assumptions (2026-08-25)
 
 Objective O9's last step is done: the fault campaigns' measured results

@@ -9,7 +9,9 @@
 > Scope: the design as it stands today — RV32IM_Zicsr_Zifencei, single or
 > dual core, with the subsystem of `cdriscv_subsys.sv`. Possible
 > future ISA extensions are explicitly out of scope here and add their
-> own verification work.
+> own verification work. Physical implementation is likewise outside
+> these objectives; the RTL2GDS result is recorded in V45 and
+> summarised in the README.
 
 ## 1. Objectives and sign-off criteria
 

@@ -112,11 +112,24 @@ The subsystem hardens with **LibreLane 3** on the IHP SG13G2 PDK;
 cd flow && librelane --manual-pdk --pdk-root $PDK_ROOT config.json
 ```
 
-**State: a GDS has been produced; signoff is not finished.** The flow
-runs through floorplan, PDN, placement, CTS, detailed routing,
-parasitic extraction, IR-drop and streamout (Magic and KLayout both
-emit a ~79 MB GDS). DRC, LVS and antenna signoff have **not** been
-completed yet, so no claim is made about them.
+**State: DRC clean, LVS matches, setup timing met at all three
+corners** (V45). The flow runs floorplan → PDN → placement → CTS →
+detailed routing → extraction → IR-drop → streamout → DRC → LVS.
+
+| Gate | Result |
+|---|---|
+| Detailed routing | 0 violations |
+| **DRC** (IHP KLayout signoff deck) | **clean** |
+| GDS XOR (Magic vs KLayout streamouts) | agree |
+| **LVS** (netgen) | **circuits match uniquely** — 56 387 devices, 48 945 nets |
+| Setup, 3 corners | slow **+2.05 ns**, typ +13.29, fast +19.75 |
+| Hold | 19 fast-corner paths, worst −0.32 ns; resizer margin now configured |
+
+**This is not a tapeout.** No clock-tree review, signal integrity, ESD,
+packaging or test structures; the FMEDA still runs on assumed failure
+rates. What it is: evidence that the RTL hardens, that the layout
+matches the netlist that was verified, and that the timing claim
+survives the corner that matters.
 
 | | Reference run |
 |---|---|
@@ -127,15 +140,16 @@ completed yet, so no claim is made about them.
 | IR drop | worst-case 1.20 V — negligible |
 
 **Why 25 MHz, and a correction.** The first full run was constrained at
-20 ns and met it at the typical corner while missing it **by 9 ns at
-the slow corner** (1.08 V, 125 °C), where 3 636 register-to-register
-paths failed. The earlier "closed at 50 MHz" statement came from a
-typical-corner-only script and was wrong as a closure claim; the
-constraint is now 40 ns and `make fmax` reads all three corners, slow
-first. Sign off setup at slow and hold at fast — see finding V45.
+20 ns and met it at the typical corner while missing **by 8.99 ns at
+slow** (1.08 V, 125 °C), 3 636 register-to-register paths failing. The
+earlier "closed at 50 MHz" claim came from a script that read one
+Liberty file, and was wrong as a closure claim. The constraint is now
+40 ns and `make fmax` reads all three corners, slow first, so the
+binding number is the one you see. Sign off setup at slow, hold at
+fast — finding V45.
 
-Ten environment and configuration obstacles were found bringing this
-up, from an unparseable vendor SRAM model to the SRAM's third supply
+Eleven environment and configuration obstacles were found bringing
+this up, from an unparseable vendor SRAM model to the SRAM's third supply
 pin (`VDDARRAY!`) and OpenROAD's undriven constant nets; each is fixed
 in `flow/config.json` and explained in the findings. Two of them —
 missing tie cells and the undriven constants — would have produced a
