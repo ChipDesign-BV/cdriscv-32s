@@ -102,5 +102,16 @@
         2890
     ],
     "FP_PDN_ENABLE_MACROS_GRID": true,
-    "//clock": "40 ns = 25 MHz.  Chosen after the first full RTL2GDS run: the design met 20 ns at the typical corner but missed it by 9 ns at slow (1.08 V, 125 C), which is the corner a safety IP must sign off against (finding V45)."
+    "//clock": "40 ns = 25 MHz.  Chosen after the first full RTL2GDS run: the design met 20 ns at the typical corner but missed it by 9 ns at slow (1.08 V, 125 C), which is the corner a safety IP must sign off against (finding V45).",
+    "RUN_MAGIC_DRC": false,
+    "RUN_KLAYOUT_DRC": true,
+    "KLAYOUT_DRC_THREADS": 8,
+    "//drc": "KLayout DRC rather than Magic: Magic's DRC is single-threaded and spent over three hours on one core of eight without finishing, while the IHP PDK ships its own KLayout deck (KLAYOUT_DRC_RUNSET in the PDK config) which threads and is the vendor's signoff deck for this process.",
+    "LVS_IGNORE_CELLS": [
+        "RM_IHPSG13_1P_2048x64_c2_bm_bist"
+    ],
+    "//lvs": "The SRAM macro is black-boxed for LVS: its internals are vendor-verified, and the PDN physically straps VDD!/VSS!/VDDARRAY! on each of the four instances while the netlist blackbox declares no power ports -- twelve connections the layout has and the netlist cannot know about.  Without this, netgen reports devices matching exactly (96048 = 96048) with a 10-net difference and top-level pin matching failed.  With it: circuits match uniquely.",
+    "RUN_POST_GRT_RESIZER_TIMING": true,
+    "PL_RESIZER_HOLD_SLACK_MARGIN": 0.15,
+    "GRT_RESIZER_HOLD_SLACK_MARGIN": 0.15
 }
