@@ -145,6 +145,7 @@ argument for running the physical flow at all.
 ## Documentation
 
 * [doc/architecture.md](doc/architecture.md) — how it is built and why
+* [doc/programming_manual.md](doc/programming_manual.md) — firmware view: ISA, traps, peripherals, safety duties, idioms
 * [doc/register_map.md](doc/register_map.md) — address map, CSRs, every peripheral register
 * [doc/integration.md](doc/integration.md) — integration manual: deliverables, checklist, ports, clocking, reset, CDC, boot, safety hooks, DFT, physical implementation
 * [doc/safety_manual.md](doc/safety_manual.md) — mechanisms, assumptions of use, remaining gaps
