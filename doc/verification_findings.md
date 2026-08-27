@@ -5,6 +5,118 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V47 — a generator whose self-check could not see its own output (2026-08-27)
+
+`673d2f7` generalised `scripts/gen_secded.py` from the fixed (39,32)
+Hsiao code to any geometry, for the zero-waste TCM study. It was
+reported here as verified. It was not, and `ab2895e` fixes it.
+
+### The defect
+
+The *code construction* was generalised; the *RTL emitter* was left
+hardcoded to (39,32). Port declarations, the `cw_i` slices, the
+syndrome literal and the mask literals were all fixed-width, so
+`--par 8 --data 64` emitted
+
+    input  logic [31:0] data_i,            // should be [63:0]
+    output logic [38:0] cw_o               // should be [71:0]
+    assign parity[0] = ^(data_i & 32'h5b48a4a8a8a52925);
+
+— a 64-bit value tagged `32'h`. SystemVerilog truncates that to the low
+32 bits, so every parity equation would have been silently wrong.
+
+### Why it passed, which is the part worth keeping
+
+`check()` validates the parity-check column matrix: odd weight, all
+columns distinct, correct row weights. It is a sound check and it
+passed, because **the column matrix was correct**. What was wrong was
+the text written out from it, and nothing looked at the text.
+
+A generator self-check that inspects the *model* rather than the
+*artefact* is not a check on the generator. This is section 3 of
+CLAUDE.md in a smaller costume: not a generator editing its own
+reference, but a generator whose checker and whose output had drifted
+apart with no assertion tying them together.
+
+Verilator rejects the output outright (`%Error: Too many digits`), so
+this could not have reached silicon. That is luck, not process: the
+same class of error inside a nibble count — a 32-bit mask emitted with
+28 bits of value — would have linted clean and simulated wrong.
+
+### The fix
+
+Every width now derives from `PAR`/`DATA`, and a new
+`verify_emitted()` reads the generated string back and checks:
+
+| check | catches |
+|---|---|
+| `data_i`, `cw_o`, `parity` declared widths | wrong ports |
+| `parity_in = cw_i[cmsb:DATA]` | wrong code-word split |
+| every mask literal sized `DATA`, within `nib_d` nibbles | **the truncation above** |
+| one parity equation per row | dropped rows |
+
+Run against the old broken output it fails with
+`emit check failed: no data_i[63:0]`.
+
+`--prefix` was added at the same time: the two TCMs are headed for
+different geometries and the module names would otherwise collide.
+
+`rtl/safety/cdriscv_ecc_secded.sv` is regenerated. **Every `assign` is
+identical**; only header comments changed, and the file is bit-for-bit
+reproducible from the generator again. Re-verified unchanged:
+block-ecc **209,308 checks** pass, formal-ecc **PASS**, `make lint`
+clean.
+
+### Zero-waste TCM: the generator route is closed, the vendor route is open
+
+The study that prompted the generalisation has an answer, and it is not
+the one that was assumed.
+
+**c4m-flexmem cannot target SG13G2.** Its last commit is 2024-06-11 and
+it pins `PDKMaster~=0.9.6`; the only SG13G2 PDKMaster port,
+`c4m-pdk-ihpsg13g2`, is current (v0.1.3, 2026-06-28) and pins
+`~=0.12.0`. Those ranges do not overlap. `flexmem` appears exactly once
+in that port — `#*flexmem_deps,` in `dodo.py:535` — and `flexmem_deps`
+is never defined anywhere in the file, so uncommenting it would raise
+`NameError`. It was never wired in. Nothing here is a defect in the
+PDK port, which is the maintained half; flexmem is simply stale.
+
+**The vendor macros do it better anyway.** The PDK ships SRAM widths of
+8, 16, 32, 48 and 64, which lets parity live in its own matched-depth
+macro instead of padding a wide row. Today each TCM stores a 39-bit
+code word in a 64-bit row — `verif/gate/cdriscv_tcm_macro.sv` says so
+in as many words ("39 of 64 bits used", `.A_DIN({25'b0, mem_wdata})`)
+— wasting **39.1 %** of the array. Splitting data and parity wastes
+nothing:
+
+| scheme | macros | array waste | area per data bit | 32-bit store |
+|---|---|---|---|---|
+| today, (39,32) in x64 rows | `2048x64` | 39.1 % | 7.50 µm² | 1 cycle |
+| (40,32) as x32 + x8 | `2048x32` + `4096x8` | **0 %** | 5.10 µm² | 1 cycle |
+| (72,64) as x64 + x8 | `2048x64` + `4096x8` | **0 %** | **4.31 µm²** | 2 cycles (RMW) |
+
+(72,64) is the most efficient but its 64-bit ECC line forces a
+read-modify-write on every `sw`, which is free on an instruction memory
+and not on a data memory. So the intended split is asymmetric — I-TCM
+(72,64), D-TCM (40,32) — both zero-waste, with the D-TCM keeping
+single-cycle stores and gaining a slightly stronger code (8 check bits
+where 7 suffice).
+
+Both geometries are generated and lint clean. **No RTL has been
+changed**: `cdriscv_tcm.sv`, `cdriscv_tcm_macro.sv` and the whole of
+`rtl/core/` are untouched, and the TCM rework has not started.
+
+### Still open from V46
+
+Max-slew and max-cap remain ungated by the flow
+(`MAX_SLEW_VIOLATION_CORNERS` defaults to `['']`), with 265 slew pins
+at the slow corner and 68 cap pins at every corner — of which 49 are
+SRAM `A_DOUT` pins loaded 2.2× past their Liberty limit. Unchanged
+since V46 and still the most substantive open item on the physical
+side. A denser floorplan configuration (2050 µm square, ~72 % target,
+macros kept banded) is prepared in `flow/config_dense.json` but **has
+not been run**.
+
 ## Phase V46 — RTL2GDS closes at 25 MHz, and two signoff checks that were never gating (2026-08-27)
 
 `RUN_2026-08-27_09-34-10` ran the LibreLane 3 flow to "Flow complete"
