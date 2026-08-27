@@ -72,9 +72,18 @@ stops at stage 76 with a deferred bookkeeping error —
 and the manufacturability report still expects its metric — after
 every real stage has completed.
 
-The design: 2.9 × 2.9 mm die, 49 649 standard cells, four
-`RM_IHPSG13_1P_2048x64` SRAM macros (two per TCM), 36 % utilisation,
-worst-case IR drop negligible at 1.20 V.
+The design: 2.9 × 2.9 mm die, 50 241 standard cells, four
+`RM_IHPSG13_1P_2048x64` SRAM macros (two per TCM), worst-case IR drop
+negligible at 1.20 V.
+
+**Utilisation is 36 %, and that is a poor number chosen rather than
+discovered.** 16 % standard cells, 23 % macros, 61 % empty. The die was
+sized generously to get the flow running and never revisited. The
+macros are incompressible at 1.97 mm²; the standard cells occupy
+1.35 mm², and **13 126 of the 50 241 cells are timing-repair buffers**
+— a quarter of the cell count, inserted to bridge distances the
+oversized floorplan created, so the waste compounds. A production
+hardening would target 60–75 %.
 
 ### Eleven obstacles, and what two of them were worth
 

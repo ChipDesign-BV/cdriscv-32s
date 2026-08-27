@@ -224,8 +224,13 @@ Numbers below are from the RTL2GDS run described in the README; see
 Four SRAM macros (`RM_IHPSG13_1P_2048x64_c2_bm_bist`, 784 × 627 µm
 each — two per TCM, bank select on address bit 11) placed at the die
 corners with 10 µm halos, standard cells in the central cross. The
-reference run uses a 2.9 × 2.9 mm die at 36 % utilisation, which is
-deliberately roomy; a tighter floorplan is available and untried.
+reference run uses a 2.9 × 2.9 mm die at **36 % utilisation** (16 %
+standard cells, 23 % macros), which is loose: the die was sized to get
+the flow running, not to fit. Budget the macros as fixed — 1.97 mm² for
+32 KiB of ECC-protected TCM — and expect the logic to pack far tighter
+than the reference run shows. Corner placement of the macros also
+costs hold timing (§8.2); banding them either side of the logic is
+both denser and better for the clock tree.
 
 Each macro needs **three** supply connections — `VDD!`, `VSS!` and the
 array supply **`VDDARRAY!`**. Missing the third is silent until a

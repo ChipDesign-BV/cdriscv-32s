@@ -125,6 +125,17 @@ detailed routing → extraction → IR-drop → streamout → DRC → LVS.
 | Setup, 3 corners | slow **+2.05 ns**, typ +13.29, fast +19.75 |
 | **Hold** | **not closed**: 15 fast-corner paths, worst −0.40 ns. Resizer margin made it worse (19 paths at −0.32 before); LibreLane's Classic flow repairs timing pre-route only — see V45 |
 
+**Area is not optimised.** 2.9 mm square was chosen to get the flow
+running, never revisited. The four SRAM macros are 1.97 mm² and
+incompressible — 32 KiB of ECC-protected TCM at the vendor compiler's
+density — but the standard-cell half occupies 1.35 mm² in a die sized
+for far more, and a quarter of those cells are timing-repair buffers
+inserted to bridge distances an oversized floorplan created. The run
+in progress takes the die to 2.4 mm square (5.76 mm², ~52 %) as a
+side-effect of fixing hold; **2.0–2.1 mm square (~72 %) is plausibly
+reachable** and finding the real floor means shrinking until routing
+or timing pushes back.
+
 **This is not a tapeout.** No clock-tree review, signal integrity, ESD,
 packaging or test structures; the FMEDA still runs on assumed failure
 rates. What it is: evidence that the RTL hardens, that the layout
@@ -133,8 +144,8 @@ survives the corner that matters.
 
 | | Reference run |
 |---|---|
-| Die | 2.9 × 2.9 mm (8.41 mm²), 36 % utilisation — deliberately roomy |
-| Content | 49 649 standard cells, **4 SRAM macros**, 432 963 fill, 46 401 antenna diodes |
+| Die | 2.9 × 2.9 mm (8.41 mm²), **36 % utilisation** — 16 % standard cells, 23 % SRAM macros, ~61 % empty. Loose by choice, not a floor: see below |
+| Content | 50 241 standard cells (of which **13 126 are timing-repair buffers**), **4 SRAM macros**, 432 104 fill, 46 400 antenna diodes |
 | Memories | `RM_IHPSG13_1P_2048x64` × 4, two banks per TCM, corner-placed with 10 µm halos |
 | Clock | **40 ns (25 MHz)** |
 | IR drop | worst-case 1.20 V — negligible |
