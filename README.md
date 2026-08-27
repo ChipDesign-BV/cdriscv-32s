@@ -121,9 +121,9 @@ detailed routing → extraction → IR-drop → streamout → DRC → LVS.
 | Detailed routing | 0 violations |
 | **DRC** (IHP KLayout signoff deck) | **clean** |
 | GDS XOR (Magic vs KLayout streamouts) | agree |
-| **LVS** (netgen) | **circuits match uniquely** — 56 387 devices, 48 945 nets |
+| **LVS** (netgen) | **circuits match uniquely** — 96 645 devices, 50 485 nets |
 | Setup, 3 corners | slow **+2.05 ns**, typ +13.29, fast +19.75 |
-| Hold | 19 fast-corner paths, worst −0.32 ns; resizer margin now configured |
+| **Hold** | **not closed**: 15 fast-corner paths, worst −0.40 ns. Resizer margin made it worse (19 paths at −0.32 before); LibreLane's Classic flow repairs timing pre-route only — see V45 |
 
 **This is not a tapeout.** No clock-tree review, signal integrity, ESD,
 packaging or test structures; the FMEDA still runs on assumed failure

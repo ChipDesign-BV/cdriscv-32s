@@ -243,6 +243,14 @@ analysis had reported the design "closed" (finding V45).
 three corners are in `verif/sta/cdriscv_subsys.sdc` and in the
 `make fmax` script.
 
+**Hold at the fast corner is an open item.** The reference run leaves
+15 paths violating, worst −0.40 ns at 1.32 V / −40 °C. Setup is clean
+at all three corners. Closing hold needs a post-route repair pass that
+the reference flow does not run, or an explicit lower bound on
+operating voltage and temperature in the product specification.
+Whoever hardens this for silicon must resolve it — a hold violation is
+a functional failure, not a speed limit.
+
 Both clocks are genuinely asynchronous; `set_clock_groups -asynchronous`
 between `clk` and `ref_clk` is correct rather than convenient.
 

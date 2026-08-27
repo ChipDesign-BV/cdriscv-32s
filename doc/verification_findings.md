@@ -30,8 +30,24 @@ so a careless reading sees the binding number. Post-route at 40 ns:
 | typ 1.20 V 25 °C | +13.29 ns | 0 | −0.04 ns |
 | fast 1.32 V −40 °C | +19.75 ns | 0 | −0.32 ns, 18 paths |
 
-Setup clean everywhere; the fast-corner hold paths are ordinary
-post-CTS work and the resizer is now asked for margin against them.
+Setup clean everywhere. **Hold is not closed at the fast corner**, and
+asking the resizer for margin made it worse rather than better:
+
+| | before margin | after margin |
+|---|---|---|
+| hold violations | 19 | 15 |
+| worst hold slack | −0.32 ns | **−0.40 ns** |
+| hold TNS | −1.75 ns | **−2.17 ns** |
+
+Fewer paths, worse slack, worse total — the setting redistributed
+rather than repaired. The reason is structural:
+`RUN_POST_GRT_RESIZER_TIMING` optimises before detailed routing,
+against estimated parasitics, and the real post-route delays land
+elsewhere. LibreLane's Classic flow has no post-route hold repair
+pass, so closing this needs either an added pass or an explicit
+operating-condition bound. **Recorded as open**: hold violations are
+functional failures in silicon, not performance shortfalls, and this
+one is not to be quietly rounded away.
 
 **The lesson is not "we picked the wrong clock".** It is that a
 single-corner analysis reports a number that looks like closure and
@@ -46,7 +62,15 @@ discipline to remember.
 | Detailed routing | 0 violations |
 | **DRC**, IHP KLayout signoff deck | **clean** |
 | GDS XOR, Magic vs KLayout streamouts | agree |
-| **LVS**, netgen | **circuits match uniquely** — 56 387 devices, 48 945 nets, both sides |
+| **LVS**, netgen | **circuits match uniquely** — 96 645 devices, 50 485 nets, both sides |
+
+Confirmed end to end on a single clean run (2026-08-27) with
+`LVS_IGNORE_CELLS` in the committed configuration rather than applied
+by hand, so the result is reproducible rather than a one-off. That run
+stops at stage 76 with a deferred bookkeeping error —
+`magic__drc_error__count not reported`, because Magic DRC is disabled
+and the manufacturability report still expects its metric — after
+every real stage has completed.
 
 The design: 2.9 × 2.9 mm die, 49 649 standard cells, four
 `RM_IHPSG13_1P_2048x64` SRAM macros (two per TCM), 36 % utilisation,
