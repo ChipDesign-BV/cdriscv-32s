@@ -5,6 +5,118 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V46 — RTL2GDS closes at 25 MHz, and two signoff checks that were never gating (2026-08-27)
+
+`RUN_2026-08-27_09-34-10` ran the LibreLane 3 flow to "Flow complete"
+on `cdriscv_subsys_hard` at a 40 ns period (25 MHz). Every gate that
+the flow actually enforces is clean, and hold — open since V45 — is
+now closed at all three corners.
+
+### Signoff
+
+| Check | Result |
+|---|---|
+| LVS (netgen) | **Circuits match uniquely** — 95,749 devices, 50,518 nets |
+| KLayout DRC | 0 violations |
+| Detailed-route DRC | 0 (51 → 5 → 7 → 0 over 8 iterations) |
+| Antenna | 0 violating nets |
+| Setup | slow **+4.813 ns**, typ +15.014, fast +20.878; TNS 0, 0 violating paths |
+| Hold | fast **+0.127 ns**, typ +0.349, slow +0.678; TNS 0, 0 violating paths |
+
+Die 2400 × 2400 µm (5.76 mm²), core 5.658 mm², instance utilization
+**52.6 %** (std-cell-only 27.3 %). 95,745 std cells + 4 SRAM macros,
+of which 13,061 are timing-repair buffers and 52 hold buffers;
+226,570 fill and 45,583 antenna cells. Routed wirelength 3.069 mm.
+
+The three corners are the V45 set: `nom_slow_1p08V_125C`,
+`nom_typ_1p20V_25C`, `nom_fast_1p32V_m40C`. Setup is worst at slow and
+hold at fast, as it should be — a run where those are not the worst
+corners has a corner-setup error, which is exactly what V45 caught.
+
+### The finding: two checks printed their violations and passed anyway
+
+`Checker.MaxSlewViolations` logged
+
+    Max Slew violations found in the following corners:
+    * nom_slow_1p08V_125C
+    * nom_typ_1p20V_25C
+    No max slew violations found
+
+— a corner list and an all-clear, in that order, from the same step.
+`metrics.json` records 527. The all-clear is not a parse failure: it
+is LibreLane's default. `MAX_SLEW_VIOLATION_CORNERS` defaults to
+`['']`, and an empty corner pattern matches **no** corners, so the
+step evaluates nothing and reports clean. `MAX_CAP_VIOLATION_CORNERS`
+is the same. Only `TIMING_VIOLATION_CORNERS` (setup and hold) defaults
+to `['*']` and is genuinely enforced.
+
+So the flow's "complete" verdict covers setup, hold, DRC, antenna and
+LVS. It does **not** cover slew or capacitance, and never did — in
+this run or in any earlier one.
+
+Counting distinct pins, and discarding the `ANTENNA_*` diode entries
+that double-count the pin they attach to:
+
+| Corner | max-slew pins | max-cap pins |
+|---|---|---|
+| slow 1.08 V/125 °C | **265** | 67 |
+| typ 1.20 V/25 °C | 6 | 68 |
+| fast 1.32 V/−40 °C | 0 | 68 |
+
+Two populations, with different significance:
+
+- **Slew, worst −2.989 ns against a 2.507 ns limit.** These land
+  overwhelmingly on `wire####` and `load_slew####` — buffers OpenROAD
+  itself inserted during `repair_design`, i.e. nets it tried to fix
+  and did not finish fixing. Slow-corner only, and setup still has
+  4.8 ns of margin with these slews already in the STA.
+- **Capacitance on the SRAM read path, and this is the one that
+  matters.** 49 of the 68 are macro `A_DOUT[*]` pins: limit
+  0.064 pF, loaded to 0.140 pF — **2.2× over**. A macro output loaded
+  past its characterized range means the read-path delay is being
+  *extrapolated* off the end of the Liberty table, so the +4.813 ns
+  setup slack is least trustworthy on exactly the paths that go
+  through it. Five macro `A_DIN[*]` pins also miss the slew limit, but
+  marginally (worst −0.027 ns on a 0.476 ns limit).
+
+Nothing here contradicts the timing closure; it bounds how much the
+closure is worth. The fix is buffering on the TCM data nets, and it
+needs a flow re-run to confirm — **open**.
+
+This is section 2 of CLAUDE.md in a new costume: a passing check did
+not tell us the circuit was right, because the check had been
+configured to examine nothing. The step still printed the truth one
+line above the all-clear.
+
+### Tooling: why LVS takes three hours
+
+netgen held one core at 99.9 % for **2 h 54 min** on this compare
+(00:24 → 03:28 on the previous run; 12:18 → 15:12 here), silent
+throughout. That is not a container misconfiguration:
+
+| | netgen 1.5.323 | magic 8.3.678 |
+|---|---|---|
+| `pthread_create` in binary | 0 | 0 |
+| pthread / OpenMP / TBB linked | none | none |
+| CLI threading option | none | none |
+
+Neither tool links a threading library at all, so no container-side
+change can parallelise them. The container is not the constraint —
+KLayout DRC uses all 8 cores here via `KLAYOUT_DRC_THREADS`.
+
+The available lever is the one that already fixed DRC: the IHP PDK
+ships a KLayout LVS deck (`libs.tech/klayout/tech/lvs/sg13g2.lvs`) and
+LibreLane has a `KLayout.LVS` step with a dedicated `run_ihp_sg13g2`
+path. Its `$run_mode=deep` does hierarchical extraction and compare,
+which is the real win on a design that is ~40 unique cells instantiated
+95,745 times. Note that unlike `ihp-sg13g2.drc`, the LVS deck never
+calls `threads()`, so threading it needs a wrapper deck — and KLayout
+threads the geometry phase but not the netlist compare, so hierarchy,
+not thread count, is where the hours are. Adopting it means bringing up
+a second extraction engine and re-establishing the macro blackboxing
+that `LVS_IGNORE_CELLS` does for netgen; netgen stays the signoff
+cross-check either way. **Not started.**
+
 ## Phase V45 — RTL2GDS: DRC clean, LVS matches, and a corner-analysis correction (2026-08-26)
 
 The subsystem has been through a full RTL2GDS flow on IHP SG13G2 with

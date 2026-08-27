@@ -25,9 +25,10 @@
 > Also measured: configuration-register upsets hardware-detected
 > (latent 46.4 % → 0), diagnostic latency median 2–4 cycles, zero
 > silent data corruption over ~10⁴ injections, and **timing closed at
-> the 50 MHz integration target** (worst slack +0.04 ns, TNS 0 on the
-> placed and buffered netlist; 81 MHz capability when constrained
-> harder). Twelve
+> the 25 MHz integration target across all three PVT corners** (setup
+> +4.81 ns worst, hold +0.13 ns worst, TNS 0 on the routed netlist).
+> An earlier "closed at 50 MHz" figure was typical-corner only and was
+> withdrawn in V45. Twelve
 > functional defects were found and fixed on the way; CI re-runs the
 > gate on every push.
 >
@@ -112,8 +113,8 @@ The subsystem hardens with **LibreLane 3** on the IHP SG13G2 PDK;
 cd flow && librelane --manual-pdk --pdk-root $PDK_ROOT config.json
 ```
 
-**State: DRC clean, LVS matches, setup timing met at all three
-corners** (V45). The flow runs floorplan → PDN → placement → CTS →
+**State: DRC clean, LVS matches, setup and hold both met at all three
+corners** (V46). The flow runs floorplan → PDN → placement → CTS →
 detailed routing → extraction → IR-drop → streamout → DRC → LVS.
 
 | Gate | Result |
@@ -121,20 +122,21 @@ detailed routing → extraction → IR-drop → streamout → DRC → LVS.
 | Detailed routing | 0 violations |
 | **DRC** (IHP KLayout signoff deck) | **clean** |
 | GDS XOR (Magic vs KLayout streamouts) | agree |
-| **LVS** (netgen) | **circuits match uniquely** — 96 645 devices, 50 485 nets |
-| Setup, 3 corners | slow **+2.05 ns**, typ +13.29, fast +19.75 |
-| **Hold** | **not closed**: 15 fast-corner paths, worst −0.40 ns. Resizer margin made it worse (19 paths at −0.32 before); LibreLane's Classic flow repairs timing pre-route only — see V45 |
+| **LVS** (netgen) | **circuits match uniquely** — 95 749 devices, 50 518 nets |
+| Setup, 3 corners | slow **+4.81 ns**, typ +15.01, fast +20.88; TNS 0 |
+| **Hold**, 3 corners | **closed** — fast **+0.13 ns**, typ +0.35, slow +0.68; TNS 0 |
+| Antenna | 0 violating nets |
+| Max slew / max cap | **not gated by the flow** — 265 slew pins (slow) and 68 cap pins; see V46 |
 
-**Area is not optimised.** 2.9 mm square was chosen to get the flow
-running, never revisited. The four SRAM macros are 1.97 mm² and
-incompressible — 32 KiB of ECC-protected TCM at the vendor compiler's
-density — but the standard-cell half occupies 1.35 mm² in a die sized
-for far more, and a quarter of those cells are timing-repair buffers
-inserted to bridge distances an oversized floorplan created. The run
-in progress takes the die to 2.4 mm square (5.76 mm², ~52 %) as a
-side-effect of fixing hold; **2.0–2.1 mm square (~72 %) is plausibly
-reachable** and finding the real floor means shrinking until routing
-or timing pushes back.
+**Area is not optimised.** The die is 2.4 mm square (5.76 mm²) at
+**52.6 % instance utilization** — down from an initial 2.9 mm square,
+shrunk as a side-effect of banding the macros to fix hold. The four
+SRAM macros are 1.97 mm² and incompressible — 32 KiB of ECC-protected
+TCM at the vendor compiler's density — but std cells alone occupy only
+27.3 % of the core, and 13,061 of the 95,745 cells are timing-repair
+buffers bridging distances the floorplan created. **2.0–2.1 mm square
+(~72 %) is plausibly reachable**; finding the real floor means
+shrinking until routing or timing pushes back.
 
 **This is not a tapeout.** No clock-tree review, signal integrity, ESD,
 packaging or test structures; the FMEDA still runs on assumed failure
@@ -211,7 +213,7 @@ V0–V44, newest first). Summary, one line per area:
 | Formal | **6 benches pass** | full proofs for SEC-DED (all 2³² words, every 1–2-bit error) and decoder (all 2³² encodings); BMC elsewhere; ungated config-parity contract proven; mutation tested |
 | Coverage | **O6/O7 met** | 96.2 % line (100 % with [reviewed waivers](verif/coverage_waivers.md)), 96.2 % toggle, 100 % functional over 65 cover points (V40) |
 | Fault injection | **0 SDC, 0 hangs, 0 latent** | ~10⁴ classified upsets; latent was **46.4 %** before the V37 configuration parity, zero after, detection median 2–4 cycles (V29/V33/V37); `make fi` |
-| Timing | **closed at 50 MHz** | placed and buffered, reg2reg +1.83 ns, TNS 0; 81 MHz capability at tighter constraint (V39/V41); `make fmax` |
+| Timing | **closed at 25 MHz, 3 corners** | routed netlist: setup +4.81 ns worst (slow), hold +0.13 ns worst (fast), TNS 0 both (V46). An earlier 50 MHz figure was typical-corner only, withdrawn in V45; `make fmax` |
 | Gate level | **O8 met** | zero-delay netlist cycle-identical to RTL; smoke + 12 architectural tests on the placed netlist with SDF, signatures bit-exact vs Spike (V42/V43); `make gate gate-sdf gate-arch` |
 | FMEDA | **SPFM 99.6 % / LFM 91.4 %** | under stated assumed failure rates — see [doc/fmeda.md](doc/fmeda.md) for what is measured vs assumed (V44); `scripts/fmeda.py` |
 | CI | **green** | [verify.yml](.github/workflows/verify.yml): full gate on every push, gate-level/timing/fault-injection nightly |

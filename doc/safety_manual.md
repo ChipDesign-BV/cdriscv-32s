@@ -111,7 +111,7 @@ they are open.
   mission profile, and common-cause analysis for the lockstep pair,
   per the handoff checklist in that document.
 * **Diagnostic latency has been measured** for the fault classes that
-  are detected: median 4 cycles, worst observed 69 — 1.38 µs at the 50 MHz target
+  are detected: median 4 cycles, worst observed 69 — 2.76 µs at the 25 MHz target
   — over 734 detections in a 2 700-injection campaign. The fast end is
   the safety controller's own status register at 1 cycle; the slow end
   is memory ECC at a median of 32 to 38 cycles, because ECC checks a
