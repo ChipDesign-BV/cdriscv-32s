@@ -148,7 +148,7 @@ survives the corner that matters.
 |---|---|
 | Die | 2.9 × 2.9 mm (8.41 mm²), **36 % utilisation** — 16 % standard cells, 23 % SRAM macros, ~61 % empty. Loose by choice, not a floor: see below |
 | Content | 50 241 standard cells (of which **13 126 are timing-repair buffers**), **4 SRAM macros**, 432 104 fill, 46 400 antenna diodes |
-| Memories | `RM_IHPSG13_1P_2048x64` × 4, two banks per TCM, corner-placed with 10 µm halos |
+| Memories | per TCM: `RM_IHPSG13_1P_2048x32` × 2 (data) + `RM_IHPSG13_1P_4096x8` × 1 (check bits); banded, 10 µm halos |
 | Clock | **40 ns (25 MHz)** |
 | IR drop | worst-case 1.20 V — negligible |
 

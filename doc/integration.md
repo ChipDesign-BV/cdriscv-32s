@@ -221,21 +221,34 @@ Numbers below are from the RTL2GDS run described in the README; see
 
 ### 8.1 Floorplan
 
-Four SRAM macros (`RM_IHPSG13_1P_2048x64_c2_bm_bist`, 784 × 627 µm
-each — two per TCM, bank select on address bit 11) with 10 µm halos,
-**banded** — I-TCM along the bottom, D-TCM along the top — with the
-standard cells between them. The reference run uses a 2.4 × 2.4 mm die
-at **52.6 % utilisation** (27.3 % standard cells, the rest macros),
-which is still loose: the die was sized to get the flow running, not
-to fit. Budget the macros as fixed — 1.97 mm² for 32 KiB of
-ECC-protected TCM — and expect the logic to pack tighter than the
-reference run shows. An earlier revision placed the macros at the die
-corners; that cost 0.45 ns of clock skew and left hold unclosable
-(§8.2). Banding them is both denser and better for the clock tree.
+Six SRAM macros with 10 µm halos, **banded** — I-TCM along the bottom,
+D-TCM along the top — with the standard cells between them. Per TCM:
+
+| part | count | size | holds |
+|---|---|---|---|
+| `RM_IHPSG13_1P_2048x32_c2_bm_bist` | 2 | 417 × 627 µm | data[31:0], bank select on address bit 11 |
+| `RM_IHPSG13_1P_4096x8_c3_bm_bist` | 1 | 237 × 618 µm | check bits[38:32], spans both banks |
+
+Splitting data from check bits is what keeps the array full: a 39-bit
+code word in a 64-bit row wastes 25 bits of every row (39 %), while
+32 + 8 wastes one bit in eight of the parity part (~2.5 %). The parity
+macro is 4096 deep so it needs no bank select — and no `2048x8` part,
+which the PDK does not offer.
+
+The reference run uses a **1.90 × 1.90 mm die at 66.1 % utilisation**;
+budget the macros as fixed at **1.34 mm²** for 32 KiB of ECC-protected
+TCM. Two placement lessons are worth inheriting: macros at the die
+corners cost 0.45 ns of clock skew and left hold unclosable (§8.2), so
+band them; and the practical density limit is set by **antenna-diode
+legalisation**, not routing congestion — at 1.82 mm the router still
+sat at 19 % usage with zero overflow while 29 diodes had nowhere to go.
 
 Each macro needs **three** supply connections — `VDD!`, `VSS!` and the
 array supply **`VDDARRAY!`**. Missing the third is silent until a
-post-route disconnected-pin check catches it.
+post-route disconnected-pin check catches it; note that LVS will *not*
+catch it if the macro is in `LVS_IGNORE_CELLS`. If you add a macro,
+add a matching `FP_PDN_MACRO_HOOKS` entry — the hooks match by
+instance-name pattern, so a new name silently gets no power.
 
 ### 8.2 Timing — sign off at the slow corner
 
