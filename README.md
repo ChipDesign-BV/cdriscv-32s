@@ -117,12 +117,6 @@ either detected by a mechanism that reports it, or bounded by one.
 
 ## Physical implementation (RTL2GDS)
 
-![Hardened `cdriscv_subsys_hard` on IHP SG13G2 — 1.90 mm square, 66.1 %
-utilization. The two yellow bands are the TCM macros (I-TCM bottom,
-D-TCM top), each two wide `2048x32` data parts plus one narrower
-`4096x8` parity part; the standard-cell logic is the dense band between
-them.](doc/img/cdriscv_subsys_gds.png)
-
 The subsystem hardens with **LibreLane 3** on the IHP SG13G2 PDK;
 `flow/` holds the configuration and the hardening wrapper, and
 `doc/integration.md` §8 is the integrator-facing summary.
