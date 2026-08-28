@@ -5,6 +5,116 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V50 — 50 MHz, signed off (2026-08-29)
+
+`f50e` reached "Flow complete" at a 20 ns period with **LVS matching
+uniquely**. The 50 MHz target that V45 withdrew, and that V41 wrongly
+claimed on typical-corner-only evidence, is now met on the full signoff
+path.
+
+### Signoff
+
+| Check | 25 MHz (`dense1900b`) | **50 MHz (`f50e`)** |
+|---|---|---|
+| Setup WS, slow 1.08 V/125 °C | +3.160 ns | **+0.061 ns** |
+| Hold WS, fast 1.32 V/−40 °C | +0.146 ns | **+0.132 ns** |
+| Setup / hold TNS | 0 / 0 | **0 / 0** |
+| Detailed-route DRC | 0 | **0** |
+| KLayout DRC | 0 | **0** |
+| Antenna violating nets | 0 | **0** |
+| **LVS** | match uniquely | **match uniquely** (49 823 nets both sides) |
+| Die | 3.610 mm² | 4.410 mm² |
+| Utilization | 0.661 | 0.544 |
+| Wirelength | 2.9996 mm | **2.8585 mm** |
+| Std cells | 93 143 | 95 791 |
+
+Post-route STA reads a real extracted SPEF (73.6 MB from OpenRCX).
+
+### Four runs, three findings
+
+The gap was **−8.99 ns across 3 636 paths** when V45 measured it. Closing
+it took four runs and the useful part is which changes worked:
+
+| run | change | slow setup WS | violating paths |
+|---|---|---|---|
+| `f50b` | baseline at 20 ns | −0.332 ns | 47 |
+| `f50c` | + timing-driven synthesis | −2.782 ns | 1888 |
+| `f50d` | + I-TCM macro flip | −0.077 ns | 2 |
+| **`f50e`** | **+ replicated `rd_ptr`** | **+0.061 ns** | **0** |
+
+**The I-TCM flip, +0.255 ns and free.** Every signal pin on these macros
+sits on the macro's *bottom* edge. The I-TCM band sits at the bottom of
+the die, so with the default `N` orientation its pins faced the die edge
+and every path detoured around the macro body. `FS` turns them toward
+the logic. It also cut 4 % of wirelength. Nothing was added; a constant
+was changed.
+
+**The replicated read pointer, +0.138 ns.** `rd_ptr_q` selected 65 bits
+of mux — 32-bit instruction, 32-bit PC, error bit — plus control, from
+one `sg13g2_dfrbpq_2` taking 0.506 ns clk→Q. The resizer had bolted two
+buffer stages onto it for a further 0.647 ns, which is the wrong
+medicine: a buffer tree adds its delay *in series*. Splitting the load at
+the source does not. Both remaining violators in `f50d` came from this
+one flop.
+
+**Timing-driven synthesis made it eight times worse.** `SYNTH_STRATEGY`
+defaults to `AREA 0` and ignores the clock constraint entirely — the
+20 ns and 40 ns runs produced *byte-identical* netlists, which is how the
+default was discovered. Setting `DELAY 0` added 8.5 % more cells and
+**49 % more wirelength**, and slow-corner setup fell from −0.33 to
+−2.78 ns. abc optimises against a placement-blind delay model; on this
+design the extra cells cost more in wire than the restructuring gains.
+
+It was described here as "the untapped lever" before it was measured.
+It is untapped because it does not work, which is a different thing.
+
+### A methodological error, recorded
+
+`f50c` changed **two** things at once — synthesis strategy and macro
+orientation — and its result was therefore uninterpretable. Isolating
+them cost an extra run that need not have been spent: `f50d` (flip only,
+synthesis byte-identical to `f50b`) settled it in one attempt. Two
+independent levers should have gone into two runs from the start.
+
+### Verifying the RTL change
+
+`equiv_induct` **cannot** prove register replication: it changes the
+state encoding, so `equiv_make` has no counterpart to pair
+`rd_ptr_rdata_q` / `rd_ptr_pc_q` against and induction has no invariant
+to hold. 64 unproven cells — exactly the two 32-bit muxes.
+
+That is a limitation of the proof, not evidence about the design, and
+neither reading may be assumed. The design was checked by simulation
+instead (`make block-if-equiv`, 200 038 checks, 0 mismatches), and the
+bench was **mutation-validated**: dropping the redirect clear gives
+54 567 mismatches, stopping the toggle 54 433, dropping the reset 245.
+Also re-run: `make lint`, `formal-if`, `make sim`, and Spike
+co-simulation (208 instructions, registers and memory).
+
+### What 50 MHz costs, and what it does not buy
+
+The die grows **3.61 → 4.41 mm² (+22 %)** and utilization falls 0.661 →
+0.544. That is the room the 20 ns constraint needs for repair buffering
+and, more particularly, for antenna-diode legalisation. Wirelength
+actually *falls* 4.7 %.
+
+Two things improved rather than degraded: **max-slew violations fell
+791 → 198** and max-cap **64 → 36**, because the shorter, better-oriented
+routes drive their loads more easily. Both remain **ungated** by the flow
+(V46), so neither is a pass criterion — but the direction is right, and
+the SRAM `A_DOUT` overload noted in V46 is smaller here.
+
+### The margin, stated plainly
+
+**+61 ps is 0.3 % of the period.** The STA reads a **single nominal RC
+corner** — cell delays vary across the three PVT corners, wire RC does
+not. RC-corner variation could plausibly consume the whole margin, and
+no analysis here bounds it.
+
+**25 MHz, with +3.16 ns, remains the operating point to design against.**
+50 MHz is demonstrated, not comfortable, and it should not be quoted
+without the RC caveat attached.
+
 ## Phase V49 — the split TCM is functionally verified, by a bench proved able to fail (2026-08-28)
 
 V48 signed off the split-macro TCM physically — DRC, LVS, timing — and

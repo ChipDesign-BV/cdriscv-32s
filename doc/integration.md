@@ -339,6 +339,13 @@ closes at all three corners:
 | typ 1.20 V / 25 °C | +14.02 ns | +0.36 ns | 0 |
 | fast 1.32 V / −40 °C | +20.14 ns | +0.15 ns | 0 |
 
+**50 MHz is also demonstrated** (V50): setup +0.061 ns at slow, hold
++0.132 ns at fast, TNS 0, DRC clean and LVS matching, on a 2.10 mm
+square die at 54 % utilization. It needs the I-TCM macros flipped to
+`FS` and the IF read pointer replicated. **Design against 25 MHz**: at
+50 MHz the margin is 61 ps, which is 0.3 % of the period, and the STA
+reads a single nominal RC corner.
+
 **Sign off setup at slow, hold at fast, and check typical too.** That
 ordering is not pedantry: the first hardening run met 20 ns at the
 typical corner and missed it **by 9 ns at slow**, where 3 636

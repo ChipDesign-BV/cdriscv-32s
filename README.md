@@ -126,7 +126,10 @@ cd flow && librelane --manual-pdk --pdk-root $PDK_ROOT config.json
 ```
 
 **State: DRC clean, LVS matches, setup and hold both met at all three
-corners** (V48), on a 1.90 mm square die at 66 % utilization. The flow runs floorplan → PDN → placement → CTS →
+corners** — at **25 MHz** on a 1.90 mm square die (66 % utilization), and
+also at **50 MHz** on a 2.10 mm square die (54 %, V50). The table below is
+the 25 MHz configuration, which is the one to design against; see V50 for
+the 50 MHz result and the reason its margin is thinner than it looks. The flow runs floorplan → PDN → placement → CTS →
 detailed routing → extraction → IR-drop → streamout → DRC → LVS.
 
 | Gate | Result |
@@ -226,7 +229,7 @@ V0–V44, newest first). Summary, one line per area:
 | Formal | **6 benches pass** | full proofs for SEC-DED (all 2³² words, every 1–2-bit error) and decoder (all 2³² encodings); BMC elsewhere; ungated config-parity contract proven; mutation tested |
 | Coverage | **O6/O7 met** | 96.2 % line (100 % with [reviewed waivers](verif/coverage_waivers.md)), 96.2 % toggle, 100 % functional over 65 cover points (V40) |
 | Fault injection | **0 SDC, 0 hangs, 0 latent** | ~10⁴ classified upsets; latent was **46.4 %** before the V37 configuration parity, zero after, detection median 2–4 cycles (V29/V33/V37); `make fi` |
-| Timing | **closed at 25 MHz, 3 corners** | routed netlist: setup +4.81 ns worst (slow), hold +0.13 ns worst (fast), TNS 0 both (V46). An earlier 50 MHz figure was typical-corner only, withdrawn in V45; `make fmax` |
+| Timing | **closed at 25 MHz and 50 MHz, 3 corners** | 25 MHz: setup +3.16 ns (slow), hold +0.15 ns (fast). 50 MHz: setup **+0.061 ns**, hold +0.132 ns, LVS matches (V50). TNS 0 throughout; `make fmax` |
 | Gate level | **O8 met** | zero-delay netlist cycle-identical to RTL; smoke + 12 architectural tests on the placed netlist with SDF, signatures bit-exact vs Spike (V42/V43); `make gate gate-sdf gate-arch` |
 | FMEDA | **SPFM 99.6 % / LFM 91.4 %** | under stated assumed failure rates — see [doc/fmeda.md](doc/fmeda.md) for what is measured vs assumed (V44); `scripts/fmeda.py` |
 | CI | **green** | [verify.yml](.github/workflows/verify.yml): full gate on every push, gate-level/timing/fault-injection nightly |
