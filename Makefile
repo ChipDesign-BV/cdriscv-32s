@@ -36,7 +36,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv safety safety-sw safety-bench periph reaction trap ams regwalk formal formal-if formal-ecc formal-bus formal-dec formal-lsu formal-safety coverage fi cosim cosim-iverilog cosim-stall cosim-random
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv block-tcm safety safety-sw safety-bench periph reaction trap ams regwalk formal formal-if formal-ecc formal-bus formal-dec formal-lsu formal-safety coverage fi cosim cosim-iverilog cosim-stall cosim-random
 
 all: lint
 
@@ -126,6 +126,7 @@ $(BUILD)/tb_ecc.vvp: rtl/core/cdriscv_pkg.sv rtl/safety/cdriscv_ecc_secded.sv \
 block-ecc: $(BUILD)/tb_ecc.vvp
 	$(VVP) $(BUILD)/tb_ecc.vvp +PATTERNS=$(ECC_PATTERNS) | tee $(BUILD)/block_ecc.log
 	@grep -q "PASS" $(BUILD)/block_ecc.log
+
 
 MD_VECTORS := $(BUILD)/multdiv_vectors.hex
 MD_RANDOM  ?= 300
@@ -1085,3 +1086,23 @@ $(BUILD):
 
 clean:
 	rm -rf $(BUILD) obj_dir *.vcd
+
+# TCM equivalence: the behavioural 39-bit array against the split-macro
+# mapping (2x 2048x32 data + 1x 4096x8 check bits) driven from identical
+# stimulus.  LVS compares the layout against the netlist that produced
+# it and so cannot see a consistently mis-wired parity macro; this can.
+# Validated by mutation -- rotating, dropping or misaligning a parity
+# bit, or swapping the data banks, each produces thousands of
+# mismatches (V49).
+TCM_SRAM_V = $(SRAM_PDK)/verilog
+$(BUILD)/tb_tcm_equiv.vvp: rtl/core/cdriscv_pkg.sv rtl/safety/cdriscv_ecc_secded.sv \
+        rtl/bus/cdriscv_tcm.sv verif/block/tcm/cdriscv_tcm_mac.sv \
+        $(TCM_SRAM_V)/RM_IHPSG13_1P_core_behavioral_bm_bist.v \
+        $(TCM_SRAM_V)/RM_IHPSG13_1P_2048x32_c2_bm_bist.v \
+        $(TCM_SRAM_V)/RM_IHPSG13_1P_4096x8_c3_bm_bist.v \
+        verif/block/tcm/tb_tcm_equiv.sv | $(BUILD)
+	$(IVERILOG) -g2012 -o $@ -s tb_tcm_equiv $^
+
+block-tcm: $(BUILD)/tb_tcm_equiv.vvp
+	$(VVP) $(BUILD)/tb_tcm_equiv.vvp | tee $(BUILD)/block_tcm.log
+	@grep -q "PASS" $(BUILD)/block_tcm.log

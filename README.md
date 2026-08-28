@@ -126,6 +126,7 @@ detailed routing → extraction → IR-drop → streamout → DRC → LVS.
 | Setup, 3 corners | slow **+3.16 ns**, typ +14.02, fast +20.14; TNS 0 |
 | **Hold**, 3 corners | **closed** — fast **+0.15 ns**, typ +0.36, slow +0.73; TNS 0 |
 | Antenna | 0 violating nets |
+| TCM split-macro mapping | **verified functionally** — 6 600-check equivalence vs the behavioural TCM, mutation-proved (V49); `make block-tcm` |
 | Max slew / max cap | **not gated by the flow** — 791 slew pins (slow, up from 527) and 64 cap pins; see V46/V48 |
 
 **Area (V48).** The die is **1.90 mm square (3.61 mm²)** at **66.1 %

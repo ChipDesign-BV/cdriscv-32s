@@ -5,6 +5,72 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V49 — the split TCM is functionally verified, by a bench proved able to fail (2026-08-28)
+
+V48 signed off the split-macro TCM physically — DRC, LVS, timing — and
+said plainly that this was not a functional result. It now is.
+
+### Why LVS was not enough
+
+LVS compares the extracted layout against **the netlist that produced
+it**. A parity macro wired to the wrong bits is wired that way in both,
+so the comparison matches and the error is invisible. Nothing in the
+V48 flow could have distinguished `parity[38:32]` from a rotation of
+it.
+
+### The bench
+
+`verif/block/tcm/tb_tcm_equiv.sv` (`make block-tcm`) instantiates the
+behavioural TCM (`rtl/bus/cdriscv_tcm.sv`, one 39-bit array) beside the
+macro-mapped one (`2x 2048x32` + `1x 4096x8`, driven through the PDK's
+own behavioural SRAM models) and drives both from identical stimulus,
+comparing every output — `gnt`, `rvalid`, `rdata`, `err`, `ecc_cor`,
+`ecc_unc`, `bist_rdata` — cycle by cycle. Four regimes, 6600 checks:
+
+| regime | what it exercises |
+|---|---|
+| full-word write/read | the ordinary path, both banks |
+| partial write | read-modify-write, which recomputes the check bits |
+| raw BIST port | writes all 39 bits directly, check bits included |
+| fault injection | single and double bit corruption of a stored word |
+
+**6600 checks, 0 mismatches.**
+
+### The number that makes the result mean something
+
+A passing bench proves nothing until it is known to be capable of
+failing, so the mapping was deliberately broken four ways:
+
+| mutation | mismatches |
+|---|---|
+| parity bits rotated by one | 4778 |
+| one parity bit dropped | 3178 |
+| parity read misaligned (`par_dout[7:1]`) | 5594 |
+| data banks swapped | 6599 |
+| *(unmutated)* | **0** |
+
+Every mis-wiring this bench exists to catch is caught, in thousands of
+cycles. That is the difference between "the test passed" and "the test
+would have noticed".
+
+The mechanism is the ECC itself: any misplaced check bit produces a
+syndrome the encoder never generated, so the decoder either corrects
+the wrong bit or flags an uncorrectable error, and the two TCMs diverge
+on the first read-back.
+
+### Status
+
+The split-macro TCM is now verified functionally as well as physically.
+Two caveats stand:
+
+- The comparison is against the behavioural TCM, so it proves the two
+  agree; the (39,32) code itself is separately proven by `block-ecc`
+  (209 308 checks) and `formal-ecc`.
+- Icarus emits `sorry: constant selects in always_* processes` for the
+  byte-enable merge in **both** files identically. The partial-write
+  regime is therefore weaker than it looks, though the RMW path is
+  still exercised end to end through the ECC.
+
 ## Phase V48 — zero-waste TCM macros and a 37 % smaller die, signed off (2026-08-28)
 
 `dense1900b` reached "Flow complete" with the split-macro TCM on a
