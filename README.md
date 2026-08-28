@@ -114,7 +114,7 @@ cd flow && librelane --manual-pdk --pdk-root $PDK_ROOT config.json
 ```
 
 **State: DRC clean, LVS matches, setup and hold both met at all three
-corners** (V46). The flow runs floorplan → PDN → placement → CTS →
+corners** (V48), on a 1.90 mm square die at 66 % utilization. The flow runs floorplan → PDN → placement → CTS →
 detailed routing → extraction → IR-drop → streamout → DRC → LVS.
 
 | Gate | Result |
@@ -122,21 +122,21 @@ detailed routing → extraction → IR-drop → streamout → DRC → LVS.
 | Detailed routing | 0 violations |
 | **DRC** (IHP KLayout signoff deck) | **clean** |
 | GDS XOR (Magic vs KLayout streamouts) | agree |
-| **LVS** (netgen) | **circuits match uniquely** — 95 749 devices, 50 518 nets |
-| Setup, 3 corners | slow **+4.81 ns**, typ +15.01, fast +20.88; TNS 0 |
-| **Hold**, 3 corners | **closed** — fast **+0.13 ns**, typ +0.35, slow +0.68; TNS 0 |
+| **LVS** (netgen) | **circuits match uniquely** — 93 147 devices, 49 246 nets |
+| Setup, 3 corners | slow **+3.16 ns**, typ +14.02, fast +20.14; TNS 0 |
+| **Hold**, 3 corners | **closed** — fast **+0.15 ns**, typ +0.36, slow +0.73; TNS 0 |
 | Antenna | 0 violating nets |
-| Max slew / max cap | **not gated by the flow** — 265 slew pins (slow) and 68 cap pins; see V46 |
+| Max slew / max cap | **not gated by the flow** — 791 slew pins (slow, up from 527) and 64 cap pins; see V46/V48 |
 
-**Area is not optimised.** The die is 2.4 mm square (5.76 mm²) at
-**52.6 % instance utilization** — down from an initial 2.9 mm square,
-shrunk as a side-effect of banding the macros to fix hold. The four
-SRAM macros are 1.97 mm² and incompressible — 32 KiB of ECC-protected
-TCM at the vendor compiler's density — but std cells alone occupy only
-27.3 % of the core, and 13,061 of the 95,745 cells are timing-repair
-buffers bridging distances the floorplan created. **2.0–2.1 mm square
-(~72 %) is plausibly reachable**; finding the real floor means
-shrinking until routing or timing pushes back.
+**Area (V48).** The die is **1.90 mm square (3.61 mm²)** at **66.1 %
+instance utilization**, down from 2.40 mm square / 52.6 %. Two changes
+got there: the TCM check bits moved into their own `4096x8` macros so no
+array bit is wasted (macro area 1.967 → 1.337 mm², −32 %), and the die
+shrank around them. Routed wirelength fell 2.2 % and hold *improved*.
+The floor is **between 1820 and 1900 µm**, and it is set by antenna-diode
+legalisation — not routing congestion, which sits at 19 % usage with zero
+overflow — because ~44 000 diodes each need a free site beside the pin
+they protect.
 
 **This is not a tapeout.** No clock-tree review, signal integrity, ESD,
 packaging or test structures; the FMEDA still runs on assumed failure

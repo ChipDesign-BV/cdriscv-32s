@@ -5,6 +5,116 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V48 — zero-waste TCM macros and a 37 % smaller die, signed off (2026-08-28)
+
+`dense1900b` reached "Flow complete" with the split-macro TCM on a
+1900 µm die. Every gate the flow enforces is clean and timing closes at
+all three corners.
+
+### What changed
+
+Data and check bits now live in separately sized macros, so no array
+bit is thrown away. Per TCM: **2 × `2048x32`** for data[31:0] plus
+**1 × `4096x8`** for parity[38:32]. The parity part is 4096 deep, so it
+spans both banks and needs no bank select — which is necessary as well
+as convenient, because the PDK has no `2048x8`. One of its eight bits
+is spare.
+
+Capacity, the (39,32) code, `rtl/bus/cdriscv_tcm.sv` and all of
+`rtl/core/` are **unchanged**. The edit is confined to
+`verif/gate/cdriscv_tcm_macro.sv` and the flow config.
+
+### Result
+
+| | baseline 2400 | dense1900b | |
+|---|---|---|---|
+| Die | 5.760 mm² | **3.610 mm²** | −37.3 % |
+| Core | 5.658 mm² | 3.531 mm² | |
+| Macro area | 1.967 mm² | **1.337 mm²** | −32.0 % |
+| Array waste | 39.1 % | **~2.5 %** | |
+| Instance utilization | 0.526 | **0.661** | |
+| Std cells | 95 745 | 93 143 | |
+| Macros | 4 | 6 | |
+| Antenna cells | 45 583 | 44 131 | |
+| Wirelength | 3.0686 mm | **2.9996 mm** | −2.2 % |
+| Setup WS, slow | +4.813 ns | +3.160 ns | |
+| Hold WS, fast | +0.127 ns | **+0.146 ns** | *improved* |
+| Route DRC / KLayout DRC / antenna | 0 / 0 / 0 | **0 / 0 / 0** | |
+| LVS | match uniquely | **match uniquely** | 93 147 dev / 49 246 nets |
+
+Hold improved on a die 37 % smaller, which is the shorter clock tree
+paying for itself: post-CTS the worst skew path was macro-to-register
+at **0.252 ns** of real latency difference (the reported −0.502 ns
+includes 0.250 ns of SDC uncertainty), against the 0.45 ns that made
+hold unclosable when the macros sat at the die corners. Setup gave back
+1.65 ns at the slow corner to the denser placement and still holds
+3.16 ns on a 40 ns period.
+
+### Where the floor actually is, and what sets it
+
+The instruction was to shrink until something pushes back. It did, at
+**1820 µm / ~72 %**, and not where expected:
+
+- routing was **not** the limit — 19.41 % total usage, **zero overflow
+  on every layer**, busiest layer 36.6 %;
+- logic placement was **not** the limit — global placement converged at
+  iteration 436, detailed placement moved nothing;
+- **antenna-diode legalisation was the limit.** Step 42 could not place
+  29 `ANTENNA_*` cells. This design draws ~44–46 k antenna cells and
+  each must sit beside the pin it protects, so what binds is *local*
+  free sites, not area or congestion.
+
+A design can be completely uncongested and still have nowhere to put a
+diode. Reading the clean congestion report and concluding "shrink
+further" was wrong, and was written here before the failure arrived.
+
+1900 µm with `PL_TARGET_DENSITY_PCT` 58 clears it. **The floor is
+between 1820 and 1900 µm and it is set by diode placement.**
+
+### The bug: a PDN hook that matched by name
+
+The first 1900 µm attempt routed to zero DRC and then failed
+`Checker.DisconnectedPins` with 6 disconnected pins, 4 critical: all
+three supplies (`VDD!`, `VSS!`, `VDDARRAY!`) on **both** parity macros.
+
+`FP_PDN_MACRO_HOOKS` matched `.*u_bank.*`. The new parity instances are
+named `u_par`, so the PDN generator never connected them. Two more
+hooks fixed it, verified in the ODB before re-running: 3/3 connected,
+0 floating on each.
+
+This is the "declared port wired to nothing" hazard from CLAUDE.md §4,
+and worth noting that **LVS would not have caught it** — the macro
+power pins are excluded by `LVS_IGNORE_CELLS`. The connectivity checker
+did.
+
+Three diagnostic probes were wrong before one was right: grepping the
+DEF for `u_par/VDD` (not how DEF names connections), then SPECIALNETS,
+then the step config (the key is filtered out of per-step configs). Each
+returned "nothing" for the **known-good** `u_bank` macros too, which
+should have been the immediate tell. A probe that cannot distinguish a
+working case from a broken one is not measuring anything — the same
+trap as an ngspice probe that answers `0` for an unknown node.
+
+### Two things this run does not establish
+
+- **Max slew got worse: 527 → 791 pins** at the slow corner (max cap
+  improved slightly, 68 → 64). Denser placement with shorter wires but
+  tighter local routing is a plausible cause; it is not diagnosed. Both
+  checks remain **ungated** by the flow (V46), so this run passed
+  without ever testing them. It is a regression on a metric nothing is
+  enforcing.
+- **The split TCM has never been simulated.** LVS proves the netlist
+  and the layout agree; it cannot prove the parity macro is wired to
+  the right bits, because it compares the same netlist that the RTL
+  produced. `verif/gate/tb_sdf_subsys.sv` still reaches into
+  `g_bank[*].u_bank` expecting 64-bit rows and needs updating before
+  any functional claim. **Until then this is a physical result, not a
+  verified one.**
+
+The pre-existing `RSC_IHPSG13_CDLYX1` magic error (layer 235/type 4
+inside the vendor SRAM GDS) appears identically in the baseline run's
+streamout and writelef logs and is not a regression.
+
 ## Phase V47 — a generator whose self-check could not see its own output (2026-08-27)
 
 `673d2f7` generalised `scripts/gen_secded.py` from the fixed (39,32)

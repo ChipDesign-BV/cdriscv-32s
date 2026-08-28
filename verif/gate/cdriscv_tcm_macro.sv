@@ -23,6 +23,34 @@
 `default_nettype none
 
 (* blackbox *)
+module RM_IHPSG13_1P_2048x32_c2_bm_bist (
+    input  wire        A_CLK,       input  wire        A_MEN,
+    input  wire        A_WEN,       input  wire        A_REN,
+    input  wire [10:0] A_ADDR,      input  wire [31:0] A_DIN,
+    input  wire        A_DLY,       output wire [31:0] A_DOUT,
+    input  wire [31:0] A_BM,        input  wire        A_BIST_CLK,
+    input  wire        A_BIST_EN,   input  wire        A_BIST_MEN,
+    input  wire        A_BIST_WEN,  input  wire        A_BIST_REN,
+    input  wire [10:0] A_BIST_ADDR, input  wire [31:0] A_BIST_DIN,
+    input  wire [31:0] A_BIST_BM
+);
+endmodule
+
+(* blackbox *)
+module RM_IHPSG13_1P_4096x8_c3_bm_bist (
+    input  wire        A_CLK,       input  wire        A_MEN,
+    input  wire        A_WEN,       input  wire        A_REN,
+    input  wire [11:0] A_ADDR,      input  wire [7:0]  A_DIN,
+    input  wire        A_DLY,       output wire [7:0]  A_DOUT,
+    input  wire [7:0]  A_BM,        input  wire        A_BIST_CLK,
+    input  wire        A_BIST_EN,   input  wire        A_BIST_MEN,
+    input  wire        A_BIST_WEN,  input  wire        A_BIST_REN,
+    input  wire [11:0] A_BIST_ADDR, input  wire [7:0]  A_BIST_DIN,
+    input  wire [7:0]  A_BIST_BM
+);
+endmodule
+
+(* blackbox *)
 module RM_IHPSG13_1P_2048x64_c2_bm_bist (
     input  wire        A_CLK,
     input  wire        A_MEN,
@@ -157,14 +185,27 @@ module cdriscv_tcm
   end
 
   // ------------------------------------------------------------------
-  // The storage: two 2048 x 64 banks, bank select is address bit 11.
-  // The macro's read register replaces the rd_cw flop of the RTL; the
+  // The storage: data and check bits in separately sized macros, so no
+  // array bit goes unused.  Before, one 2048x64 per bank held a 39-bit
+  // code word and threw away 25 bits of every row -- 39.1 % of the
+  // array (V47).
+  //
+  //   data   [31:0]  two 2048x32, bank select on address bit 11
+  //   parity [38:32] one 4096x8 spanning both banks, so it needs no
+  //                  bank select -- and no 2048x8 part, which the PDK
+  //                  does not offer.  One of the eight bits is spare.
+  //
+  // 1.337 mm2 for both TCMs against 1.967 mm2 before, at identical
+  // capacity and with the (39,32) code untouched.
+  //
+  // The macros' read registers replace the rd_cw flop of the RTL; the
   // bank select is registered alongside so the read mux follows the
-  // data it selects.
+  // data it selects.  The parity macro needs no such mux.
   // ------------------------------------------------------------------
   logic        bank_sel;
   logic        bank_sel_q;
-  logic [63:0] dout0, dout1;
+  logic [31:0] dout0, dout1;
+  logic [7:0]  par_dout;
 
   assign bank_sel = mem_addr[AW-1];
 
@@ -173,35 +214,57 @@ module cdriscv_tcm
     else if (mem_re) bank_sel_q <= bank_sel;
   end
 
-  logic [63:0] dout [2];
+  logic [31:0] dout [2];
   assign dout0 = dout[0];
   assign dout1 = dout[1];
 
   for (genvar b = 0; b < 2; b++) begin : g_bank
     logic sel;
     assign sel = (bank_sel == b[0]);
-    RM_IHPSG13_1P_2048x64_c2_bm_bist u_bank (
+    RM_IHPSG13_1P_2048x32_c2_bm_bist u_bank (
         .A_CLK       (clk_i),
         .A_MEN       ((mem_we || mem_re) && sel),
         .A_WEN       (mem_we && sel),
         .A_REN       (mem_re && sel),
         .A_ADDR      (mem_addr[10:0]),
-        .A_DIN       ({25'b0, mem_wdata}),
+        .A_DIN       (mem_wdata[31:0]),
         .A_DLY       (1'b1),
         .A_DOUT      (dout[b]),
-        .A_BM        ({64{1'b1}}),
+        .A_BM        ({32{1'b1}}),
         .A_BIST_CLK  (1'b0),
         .A_BIST_EN   (1'b0),
         .A_BIST_MEN  (1'b0),
         .A_BIST_WEN  (1'b0),
         .A_BIST_REN  (1'b0),
         .A_BIST_ADDR (11'b0),
-        .A_BIST_DIN  (64'b0),
-        .A_BIST_BM   (64'b0)
+        .A_BIST_DIN  (32'b0),
+        .A_BIST_BM   (32'b0)
     );
   end
 
-  assign rd_cw = bank_sel_q ? dout1[38:0] : dout0[38:0];
+  // Check bits.  4096 deep, so the full word address drives it and both
+  // banks share it.
+  RM_IHPSG13_1P_4096x8_c3_bm_bist u_par (
+      .A_CLK       (clk_i),
+      .A_MEN       (mem_we || mem_re),
+      .A_WEN       (mem_we),
+      .A_REN       (mem_re),
+      .A_ADDR      (mem_addr[11:0]),
+      .A_DIN       ({1'b0, mem_wdata[38:32]}),
+      .A_DLY       (1'b1),
+      .A_DOUT      (par_dout),
+      .A_BM        ({8{1'b1}}),
+      .A_BIST_CLK  (1'b0),
+      .A_BIST_EN   (1'b0),
+      .A_BIST_MEN  (1'b0),
+      .A_BIST_WEN  (1'b0),
+      .A_BIST_REN  (1'b0),
+      .A_BIST_ADDR (12'b0),
+      .A_BIST_DIN  (8'b0),
+      .A_BIST_BM   (8'b0)
+  );
+
+  assign rd_cw = {par_dout[6:0], (bank_sel_q ? dout1 : dout0)};
 
   assign bist_rdata_o = rd_cw;
 
@@ -249,7 +312,7 @@ module cdriscv_tcm
 
   logic unused;
   assign unused = |{addr_i[31:AW+2], addr_i[1:0], bist_addr_i[31:AW+2],
-                    bist_addr_i[1:0], dec_syndrome, dout0[63:39], dout1[63:39],
+                    bist_addr_i[1:0], dec_syndrome, par_dout[7],
                     Depth, InitFile != ""};
 
 endmodule
