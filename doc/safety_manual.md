@@ -1,14 +1,25 @@
 # cdriscv-32s safety manual (draft)
 
-> **Status: not verified yet — do not use yet.**
+> **Status: verified for project use — not qualified for safety-critical
+> use.**
 >
-> This document is a *draft outline* of a safety manual. The IP has not
-> been verified, no FMEDA has been performed, no diagnostic coverage has
-> been measured and no fault injection campaign has been run. No claim
-> of compliance with ISO 26262, IEC 61508 or any other functional safety
-> standard is made, and none may be derived from this document. It
-> records design intent so that a real safety case can later be built,
-> or shown to be unachievable.
+> This document is a *draft outline* of a safety manual. Since it was
+> first written the position has moved: the O1–O7 verification gate is
+> met (2026-08-24), fault-injection campaigns have been run, diagnostic
+> coverage has been measured, and an FMEDA exists — SPFM 99.6 %, LFM
+> 91.4 % (V44, [fmeda.md](fmeda.md)).
+>
+> None of that is certification. The FMEDA rests on **assumed** base
+> failure rates, because no foundry FIT data exists for this design;
+> there is no mission profile, no common-cause analysis for the lockstep
+> pair, and no safety-case owner. **No claim of compliance with ISO
+> 26262, IEC 61508 or any other functional safety standard is made, and
+> none may be derived from this document.**
+>
+> **On the name.** The `s` in `cdriscv-32s` states what the part is
+> designed *for*, not what it has been certified *as*. This document
+> records design intent and measured evidence so that a real safety case
+> can later be built — or shown to be unachievable.
 
 ## 1. Intended use
 

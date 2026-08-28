@@ -2,6 +2,18 @@
 
 **A 32-bit RISC-V core subsystem for safety-critical mixed-signal SoCs.**
 
+**On the name.** The `s` denotes what the part is *designed for*, not what
+it has been *certified as*. It is an architectural statement — dual-core
+lockstep, SEC-DED memories, configuration parity, a watchdog and a clock
+monitor are in the design because safety-critical use is the target — and
+it carries no compliance claim whatsoever. The distinction is the same one
+the banner below draws between "verified for project use" and "not
+qualified for safety-critical use": intent is not qualification, and
+neither implies the other. A reader who notices the tension between a
+safety-oriented name and a disclaimer of any safety claim is reading
+correctly; both statements are true because they describe different
+things.
+
 (c) 2026 ChipDesign B.V. — [Apache-2.0](LICENSE)
 
 > [!IMPORTANT]
