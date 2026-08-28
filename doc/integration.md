@@ -214,12 +214,63 @@ self test rather than manufacturing: `SELFTEST` (forces a lockstep
 mismatch, corrupts a TCM code word), `INJECT` (pulses fault bits), and
 the March C- memory BIST.
 
-## 8. Physical integration
+## 8. Physical integration (RTL2GDS)
 
-Numbers below are from the RTL2GDS run described in the README; see
-`flow/config.json` for the exact configuration.
+![Hardened `cdriscv_subsys_hard` — 1.90 mm square on IHP SG13G2. The two
+yellow bands are the TCM macros (I-TCM bottom, D-TCM top): two wide
+`2048x32` data parts and one narrower `4096x8` parity part each. The
+standard-cell logic is the dense band between them; the pale blue field
+is fill and decap.](img/cdriscv_subsys_gds.png)
 
-### 8.1 Floorplan
+Numbers below are from the reference run in `flow/`; see
+`flow/config_dense.json` for the exact configuration.
+
+### 8.1 The flow
+
+The subsystem hardens with **LibreLane 3** on the IHP SG13G2 PDK. The
+flow is roughly 77 steps; the ones that matter to an integrator, with
+the tool that runs each and the observed wall-clock on an 8-core
+machine:
+
+| Stage | Tool | Time | What it decides |
+|---|---|---|---|
+| Lint | Verilator | s | four checkers gate before anything else runs |
+| Synthesis | Yosys + abc | 2–6 min | the netlist; see the strategy note below |
+| Floorplan | OpenROAD | s | die, core, macro placement |
+| PDN | OpenROAD | s | power grid and **macro supply hooks** |
+| Global placement | OpenROAD | 3 min | converges to an overflow target |
+| CTS | OpenROAD | 5 min | the clock tree — and the skew that decides hold |
+| Global route | OpenROAD | 1 min | congestion; also where antenna violations appear |
+| Diode insertion | OpenROAD | 1 min | **the practical density limit** (§8.2) |
+| Detailed route | OpenROAD | 70–85 min | DRC to zero, 8 cores |
+| RC extraction | OpenRCX | 1 min | the SPEF that post-route STA reads |
+| Post-P&R STA | OpenSTA | 4 min | three-corner setup and hold |
+| Streamout | Magic + KLayout | 15 min | GDS, twice, then XOR'd against each other |
+| DRC | KLayout | 40 min | signoff deck, 8 threads |
+| Extraction | Magic | 15 min | the layout netlist for LVS |
+| **LVS** | netgen | **~3 h** | single-threaded; see the note below |
+
+End to end: **roughly 5–6 hours**, of which LVS is more than half.
+
+**Synthesis is not timing-driven by default and should stay that way.**
+`SYNTH_STRATEGY` defaults to `AREA 0`, which ignores the clock
+constraint entirely — the 20 ns and 40 ns runs produced *byte-identical*
+netlists. Setting `DELAY 0` was tried and made things markedly worse:
+8.5 % more cells, **49 % more wirelength**, and slow-corner setup fell
+from −0.33 ns to −2.78 ns with violating paths going 47 → 1888. abc
+optimises against a placement-blind delay model, and on this design the
+extra cells cost more in wire than the restructuring gains. All timing
+improvement here comes from placement and resizing.
+
+**netgen and magic are single-threaded by construction** — zero
+`pthread_create` symbols, no OpenMP or TBB linkage — so the 3-hour LVS
+cannot be parallelised by giving it more cores. It is a tool property,
+not a configuration. KLayout DRC *is* threaded (`KLAYOUT_DRC_THREADS`)
+and OpenROAD's detailed router uses ~8 cores. If LVS runtime becomes a
+problem the lever is the PDK's KLayout LVS deck with `run_mode=deep`,
+which is hierarchical; that is unexplored here.
+
+### 8.2 Floorplan
 
 Six SRAM macros with 10 µm halos, **banded** — I-TCM along the bottom,
 D-TCM along the top — with the standard cells between them. Per TCM:
@@ -237,49 +288,142 @@ which the PDK does not offer.
 
 The reference run uses a **1.90 × 1.90 mm die at 66.1 % utilisation**;
 budget the macros as fixed at **1.34 mm²** for 32 KiB of ECC-protected
-TCM. Two placement lessons are worth inheriting: macros at the die
-corners cost 0.45 ns of clock skew and left hold unclosable (§8.2), so
-band them; and the practical density limit is set by **antenna-diode
-legalisation**, not routing congestion — at 1.82 mm the router still
-sat at 19 % usage with zero overflow while 29 diodes had nowhere to go.
+TCM.
+
+Three placement lessons are worth inheriting.
+
+**Band the macros, do not corner them.** Macros at the die corners cost
+0.45 ns of clock skew and left hold unclosable. Banded, the worst
+skew path measures 0.252 ns of real latency difference.
+
+**Orient them so their pins face the logic.** Every signal pin on these
+macros sits on the macro's *bottom* edge. The I-TCM band sits at the
+bottom of the die, so with the default `N` orientation its pins point
+at the die edge and every path detours around the macro body. Flipping
+the I-TCM band to `FS` is worth **0.255 ns** of setup and 4 % of total
+wirelength, and costs nothing. The D-TCM at the top is already correct
+with `N`.
+
+**The density limit is antenna-diode legalisation, not congestion.**
+At 1.82 mm the router sat at 19 % usage with **zero overflow on every
+layer** while 29 `ANTENNA_*` cells had nowhere to go, and the run
+failed. This design draws ~44 000 antenna cells and each must sit
+beside the pin it protects, so what binds is *local* free sites. A
+design can be entirely uncongested and still have nowhere to put a
+diode. The floor sits between 1.82 and 1.90 mm.
+
+### 8.3 Power delivery
 
 Each macro needs **three** supply connections — `VDD!`, `VSS!` and the
-array supply **`VDDARRAY!`**. Missing the third is silent until a
-post-route disconnected-pin check catches it; note that LVS will *not*
-catch it if the macro is in `LVS_IGNORE_CELLS`. If you add a macro,
-add a matching `FP_PDN_MACRO_HOOKS` entry — the hooks match by
-instance-name pattern, so a new name silently gets no power.
+array supply **`VDDARRAY!`**.
 
-### 8.2 Timing — sign off at the slow corner
+`FP_PDN_MACRO_HOOKS` matches by **instance-name pattern**. This is a
+trap worth stating plainly: adding a macro under a new instance name
+silently gets it no power at all. That happened here — the parity
+macros were named `u_par` while the hooks matched `.*u_bank.*`, and all
+six supplies across both parity macros were left floating.
 
-The design is constrained at **40 ns (25 MHz)**. That number has
-history worth heeding: the first hardening run met 20 ns at the
-typical corner and missed it **by 9 ns at slow (1.08 V, 125 °C)**,
-where 3 636 register-to-register paths failed. A single-corner
-analysis had reported the design "closed" (finding V45).
+**LVS will not catch this** when the macro is in `LVS_IGNORE_CELLS`,
+because those power pins are excluded from the comparison by
+construction. `Checker.DisconnectedPins` does catch it, post-route. If
+you add a macro, add its hook in the same commit.
 
-**Sign off setup at slow, hold at fast, and check typical too.** All
-three corners are in `verif/sta/cdriscv_subsys.sdc` and in the
-`make fmax` script.
+### 8.4 Timing
 
-**Hold at the fast corner is an open item.** The reference run leaves
-15 paths violating, worst −0.40 ns at 1.32 V / −40 °C. Setup is clean
-at all three corners. Closing hold needs a post-route repair pass that
-the reference flow does not run, or an explicit lower bound on
-operating voltage and temperature in the product specification.
-Whoever hardens this for silicon must resolve it — a hold violation is
-a functional failure, not a speed limit.
+The reference configuration is constrained at **40 ns (25 MHz)** and
+closes at all three corners:
 
-Both clocks are genuinely asynchronous; `set_clock_groups -asynchronous`
-between `clk` and `ref_clk` is correct rather than convenient.
+| Corner | Setup WS | Hold WS | TNS |
+|---|---|---|---|
+| slow 1.08 V / 125 °C | +3.16 ns | +0.73 ns | 0 |
+| typ 1.20 V / 25 °C | +14.02 ns | +0.36 ns | 0 |
+| fast 1.32 V / −40 °C | +20.14 ns | +0.15 ns | 0 |
 
-### 8.3 Constants
+**Sign off setup at slow, hold at fast, and check typical too.** That
+ordering is not pedantry: the first hardening run met 20 ns at the
+typical corner and missed it **by 9 ns at slow**, where 3 636
+register-to-register paths failed. A single-corner analysis had
+reported the design "closed". All three corners are in
+`verif/sta/cdriscv_subsys.sdc` and in `make fmax`.
+
+A run in which setup is not worst at slow, or hold not worst at fast,
+has a corner-setup error rather than a surprising result.
+
+**Hold is period-independent.** Shortening the clock tightens setup
+only; it does not create hold violations directly, though heavier
+repair buffering perturbs the clock tree indirectly. Both clocks are
+genuinely asynchronous, so `set_clock_groups -asynchronous` between
+`clk` and `ref_clk` is correct rather than convenient.
+
+**On the RC model.** Post-P&R STA reads a real extracted SPEF, but
+there is only **one RC corner** — cell delays vary across the three PVT
+corners while wire RC does not. For a design with nanoseconds of margin
+that is immaterial. For one closing with tens of picoseconds it is not,
+and RC-corner variation could plausibly consume the margin.
+
+### 8.5 What each signoff check proves
+
+| Check | Proves | Does not prove |
+|---|---|---|
+| Detailed-route DRC | the router's own rules are met | foundry rules |
+| **KLayout DRC** | the **foundry signoff deck** passes | anything about connectivity |
+| GDS XOR | Magic and KLayout agree on the streamout | either is correct |
+| **LVS** (netgen) | layout matches **the netlist that produced it** | the netlist is right |
+| Antenna | no violating nets after diode insertion | — |
+| Disconnected pins | every declared pin is connected | the connection is *correct* |
+
+The LVS row is the one to internalise. LVS compares the extracted
+layout against the netlist the flow generated from your RTL. A
+consistently wrong netlist matches a consistently wrong layout and LVS
+reports success. That is why the TCM's split-macro mapping carries its
+own equivalence bench (`make block-tcm`) against the behavioural model:
+LVS cannot tell you the parity macro is wired to the *right* bits.
+
+### 8.6 What the flow does not check
+
+**Max slew and max capacitance are not gated.**
+`MAX_SLEW_VIOLATION_CORNERS` defaults to `['']` — an empty pattern
+matching **no corners** — so the step evaluates nothing and reports
+clean while printing the violating corners one line above. Max cap is
+the same. Only `TIMING_VIOLATION_CORNERS` defaults to `['*']`.
+
+The reference run has **791 max-slew pins** at the slow corner and 64
+max-cap pins, none of which gates the flow. Of the cap violations, 49
+are SRAM `A_DOUT` pins loaded to 0.140 pF against a 0.064 pF limit —
+2.2× over, meaning the read-path delay is extrapolated past the
+characterised Liberty range. That bounds how much the setup margin on
+those paths is worth. **Anyone taking this to silicon must resolve it**;
+it is not resolved here.
+
+Also absent: no clock-tree review, no signal-integrity or crosstalk
+analysis, no ESD or latch-up checks, no packaging or test structures.
+
+### 8.7 Constants
 
 Synthesis emits named constant nets (`one_`/`zero_`) that need tie
 cells. Insert them (`insert_tiecells` in OpenROAD, or your flow's
 equivalent) — without it every constant in the design is undriven, and
 in simulation the reset synchroniser's data input is X and the netlist
 is dead on arrival (finding V42).
+
+### 8.8 Reproducing the run
+
+```sh
+cd flow
+librelane --manual-pdk --pdk-root $PDK_ROOT \
+          --run-tag <tag> config_dense.json
+```
+
+`--manual-pdk` matters: without it LibreLane tries to *download* a PDK
+version and fails. The tools must be on `PATH` — Verilator, Yosys,
+OpenROAD, Magic, netgen and KLayout — which is not the container
+default.
+
+Placement failures surface within ~11 minutes, so an infeasible
+floorplan is cheap to discover; DRC and LVS failures cost hours. When
+exploring density, read the post-P&R STA at step 57 rather than waiting
+for the flow's own verdict at step 72, which sits *after* the 3-hour
+LVS.
 
 ## 9. Known constraints
 
