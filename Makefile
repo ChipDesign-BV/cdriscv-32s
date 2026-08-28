@@ -36,7 +36,7 @@ OBJDUMP    := $(CROSS)objdump
 ARCH       := rv32im_zicsr_zifencei
 ABI        := ilp32
 
-.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv block-tcm safety safety-sw safety-bench periph reaction trap ams regwalk formal formal-if formal-ecc formal-bus formal-dec formal-lsu formal-safety coverage fi cosim cosim-iverilog cosim-stall cosim-random
+.PHONY: all lint lint-tb sim sw synth ecc clean block block-alu block-ecc block-multdiv block-tcm block-if-equiv safety safety-sw safety-bench periph reaction trap ams regwalk formal formal-if formal-ecc formal-bus formal-dec formal-lsu formal-safety coverage fi cosim cosim-iverilog cosim-stall cosim-random
 
 all: lint
 
@@ -1106,3 +1106,17 @@ $(BUILD)/tb_tcm_equiv.vvp: rtl/core/cdriscv_pkg.sv rtl/safety/cdriscv_ecc_secded
 block-tcm: $(BUILD)/tb_tcm_equiv.vvp
 	$(VVP) $(BUILD)/tb_tcm_equiv.vvp | tee $(BUILD)/block_tcm.log
 	@grep -q "PASS" $(BUILD)/block_tcm.log
+
+
+# IF-stage equivalence: the original read-pointer against the replicated
+# one (V50).  yosys equiv_induct cannot prove this -- replication changes
+# the state encoding, so equiv_make has no counterpart to pair the new
+# flops against -- so the design is checked by simulation instead, and
+# the bench is mutation-validated.
+$(BUILD)/tb_if_equiv.vvp: rtl/core/cdriscv_pkg.sv verif/block/if_stage/cdriscv_if_stage_gold.sv \
+        rtl/core/cdriscv_if_stage.sv verif/block/if_stage/tb_if_equiv.sv | $(BUILD)
+	$(IVERILOG) -g2012 -o $@ -s tb_if_equiv $^
+
+block-if-equiv: $(BUILD)/tb_if_equiv.vvp
+	$(VVP) $(BUILD)/tb_if_equiv.vvp | tee $(BUILD)/block_if_equiv.log
+	@grep -q "PASS" $(BUILD)/block_if_equiv.log

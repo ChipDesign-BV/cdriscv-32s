@@ -37,7 +37,7 @@
 
 `default_nettype none
 
-module cdriscv_if_stage (
+module cdriscv_if_stage_gold (
     input  logic        clk_i,
     input  logic        rst_ni,
 
@@ -71,23 +71,6 @@ module cdriscv_if_stage (
   logic [31:0] buf_pc_q    [2];
   logic        buf_err_q   [2];
   logic        wr_ptr_q, rd_ptr_q;
-
-  // rd_ptr selects three muxes -- 32-bit instruction, 32-bit PC and the
-  // error bit -- as well as feeding the control logic below: 65 bits of
-  // mux select hanging off one flop.  V50 measured that flop as an
-  // sg13g2_dfrbpq_2 taking 0.506 ns clk->Q into a fanout the resizer
-  // then had to buffer twice more (+0.647 ns), and it was the source of
-  // BOTH remaining setup violations at 50 MHz.  A buffer tree cannot fix
-  // this: it adds its delay in series.  Splitting the load at the source
-  // can, so the pointer is replicated per wide mux.
-  //
-  // The copies are exact duplicates -- same reset, same redirect clear,
-  // same toggle -- so they hold identical values every cycle and the
-  // behaviour is unchanged by construction.  `keep` stops yosys's
-  // opt_merge from noticing they are identical and merging them back,
-  // which would silently undo this.
-  (* keep = "true" *) logic rd_ptr_rdata_q;   // drives buf_rdata_q mux
-  (* keep = "true" *) logic rd_ptr_pc_q;      // drives buf_pc_q mux
   logic [1:0]  count_q;
 
   logic [31:0] fetch_pc_q, pending_pc_q;
@@ -136,8 +119,6 @@ module cdriscv_if_stage (
       discard_q     <= 1'b0;
       wr_ptr_q      <= 1'b0;
       rd_ptr_q      <= 1'b0;
-      rd_ptr_rdata_q <= 1'b0;
-      rd_ptr_pc_q    <= 1'b0;
       count_q       <= 2'd0;
       for (int unsigned i = 0; i < 2; i++) begin
         buf_rdata_q[i] <= '0;
@@ -150,8 +131,6 @@ module cdriscv_if_stage (
       count_q    <= 2'd0;
       wr_ptr_q   <= 1'b0;
       rd_ptr_q   <= 1'b0;
-      rd_ptr_rdata_q <= 1'b0;
-      rd_ptr_pc_q    <= 1'b0;
 
       if (req_accepted) begin
         // The address phase completed this cycle with the stale PC.
@@ -188,19 +167,15 @@ module cdriscv_if_stage (
         outstanding_q <= 1'b1;
       end
 
-      if (consume) begin
-        rd_ptr_q       <= ~rd_ptr_q;
-        rd_ptr_rdata_q <= ~rd_ptr_rdata_q;
-        rd_ptr_pc_q    <= ~rd_ptr_pc_q;
-      end
+      if (consume) rd_ptr_q <= ~rd_ptr_q;
 
       count_q <= count_q + (fill ? 2'd1 : 2'd0) - (consume ? 2'd1 : 2'd0);
     end
   end
 
   assign instr_valid_o = (count_q != 2'd0);
-  assign instr_rdata_o = buf_rdata_q[rd_ptr_rdata_q];
-  assign instr_pc_o    = buf_pc_q[rd_ptr_pc_q];
+  assign instr_rdata_o = buf_rdata_q[rd_ptr_q];
+  assign instr_pc_o    = buf_pc_q[rd_ptr_q];
   assign instr_err_o   = buf_err_q[rd_ptr_q];
 
 endmodule
