@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- instruction decoder (RV32I_Zicsr_Zifencei + M).
+// cdriscv-32s-10 -- instruction decoder (RV32I_Zicsr_Zifencei + M).
 //
 // Purely combinational.  Produces the control set for one instruction
 // plus an illegal-instruction flag.  Nothing in here has state, so the

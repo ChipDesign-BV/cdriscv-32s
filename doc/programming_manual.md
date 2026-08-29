@@ -1,4 +1,4 @@
-# cdriscv-32s programming manual
+# cdriscv-32s-10 programming manual
 
 The firmware developer's view: what the machine looks like from
 software, how to trap, how to drive each peripheral, and what the

@@ -1,4 +1,4 @@
-# cdriscv-32s
+# cdriscv-32s-10
 
 **A 32-bit RISC-V core subsystem for safety-critical mixed-signal SoCs.**
 

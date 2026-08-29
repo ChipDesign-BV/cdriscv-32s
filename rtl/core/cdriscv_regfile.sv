@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- 32 x 32-bit register file, 2 read ports, 1 write port.
+// cdriscv-32s-10 -- 32 x 32-bit register file, 2 read ports, 1 write port.
 //
 // Flip-flop based (no latches, no memory macro) so that the array is
 // covered by ordinary scan test.  With ParityEn each word carries an

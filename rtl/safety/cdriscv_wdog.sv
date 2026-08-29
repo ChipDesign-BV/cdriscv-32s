@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- windowed watchdog, APB slave.
+// cdriscv-32s-10 -- windowed watchdog, APB slave.
 //
 //   0x00  CTRL     RW  [0] enable  [1] window mode  [2] lock (sticky)
 //                      [3] reset request enable

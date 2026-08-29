@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- interrupt controller, APB slave.
+// cdriscv-32s-10 -- interrupt controller, APB slave.
 //
 // Collects up to NumSrc SoC interrupt lines into the single external
 // machine interrupt of the core, and provides the software interrupt

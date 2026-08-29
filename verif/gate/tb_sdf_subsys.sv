@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- gate-level smoke bench with SDF timing (plan O8).
+// cdriscv-32s-10 -- gate-level smoke bench with SDF timing (plan O8).
 //
 // Runs the software image on the OpenROAD post-repair netlist
 // (cdriscv_subsys_pd_final.v) with real cell and interconnect delays

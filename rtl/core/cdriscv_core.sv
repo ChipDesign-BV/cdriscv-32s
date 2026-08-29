@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- RV32IM_Zicsr_Zifencei core, machine mode only.
+// cdriscv-32s-10 -- RV32IM_Zicsr_Zifencei core, machine mode only.
 //
 // Two stages: fetch (cdriscv_if_stage) and a combined
 // decode/execute/memory/writeback stage driven by the small FSM below.

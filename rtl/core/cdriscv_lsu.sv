@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- load/store unit.
+// cdriscv-32s-10 -- load/store unit.
 //
 // One outstanding transaction on a req/gnt/rvalid bus (OBI-like).
 // Misaligned accesses are not split: the core raises an address

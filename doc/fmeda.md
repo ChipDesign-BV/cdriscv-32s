@@ -1,4 +1,4 @@
-# cdriscv-32s FMEDA
+# cdriscv-32s-10 FMEDA
 
 **Computed 2026-08-25 by `scripts/fmeda.py` — rerun it, do not edit the
 numbers here by hand.**
@@ -37,7 +37,7 @@ process evidence, foundry data and an assessed safety case.
 ## 2. Result
 
 ```
-cdriscv-32s FMEDA -- computed 2026-08-25
+cdriscv-32s-10 FMEDA -- computed 2026-08-25
 ASSUMED rates: SRAM 700 FIT/Mbit, FF 400 FIT/Mbit, permanent 20 FIT total, MBU fraction 2%
 
 element                    lambda FIT   safe FIT    SPF FIT

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- configuration register parity guard.
+// cdriscv-32s-10 -- configuration register parity guard.
 //
 // V29 measured that every safety mechanism in this subsystem is armed
 // by a register and not one of those registers was protected: an upset

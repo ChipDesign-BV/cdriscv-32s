@@ -1,11 +1,11 @@
-# cdriscv-32s architecture
+# cdriscv-32s-10 architecture
 
 > **Status: not verified yet — do not use yet.** Nothing in this
 > document has been confirmed by simulation, synthesis or review.
 
 ## 1. Overview
 
-`cdriscv-32s` is a 32-bit RISC-V core subsystem intended for the
+`cdriscv-32s-10` is a 32-bit RISC-V core subsystem intended for the
 digital control part of a safety-critical mixed-signal SoC: a sensor
 front-end, a motor or power controller, a battery monitor. It is small
 and deterministic rather than fast, and every structure in it was chosen

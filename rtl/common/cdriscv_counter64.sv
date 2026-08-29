@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- 64-bit up counter in four 16-bit segments with
+// cdriscv-32s-10 -- 64-bit up counter in four 16-bit segments with
 // predicted carries.
 //
 // A 64-bit `q <= q + 1` synthesises as one carry chain, and V38

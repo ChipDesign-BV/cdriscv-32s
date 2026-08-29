@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- memory BIST controller (March C-), APB slave.
+// cdriscv-32s-10 -- memory BIST controller (March C-), APB slave.
 //
 // March C- covers stuck-at, transition, address decoder and most
 // coupling faults in 10n operations:

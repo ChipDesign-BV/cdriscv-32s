@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- TCM with the storage mapped to real SRAM macros, for
+// cdriscv-32s-10 -- TCM with the storage mapped to real SRAM macros, for
 // physical timing runs only.
 //
 // The plain gate-level flow black-boxes the whole TCM

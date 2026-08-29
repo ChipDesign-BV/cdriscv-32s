@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- shared types, encodings and constants.
+// cdriscv-32s-10 -- shared types, encodings and constants.
 //
 // STATUS: verified to the O1-O7 gate of doc/verification_plan.md
 //         (2026-08-24) -- may be used in a project.  O8-O9 and the

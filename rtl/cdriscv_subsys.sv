@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- top level of the core subsystem.
+// cdriscv-32s-10 -- top level of the core subsystem.
 //
 //   core (single or dual core lockstep)
 //   +-- bus  --+-- I-TCM (SEC-DED, BIST)

@@ -4,7 +4,7 @@ authors:
   - family-names: "Van Caekenberghe"
     given-names: "Koen"
     affiliation: "ChipDesign B.V."
-title: "cdriscv-32s: a 32-bit RISC-V core subsystem for safety-critical mixed-signal SoCs"
+title: "cdriscv-32s-10: a 32-bit RISC-V core subsystem for safety-critical mixed-signal SoCs"
 date-released: 2026-08-19
 license: Apache-2.0
-url: "https://github.com/ChipDesign-BV/cdriscv-32s"
+url: "https://github.com/ChipDesign-BV/cdriscv-32s-10"

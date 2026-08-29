@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- clock monitor, APB slave.
+// cdriscv-32s-10 -- clock monitor, APB slave.
 //
 // The system clock is measured against an independent reference clock
 // (typically a slow, always-on oscillator).  The system domain toggles

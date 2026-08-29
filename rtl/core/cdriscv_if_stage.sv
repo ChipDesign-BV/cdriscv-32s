@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- instruction fetch stage.
+// cdriscv-32s-10 -- instruction fetch stage.
 //
 // Sequential prefetcher with a two-entry instruction buffer and a
 // single outstanding bus transaction.  A redirect (branch, jump, trap,

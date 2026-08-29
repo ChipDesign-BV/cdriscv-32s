@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- sequential multiplier / divider (RV32M).
+// cdriscv-32s-10 -- sequential multiplier / divider (RV32M).
 //
 // One shift-add multiplier and one restoring divider, both 32 cycles,
 // sharing the sign-correction logic.  Deliberately iterative: no wide

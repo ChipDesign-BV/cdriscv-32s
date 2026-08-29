@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- analog / mixed-signal interface, APB slave.
+// cdriscv-32s-10 -- analog / mixed-signal interface, APB slave.
 //
 // This is the block that makes the subsystem useful in a mixed-signal
 // SoC: it sequences an on-chip ADC, keeps the last conversion result

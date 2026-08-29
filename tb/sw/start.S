@@ -1,7 +1,7 @@
 /* SPDX-FileCopyrightText: 2026 ChipDesign B.V.
  * SPDX-License-Identifier: Apache-2.0
  *
- * cdriscv-32s -- minimal start-up code and smoke test program.
+ * cdriscv-32s-10 -- minimal start-up code and smoke test program.
  *
  * Boots at 0x00000000 in the I-TCM, sets up a stack in the D-TCM and a
  * trap vector, exercises a few instructions and peripherals, then ends

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- machine timer (mtime / mtimecmp), APB slave.
+// cdriscv-32s-10 -- machine timer (mtime / mtimecmp), APB slave.
 //
 //   0x00  MTIME_LO     RW  free running counter, low word
 //   0x04  MTIME_HI     RW  free running counter, high word

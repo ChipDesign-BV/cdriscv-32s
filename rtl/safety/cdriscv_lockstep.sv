@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- dual core lockstep (DCLS) wrapper.
+// cdriscv-32s-10 -- dual core lockstep (DCLS) wrapper.
 //
 // Two identical cores run the same program.  The main core drives the
 // buses; the checker core sees every input delayed by Delay cycles and

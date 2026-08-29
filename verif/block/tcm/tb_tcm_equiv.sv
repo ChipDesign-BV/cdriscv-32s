@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- equivalence bench for the split-macro TCM (V48).
+// cdriscv-32s-10 -- equivalence bench for the split-macro TCM (V48).
 //
 // LVS compares the extracted layout against the netlist that produced
 // it, so it cannot show that the check bits reach the *right* bits of

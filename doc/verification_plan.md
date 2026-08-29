@@ -1,4 +1,4 @@
-# cdriscv-32s verification plan
+# cdriscv-32s-10 verification plan
 
 > **Status, 2026-08-25: every objective O1–O9 is met** — see the
 > objective table below for each criterion's result, the README for

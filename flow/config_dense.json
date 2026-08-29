@@ -1,5 +1,5 @@
 {
-  "//": "cdriscv-32s -- LibreLane 3 RTL2GDS flow (findings V45).",
+  "//": "cdriscv-32s-10 -- LibreLane 3 RTL2GDS flow (findings V45).",
   "//tcm": "The TCM storage uses the same macro-backed wrapper as the timing flow (verif/gate/cdriscv_tcm_macro.sv): two RM_IHPSG13_1P_2048x64 banks per TCM, so the arrays are silicon macros, not 320 kbit of flip-flops.",
   "DESIGN_NAME": "cdriscv_subsys_hard",
   "PDK": "ihp-sg13g2",

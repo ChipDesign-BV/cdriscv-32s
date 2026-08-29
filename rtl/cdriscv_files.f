@@ -1,4 +1,4 @@
-// cdriscv-32s file list (Verilator / iverilog / yosys read order)
+// cdriscv-32s-10 file list (Verilator / iverilog / yosys read order)
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 rtl/core/cdriscv_pkg.sv

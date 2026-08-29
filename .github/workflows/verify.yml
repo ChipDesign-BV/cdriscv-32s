@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 # SPDX-License-Identifier: Apache-2.0
 #
-# cdriscv-32s continuous verification.
+# cdriscv-32s-10 continuous verification.
 #
 # NOTE: this workflow has never run on a real runner.  It is written
 # from the commands that pass locally in the IIC-OSIC-TOOLS container,

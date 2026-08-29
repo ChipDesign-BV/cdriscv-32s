@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- control and status registers (machine mode only).
+// cdriscv-32s-10 -- control and status registers (machine mode only).
 //
 // Implements the M-mode subset of the privileged specification that a
 // bare-metal safety application needs, plus two custom safety CSRs:

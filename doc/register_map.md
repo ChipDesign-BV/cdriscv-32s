@@ -1,4 +1,4 @@
-# cdriscv-32s register map
+# cdriscv-32s-10 register map
 
 > **Status: not verified yet — do not use yet.** The addresses and bit
 > assignments below describe the RTL as written; none of them has been

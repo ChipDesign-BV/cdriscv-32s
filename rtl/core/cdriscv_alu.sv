@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- arithmetic/logic unit.
+// cdriscv-32s-10 -- arithmetic/logic unit.
 //
 // One shared 33-bit adder serves ADD/SUB and every comparison, so the
 // comparison result and the arithmetic result are produced by the same

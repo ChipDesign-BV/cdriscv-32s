@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- smoke test bench for the subsystem.
+// cdriscv-32s-10 -- smoke test bench for the subsystem.
 //
 // This bench is a starting point, not a verification environment: it
 // boots the subsystem out of the I-TCM, prints the retire trace and

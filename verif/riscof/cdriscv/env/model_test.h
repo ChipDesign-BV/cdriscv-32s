@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// RISCOF target macros for cdriscv-32s.
+// RISCOF target macros for cdriscv-32s-10.
 //
 // The subsystem has no console and no interrupt controller the tests
 // can reach directly, so the IO macros are empty and the interrupt

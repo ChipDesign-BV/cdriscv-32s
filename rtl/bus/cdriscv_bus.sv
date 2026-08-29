@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- instruction/data bus interconnect.
+// cdriscv-32s-10 -- instruction/data bus interconnect.
 //
 // Two masters (instruction fetch, data) and three slaves (I-TCM, D-TCM,
 // peripheral bridge) plus an internal error responder for unmapped

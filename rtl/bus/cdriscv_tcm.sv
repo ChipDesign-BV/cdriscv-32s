@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- tightly coupled memory with SEC-DED protection.
+// cdriscv-32s-10 -- tightly coupled memory with SEC-DED protection.
 //
 // Single port, one word (32 data + 7 check bits) per location:
 //

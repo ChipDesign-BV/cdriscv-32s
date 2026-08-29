@@ -1,4 +1,4 @@
-# cdriscv-32s integration manual
+# cdriscv-32s-10 integration manual
 
 Everything an SoC team needs to instantiate, constrain, harden, boot
 and sign off this subsystem. Companion documents, referenced rather

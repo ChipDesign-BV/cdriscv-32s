@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- safety controller (fault collection and reaction unit).
+// cdriscv-32s-10 -- safety controller (fault collection and reaction unit).
 //
 // Every fault source in the subsystem ends here.  Each source has one
 // sticky status bit and a configurable reaction: interrupt, reset

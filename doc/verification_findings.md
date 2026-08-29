@@ -1,4 +1,4 @@
-# cdriscv-32s verification findings
+# cdriscv-32s-10 verification findings
 
 Running log of everything verification has turned up, newest phase
 first. Each finding records what was wrong, how it was found, and what
@@ -4550,7 +4550,7 @@ comparison, and it is why objective O2 is written the way it is.
 The first value comparison diverged on `csrr t4, misa`: Spike returned
 `0x40141100`, the RTL `0x40001100`. The difference is the S and U bits.
 Spike defaults to `--priv=msu`, so it advertises supervisor and user
-mode; cdriscv-32s is machine mode only and correctly advertises neither.
+mode; cdriscv-32s-10 is machine mode only and correctly advertises neither.
 
 Not an RTL bug — a model configuration mismatch, and a good
 advertisement for comparing values rather than only control flow, since

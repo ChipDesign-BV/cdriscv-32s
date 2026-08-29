@@ -172,7 +172,7 @@ class cdriscv(pluginTemplate):
 	  # the "else" clause is executed below assigning the sim command to simple no action
 	  # echo statement.
           if self.target_run:
-            # cdriscv-32s runs on the Icarus co-simulation bench.  Three
+            # cdriscv-32s-10 runs on the Icarus co-simulation bench.  Three
             # steps, all in the test's own work directory:
             #
             #   objcopy   ELF -> flat binary of everything from

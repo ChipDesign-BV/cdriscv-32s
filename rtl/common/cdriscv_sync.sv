@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- clock-domain-crossing primitives.
+// cdriscv-32s-10 -- clock-domain-crossing primitives.
 //
 // These are the only places in the IP where an asynchronous signal is
 // sampled.  Keep the flip-flop chains intact when constraining the

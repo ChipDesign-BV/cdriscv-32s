@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- equivalence bench for the replicated IF read pointer.
+// cdriscv-32s-10 -- equivalence bench for the replicated IF read pointer.
 //
 // V50 replicated rd_ptr_q into three flops so the 65 bits of mux select
 // it drives are split at the source.  yosys equiv_induct cannot prove

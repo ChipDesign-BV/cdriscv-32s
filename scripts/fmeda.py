@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 # SPDX-License-Identifier: Apache-2.0
 #
-# cdriscv-32s FMEDA computation (verification plan O9).
+# cdriscv-32s-10 FMEDA computation (verification plan O9).
 #
 # Everything in this file is one of exactly three kinds of number, and
 # each row of the tables says which:
@@ -156,7 +156,7 @@ def main():
     lat_mech = sum(r[3] for r in mech_rows)
     lfm = 1 - lat_mech / lam_mech
 
-    print("cdriscv-32s FMEDA -- computed %s" % "2026-08-25")
+    print("cdriscv-32s-10 FMEDA -- computed %s" % "2026-08-25")
     print("ASSUMED rates: SRAM %.0f FIT/Mbit, FF %.0f FIT/Mbit, "
           "permanent %.0f FIT total, MBU fraction %.0f%%"
           % (SEU_SRAM_FIT_PER_MBIT, SEU_FF_FIT_PER_MBIT,

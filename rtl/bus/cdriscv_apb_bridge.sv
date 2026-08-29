@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 // SPDX-License-Identifier: Apache-2.0
 //
-// cdriscv-32s -- OBI-like slave to APB3 master bridge.
+// cdriscv-32s-10 -- OBI-like slave to APB3 master bridge.
 //
 // The peripheral window is 4 KiB, split into sixteen 256-byte slots
 // selected by paddr[11:8].  Slot 15 is exported so that the SoC can

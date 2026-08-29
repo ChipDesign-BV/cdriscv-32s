@@ -1,7 +1,7 @@
 /* SPDX-FileCopyrightText: 2026 ChipDesign B.V.
  * SPDX-License-Identifier: Apache-2.0
  *
- * cdriscv-32s -- linker script: code in the I-TCM, data in the D-TCM.
+ * cdriscv-32s-10 -- linker script: code in the I-TCM, data in the D-TCM.
  */
 
 OUTPUT_ARCH(riscv)

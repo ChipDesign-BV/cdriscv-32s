@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 ChipDesign B.V.
 # SPDX-License-Identifier: Apache-2.0
 #
-# cdriscv-32s -- build entry points.
+# cdriscv-32s-10 -- build entry points.
 #
 # See doc/verification_plan.md for what these are meant to establish and
 # doc/verification_findings.md for what they have actually found.
