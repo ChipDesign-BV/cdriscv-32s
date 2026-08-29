@@ -152,15 +152,19 @@ rectangle with two contiguous bands. Utilization goes 0.445 -> 0.587.
 | TCM split-macro mapping | **verified functionally** — 6 600-check equivalence vs the behavioural TCM, mutation-proved (V49); `make block-tcm` |
 | Max slew / max cap | **not gated by the flow** — 791 slew pins (slow, up from 527) and 64 cap pins; see V46/V48 |
 
-**Area (V48).** The die is **1.90 mm square (3.61 mm²)** at **66.1 %
-instance utilization**, down from 2.40 mm square / 52.6 %. Two changes
-got there: the TCM check bits moved into their own `4096x8` macros so no
-array bit is wasted (macro area 1.967 → 1.337 mm², −32 %), and the die
-shrank around them. Routed wirelength fell 2.2 % and hold *improved*.
-The floor is **between 1820 and 1900 µm**, and it is set by antenna-diode
-legalisation — not routing congestion, which sits at 19 % usage with zero
-overflow — because ~44 000 diodes each need a free site beside the pin
-they protect.
+**Area (V48, V52).** The die is **1330 × 2521 µm (3.353 mm²)** at
+**58.7 % placement utilization**, 71.7 % once the antenna diodes are in.
+Three changes got there from the original 2.40 mm square: the TCM check
+bits moved into their own `4096x8` macros so no array bit is wasted
+(macro area 1.967 → 1.337 mm², −32 %), the die shrank around them
+(2.40 mm → 1.90 mm square), and then the square became a rectangle one
+macro row wide (3.61 → 3.353 mm², −7.1 %).
+
+The floor is bracketed to **1.2 %**: 3.312 mm² fails and 3.353 mm² signs
+off. It is set by antenna-diode legalisation — not routing congestion,
+which sits at 19 % usage with zero overflow — because ~46 700 diodes each
+need a free site beside the pin they protect. Treat it as a cliff: a
+clean congestion report says nothing about whether the diodes will fit.
 
 **This is not a tapeout.** No clock-tree review, signal integrity, ESD,
 packaging or test structures; the FMEDA still runs on assumed failure
@@ -237,7 +241,7 @@ V0–V44, newest first). Summary, one line per area:
 | Formal | **6 benches pass** | full proofs for SEC-DED (all 2³² words, every 1–2-bit error) and decoder (all 2³² encodings); BMC elsewhere; ungated config-parity contract proven; mutation tested |
 | Coverage | **O6/O7 met** | 96.2 % line (100 % with [reviewed waivers](verif/coverage_waivers.md)), 96.2 % toggle, 100 % functional over 65 cover points (V40) |
 | Fault injection | **0 SDC, 0 hangs, 0 latent** | ~10⁴ classified upsets; latent was **46.4 %** before the V37 configuration parity, zero after, detection median 2–4 cycles (V29/V33/V37); `make fi` |
-| Timing | **closed at 25 MHz and 50 MHz, 3 corners** | 25 MHz: setup +3.16 ns (slow), hold +0.15 ns (fast). 50 MHz: setup **+0.061 ns**, hold +0.132 ns, LVS matches (V50). TNS 0 throughout; `make fmax` |
+| Timing | **closed at 25 MHz and 50 MHz, 3 corners** | 25 MHz rectangle: setup **+2.698 ns** (slow), hold **+0.133 ns** (fast), LVS matches uniquely (V52). 25 MHz square: setup +3.16 ns, hold +0.15 ns. 50 MHz square: setup **+0.061 ns**, hold +0.132 ns (V50). TNS 0 throughout; `make fmax` |
 | Gate level | **O8 met** | zero-delay netlist cycle-identical to RTL; smoke + 12 architectural tests on the placed netlist with SDF, signatures bit-exact vs Spike (V42/V43); `make gate gate-sdf gate-arch` |
 | FMEDA | **SPFM 99.6 % / LFM 91.4 %** | under stated assumed failure rates — see [doc/fmeda.md](doc/fmeda.md) for what is measured vs assumed (V44); `scripts/fmeda.py` |
 | CI | **green** | [verify.yml](.github/workflows/verify.yml): full gate on every push, gate-level/timing/fault-injection nightly |
