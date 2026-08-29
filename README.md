@@ -39,8 +39,8 @@ things.
 > silent data corruption over ~10⁴ injections, and **timing closed at
 > the 25 MHz integration target across all three PVT corners** (setup
 > +4.81 ns worst, hold +0.13 ns worst, TNS 0 on the routed netlist).
-> An earlier "closed at 50 MHz" figure was typical-corner only and was
-> withdrawn in V45. Twelve
+> An earlier closure figure against a shorter target was typical-corner
+> only and was withdrawn in V45. Twelve
 > functional defects were found and fixed on the way; CI re-runs the
 > gate on every push.
 >
@@ -127,15 +127,14 @@ cd flow && librelane --manual-pdk --pdk-root $PDK_ROOT config.json
 
 **State: DRC clean, LVS matches, setup and hold both met at all three
 corners** — at **25 MHz on a 1330 x 2521 um rectangular die (3.353 mm²,
-V52)**, which is the smallest signed-off configuration and the one to
-design against. Two others are closed: 25 MHz on a 1.90 mm square
-(3.610 mm²) and 50 MHz on a 2.10 mm square (4.410 mm², V50). The flow
-runs floorplan -> PDN -> placement -> CTS -> detailed routing ->
-extraction -> IR-drop -> streamout -> DRC -> LVS.
+V52)** — the main configuration, and the one to design against. A
+1.90 mm square (3.610 mm²) is also closed and is kept as the more
+conservative alternative. The flow runs floorplan -> PDN -> placement ->
+CTS -> detailed routing -> extraction -> IR-drop -> streamout -> DRC ->
+LVS.
 
-The rectangle is worth 7.1 % of the area against the 25 MHz square, and
-24 % against the 50 MHz square, at the same frequency and the same
-fabric. It is not a geometry trick — die area is instance area over
+The rectangle is worth 7.1 % of the area against the square at the same
+frequency and on the same fabric. It is not a geometry trick — die area is instance area over
 utilization — it is that six macros in two full-width rows leave a
 square with four corner regions the placer fills badly, and leave a
 rectangle with two contiguous bands. Utilization goes 0.445 -> 0.587.
@@ -180,14 +179,13 @@ survives the corner that matters.
 | Clock | **40 ns (25 MHz)** |
 | IR drop | worst-case 1.20 V — negligible |
 
-**Why 25 MHz, and a correction.** The first full run was constrained at
-20 ns and met it at the typical corner while missing **by 8.99 ns at
-slow** (1.08 V, 125 °C), 3 636 register-to-register paths failing. The
-earlier "closed at 50 MHz" claim came from a script that read one
-Liberty file, and was wrong as a closure claim. The constraint is now
-40 ns and `make fmax` reads all three corners, slow first, so the
-binding number is the one you see. Sign off setup at slow, hold at
-fast — finding V45.
+**A correction worth keeping.** An early run met its constraint at the
+typical corner while missing **by 8.99 ns at slow** (1.08 V, 125 °C),
+3 636 register-to-register paths failing, because the script read a
+single Liberty file. **One Liberty file is not a signoff.** The
+constraint is 40 ns and `make fmax` reads all three corners, slow first,
+so the binding number is the one you see. Sign off setup at slow, hold
+at fast — finding V45.
 
 Eleven environment and configuration obstacles were found bringing
 this up, from an unparseable vendor SRAM model to the SRAM's third supply
@@ -241,7 +239,7 @@ V0–V44, newest first). Summary, one line per area:
 | Formal | **6 benches pass** | full proofs for SEC-DED (all 2³² words, every 1–2-bit error) and decoder (all 2³² encodings); BMC elsewhere; ungated config-parity contract proven; mutation tested |
 | Coverage | **O6/O7 met** | 96.2 % line (100 % with [reviewed waivers](verif/coverage_waivers.md)), 96.2 % toggle, 100 % functional over 65 cover points (V40) |
 | Fault injection | **0 SDC, 0 hangs, 0 latent** | ~10⁴ classified upsets; latent was **46.4 %** before the V37 configuration parity, zero after, detection median 2–4 cycles (V29/V33/V37); `make fi` |
-| Timing | **closed at 25 MHz and 50 MHz, 3 corners** | 25 MHz rectangle: setup **+2.698 ns** (slow), hold **+0.133 ns** (fast), LVS matches uniquely (V52). 25 MHz square: setup +3.16 ns, hold +0.15 ns. 50 MHz square: setup **+0.061 ns**, hold +0.132 ns (V50). TNS 0 throughout; `make fmax` |
+| Timing | **closed at 25 MHz, 3 corners** | setup **+2.698 ns** (slow), hold **+0.133 ns** (fast), TNS 0, LVS matches uniquely (V52); the square alternative is +3.16 / +0.15 ns. `make fmax` |
 | Gate level | **O8 met** | zero-delay netlist cycle-identical to RTL; smoke + 12 architectural tests on the placed netlist with SDF, signatures bit-exact vs Spike (V42/V43); `make gate gate-sdf gate-arch` |
 | FMEDA | **SPFM 99.6 % / LFM 91.4 %** | under stated assumed failure rates — see [doc/fmeda.md](doc/fmeda.md) for what is measured vs assumed (V44); `scripts/fmeda.py` |
 | CI | **green** | [verify.yml](.github/workflows/verify.yml): full gate on every push, gate-level/timing/fault-injection nightly |

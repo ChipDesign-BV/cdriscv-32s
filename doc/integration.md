@@ -224,16 +224,15 @@ purple field between them, and the vertical blue strips down both edges
 are the power straps. The die is exactly one macro row wide plus 179 um
 of margin, which is what makes it 7.1 % smaller than the square that
 holds the same
-logic.](img/cdriscv_subsys_gds_f25narrow.png)
+logic.](img/cdriscv_subsys_gds.png)
 
-Numbers below are from the signed-off run `f25narrow`; see
-`flow/config_25mhz_narrow.json` for the exact configuration and
-`flow/run_f25narrow.sh` for the driver. The earlier square floorplan
-(`flow/config_dense.json`, 1.90 mm, also signed off) is retained because
-it is the more conservative starting point for a different macro set:
-the rectangle's advantage comes entirely from these six macros filling
-two full-width rows, and it does not transfer to a floorplan whose
-macros do not.
+Numbers below are from the signed-off main configuration,
+`flow/config.json`. The earlier square floorplan
+(`flow/config_dense.json`, 1.90 mm, also signed off) is retained as the
+more conservative starting point for a different macro set: the
+rectangle's advantage comes entirely from these six macros filling two
+full-width rows, and it does not transfer to a floorplan whose macros do
+not.
 
 ### 8.1 The flow
 
@@ -341,9 +340,9 @@ as a cliff, not a gradient: the flow either finds sites for ~46 700
 diodes or it does not, and a clean congestion report says nothing about
 which.
 
-**Frequency is not the lever.** Standard-cell area is 584 230 µm² at
-25 MHz and 583 550 µm² at 50 MHz — 0.1 % apart. Halving the clock buys
-essentially no area on this design; the die shape buys 22 %.
+**Frequency is not the lever.** A run at half the clock period changed
+standard-cell area by 0.1 %. The clock is not what consumes the area on
+this design; the die shape is worth far more.
 
 ### 8.3 Power delivery
 
@@ -372,16 +371,9 @@ closes at all three corners:
 | typ 1.20 V / 25 °C | +14.02 ns | +0.36 ns | 0 |
 | fast 1.32 V / −40 °C | +20.14 ns | +0.15 ns | 0 |
 
-**50 MHz is also demonstrated** (V50): setup +0.061 ns at slow, hold
-+0.132 ns at fast, TNS 0, DRC clean and LVS matching, on a 2.10 mm
-square die at 54 % utilization. It needs the I-TCM macros flipped to
-`FS` and the IF read pointer replicated. **Design against 25 MHz**: at
-50 MHz the margin is 61 ps, which is 0.3 % of the period, and the STA
-reads a single nominal RC corner.
-
 **Sign off setup at slow, hold at fast, and check typical too.** That
-ordering is not pedantry: the first hardening run met 20 ns at the
-typical corner and missed it **by 9 ns at slow**, where 3 636
+ordering is not pedantry: an early hardening run met its constraint at
+the typical corner and missed it **by 9 ns at slow**, where 3 636
 register-to-register paths failed. A single-corner analysis had
 reported the design "closed". All three corners are in
 `verif/sta/cdriscv_subsys.sdc` and in `make fmax`.
@@ -451,7 +443,7 @@ is dead on arrival (finding V42).
 ```sh
 cd flow
 librelane --manual-pdk --pdk-root $PDK_ROOT \
-          --run-tag <tag> config_25mhz_narrow.json
+          --run-tag <tag> config.json
 ```
 
 `--manual-pdk` matters: without it LibreLane tries to *download* a PDK

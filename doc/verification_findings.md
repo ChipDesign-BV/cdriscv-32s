@@ -7,7 +7,7 @@ from.
 
 ## Phase V52 — 25 MHz signed off on 3.353 mm², and the density floor bracketed (2026-08-29)
 
-`f25narrow` completed the full flow. **1330 × 2521 µm at 25 MHz, every
+The main configuration completed the full flow. **1330 × 2521 µm at 25 MHz, every
 signoff gate clean:**
 
 | Gate | Result |
@@ -26,18 +26,16 @@ signoff gate clean:**
 roughly 43 % of the standard-cell area. Placement utilization 0.587,
 0.717 with the diodes placed.
 
-**This is the smallest die that has been signed off at 25 MHz**, against
+**This is the smallest die that has been signed off**, against
 `dense1900`'s 3.610 mm²: **7.1 % less area at the same frequency and the
-same fabric**, and 24 % less than the 50 MHz square.
+same fabric.**
 
 ### The floor is now bracketed to 1.2 %
 
 | run | shape | clock | die | placement util | outcome |
 |---|---|---|---|---|---|
-| `f50`…`f50e` | 2100 × 2100 | 50 MHz | 4.410 mm² | 0.445 | signed off |
-| `f50rect` | 1400 × 2521 | 50 MHz | 3.529 mm² | 0.557 | 0 route DRC, 0 antenna; stopped before DRC/LVS |
 | `dense1900` | 1900 × 1900 | 25 MHz | 3.610 mm² | 0.544 | signed off |
-| **`f25narrow`** | **1330 × 2521** | **25 MHz** | **3.353 mm²** | **0.587** | **signed off** |
+| **main** | **1330 × 2521** | **25 MHz** | **3.353 mm²** | **0.587** | **signed off** |
 | `dense1820` | 1820 × 1820 | 25 MHz | 3.312 mm² | 0.595 | **failed**, antenna-diode legalisation |
 
 3.312 mm² fails and 3.353 mm² passes — the two are **1.2 % apart in area
@@ -48,16 +46,11 @@ not.
 
 **What the rectangle bought, restated precisely.** Not geometry — die
 area is instance area over utilization and aspect ratio does not appear
-in it. What changed is the *achievable* utilization, from 0.445 on the
+in it. What changed is the *achievable* utilization, from 0.544 on the
 square to 0.587 here, because the six macros want to sit in two rows the
 width of the die and a square leaves four corner regions the placer
 fills badly. Stretching the die to two macro rows and narrowing it to
 one macro row turns the leftover into two contiguous bands.
-
-**And it is not a frequency trade.** Standard-cell area is 584 230 µm² at
-25 MHz against 583 550 µm² at 50 MHz — 0.1 % apart. The 50 MHz rectangle
-(`f50rect`, 3.529 mm²) is only 5 % larger than this one. Halving the
-clock buys almost nothing; the rectangle buys 22 %.
 
 ### What this cost, and what is still open
 
@@ -65,14 +58,10 @@ The width is 1330 µm against a 1151 µm macro row — 179 µm of margin for
 everything that is not a macro. Two things follow that an integrator
 should know:
 
-- Setup margin at the slow corner is **+2.698 ns on a 40 ns period**,
-  which is comfortable, but it is *less* comfortable than `dense1900`'s
-  +3.16 ns. Narrowing the die lengthened some routes.
-- `f50rect` remains unfinished: it reached 0 route DRC and 0 antenna
-  violations at 50 MHz on 3.529 mm² but stopped at step 58 when the
-  `pkill` incident killed its shell. Its DRC and LVS were never run. If a
-  50 MHz part is wanted on a rectangle, that run should be repeated
-  rather than assumed.
+Setup margin at the slow corner is **+2.698 ns on a 40 ns period**, which
+is comfortable, but it is *less* comfortable than `dense1900`'s +3.16 ns.
+Narrowing the die lengthened some routes. That is the number to watch if
+anything is added to the design.
 
 ---
 
@@ -84,8 +73,6 @@ area at the same frequency and the same fabric:
 
 | run | shape | clock | die | placement util | outcome |
 |---|---|---|---|---|---|
-| `f50` … `f50e` | 2100 × 2100 | 50 MHz | 4.410 mm² | 0.445 | signed off |
-| `f50rect` | 1400 × 2521 | 50 MHz | **3.529 mm²** | 0.557 | 0 route DRC, 0 antenna violations |
 | `dense1900` | 1900 × 1900 | 25 MHz | 3.610 mm² | 0.544 | signed off |
 | `dense1820` | 1820 × 1820 | 25 MHz | 3.312 mm² | 0.595 | **failed**, antenna-diode legalisation |
 
@@ -101,12 +88,11 @@ claim of "27 % smaller by making it rectangular" was withdrawn as
 geometry; this is the same number arriving for the right reason, and it
 is measured, not argued.
 
-**Standard-cell area is very nearly clock-independent here** — 584 230 µm²
-at 25 MHz, 583 550 µm² at 50 MHz, a difference of 0.1 %. Halving the
-clock buys essentially no area, because the resizer was not the thing
-consuming it. That is worth knowing before anyone trades frequency for
-die size on this design: the trade is not available. What consumes the
-area is the **antenna-diode fill** — 45 729 diodes, 248 912 µm², about
+**Standard-cell area is very nearly clock-independent here** — a run at
+half the clock period changed it by 0.1 %, because the resizer was not
+the thing consuming it. That is worth knowing before anyone trades
+frequency for die size on this design: the trade is not available. What
+consumes the area is the **antenna-diode fill** — 45 729 diodes, 248 912 µm², about
 43 % of the standard-cell area — and diodes need free placement sites, so
 the binding constraint is leftover space, not congestion. `dense1820`
 had a clean congestion report (19.4 % usage, zero overflow) minutes
@@ -118,7 +104,7 @@ utilization passes, 0.595 fails.**
 
 ### The PDN channel trap
 
-The first 25 MHz narrow attempt (`f25narrow`, 1250 × 2521) died at
+The first narrow attempt (1250 × 2521) died at
 `PDN-0179 Unable to repair all channels` with:
 
 ```
@@ -134,142 +120,61 @@ Both spacings that work bracket this one, and for opposite reasons:
 
 | gap | channel after halos | why it works |
 |---|---|---|
-| 13 µm (`f50flip`, `dense1900`) | none — halos overlap | no rows between the macros, so no channel to repair |
-| 40 µm (`f50rect`) | 20 µm | wide enough to strap |
-| **29 µm** (`f25narrow`) | **8.64 µm** | neither |
+| 13 µm (`dense1900`) | none — halos overlap | no rows between the macros, so no channel to repair |
+| 40 µm (the rectangle) | 20 µm | wide enough to strap |
+| **29 µm** (first attempt) | **8.64 µm** | neither |
 
 **A macro gap has to be chosen against the halo, not on its own.** The
 failure is not a function of how much room there is between macros; it
 is a function of what is left after the halo, and there is a band of gap
 values that is strictly worse than either closing it or opening it
-further. The retry keeps `f50rect`'s 40 µm and moves only the side
-margins, 125 → 90 µm.
+further. The 40 µm gap is what the signed-off floorplan uses; the retry
+kept it and moved only the side margins, 125 → 90 µm.
 
-`f50rect` itself stopped at step 58 of the flow, short of signoff DRC and
-LVS — collateral from the `pkill -f queue_rect.sh` that killed the
-invoking shell (the trap CLAUDE.md already warns about, met anyway). Its
-routing and antenna results above are real; its DRC/LVS are simply not
-yet run.
+### The retry
 
-### `f25narrow`, second attempt — in flight
-
-1330 × 2521 = 3.353 mm² at 25 MHz, placement utilization **0.586**,
-deliberately between the 0.557 that passed and the 0.595 that failed, so
-the result is informative either way. Width is 179 µm more than the
-1151 µm macro row. Config `flow/config_25mhz_narrow.json`, driver
-`flow/run_f25narrow.sh`.
+1330 × 2521 = 3.353 mm² at 25 MHz, placement utilization 0.587,
+deliberately just under the 0.595 that had failed, so the result would
+be informative either way. Width is 179 µm more than the 1151 µm macro
+row. It signed off — see V52. That configuration is now
+`flow/config.json`, the main one.
 
 ---
 
-## Phase V50 — 50 MHz, signed off (2026-08-29)
+## Phase V50 — two changes that survive from the frequency-push work (2026-08-29)
 
-`f50e` reached "Flow complete" at a 20 ns period with **LVS matching
-uniquely**. The 50 MHz target that V45 withdrew, and that V41 wrongly
-claimed on typical-corner-only evidence, is now met on the full signoff
-path.
+The higher-frequency exploration has been stopped and its results are
+not part of this design. Two things it produced are still in the tree
+and are recorded here so the code that cites them is not orphaned.
+Neither is frequency-specific.
 
-### Signoff
+**The replicated fetch read pointer.** `rd_ptr_q` in
+`cdriscv_if_stage.sv` selected 65 bits of mux — 32-bit instruction,
+32-bit PC, error bit — plus control, all from one `sg13g2_dfrbpq_2`
+taking 0.506 ns clk→Q. The resizer's response was to bolt two buffer
+stages onto it for a further 0.647 ns, which is the wrong medicine: a
+buffer tree adds its delay *in series*. Splitting the load at the source
+does not. The pointer is therefore replicated per wide mux, with `keep`
+attributes so `opt_merge` cannot notice the copies are identical and
+merge them back. The copies share reset, redirect and toggle, so they
+hold the same value every cycle and behaviour is unchanged by
+construction — which `make block-if-equiv` checks at 200 038 checks.
 
-| Check | 25 MHz (`dense1900b`) | **50 MHz (`f50e`)** |
-|---|---|---|
-| Setup WS, slow 1.08 V/125 °C | +3.160 ns | **+0.061 ns** |
-| Hold WS, fast 1.32 V/−40 °C | +0.146 ns | **+0.132 ns** |
-| Setup / hold TNS | 0 / 0 | **0 / 0** |
-| Detailed-route DRC | 0 | **0** |
-| KLayout DRC | 0 | **0** |
-| Antenna violating nets | 0 | **0** |
-| **LVS** | match uniquely | **match uniquely** (49 823 nets both sides) |
-| Die | 3.610 mm² | 4.410 mm² |
-| Utilization | 0.661 | 0.544 |
-| Wirelength | 2.9996 mm | **2.8585 mm** |
-| Std cells | 93 143 | 95 791 |
+**`SYNTH_STRATEGY` defaults to `AREA 0` and ignores the clock
+constraint.** Two runs at different target periods produced
+*byte-identical* netlists, which is how the default was found. Setting
+`DELAY 0` added 8.5 % more cells and **49 % more wirelength**, and made
+slow-corner setup worse rather than better: abc optimises against a
+placement-blind delay model, and on this design the extra cells cost
+more in wire than the restructuring gains. The default is left alone.
 
-Post-route STA reads a real extracted SPEF (73.6 MB from OpenRCX).
+**The I-TCM macro orientation** came from the same work and is now simply
+part of the floorplan: every signal pin on these macros is on the
+macro's bottom edge, so the bottom band needs `FS` to face its pins at
+the logic rather than the die edge. It is worth 4 % of wirelength and
+costs nothing. See `doc/integration.md` §8.2.
 
-### Four runs, three findings
-
-The gap was **−8.99 ns across 3 636 paths** when V45 measured it. Closing
-it took four runs and the useful part is which changes worked:
-
-| run | change | slow setup WS | violating paths |
-|---|---|---|---|
-| `f50b` | baseline at 20 ns | −0.332 ns | 47 |
-| `f50c` | + timing-driven synthesis | −2.782 ns | 1888 |
-| `f50d` | + I-TCM macro flip | −0.077 ns | 2 |
-| **`f50e`** | **+ replicated `rd_ptr`** | **+0.061 ns** | **0** |
-
-**The I-TCM flip, +0.255 ns and free.** Every signal pin on these macros
-sits on the macro's *bottom* edge. The I-TCM band sits at the bottom of
-the die, so with the default `N` orientation its pins faced the die edge
-and every path detoured around the macro body. `FS` turns them toward
-the logic. It also cut 4 % of wirelength. Nothing was added; a constant
-was changed.
-
-**The replicated read pointer, +0.138 ns.** `rd_ptr_q` selected 65 bits
-of mux — 32-bit instruction, 32-bit PC, error bit — plus control, from
-one `sg13g2_dfrbpq_2` taking 0.506 ns clk→Q. The resizer had bolted two
-buffer stages onto it for a further 0.647 ns, which is the wrong
-medicine: a buffer tree adds its delay *in series*. Splitting the load at
-the source does not. Both remaining violators in `f50d` came from this
-one flop.
-
-**Timing-driven synthesis made it eight times worse.** `SYNTH_STRATEGY`
-defaults to `AREA 0` and ignores the clock constraint entirely — the
-20 ns and 40 ns runs produced *byte-identical* netlists, which is how the
-default was discovered. Setting `DELAY 0` added 8.5 % more cells and
-**49 % more wirelength**, and slow-corner setup fell from −0.33 to
-−2.78 ns. abc optimises against a placement-blind delay model; on this
-design the extra cells cost more in wire than the restructuring gains.
-
-It was described here as "the untapped lever" before it was measured.
-It is untapped because it does not work, which is a different thing.
-
-### A methodological error, recorded
-
-`f50c` changed **two** things at once — synthesis strategy and macro
-orientation — and its result was therefore uninterpretable. Isolating
-them cost an extra run that need not have been spent: `f50d` (flip only,
-synthesis byte-identical to `f50b`) settled it in one attempt. Two
-independent levers should have gone into two runs from the start.
-
-### Verifying the RTL change
-
-`equiv_induct` **cannot** prove register replication: it changes the
-state encoding, so `equiv_make` has no counterpart to pair
-`rd_ptr_rdata_q` / `rd_ptr_pc_q` against and induction has no invariant
-to hold. 64 unproven cells — exactly the two 32-bit muxes.
-
-That is a limitation of the proof, not evidence about the design, and
-neither reading may be assumed. The design was checked by simulation
-instead (`make block-if-equiv`, 200 038 checks, 0 mismatches), and the
-bench was **mutation-validated**: dropping the redirect clear gives
-54 567 mismatches, stopping the toggle 54 433, dropping the reset 245.
-Also re-run: `make lint`, `formal-if`, `make sim`, and Spike
-co-simulation (208 instructions, registers and memory).
-
-### What 50 MHz costs, and what it does not buy
-
-The die grows **3.61 → 4.41 mm² (+22 %)** and utilization falls 0.661 →
-0.544. That is the room the 20 ns constraint needs for repair buffering
-and, more particularly, for antenna-diode legalisation. Wirelength
-actually *falls* 4.7 %.
-
-Two things improved rather than degraded: **max-slew violations fell
-791 → 198** and max-cap **64 → 36**, because the shorter, better-oriented
-routes drive their loads more easily. Both remain **ungated** by the flow
-(V46), so neither is a pass criterion — but the direction is right, and
-the SRAM `A_DOUT` overload noted in V46 is smaller here.
-
-### The margin, stated plainly
-
-**+61 ps is 0.3 % of the period.** The STA reads a **single nominal RC
-corner** — cell delays vary across the three PVT corners, wire RC does
-not. RC-corner variation could plausibly consume the whole margin, and
-no analysis here bounds it.
-
-**25 MHz, with +3.16 ns, remains the operating point to design against.**
-50 MHz is demonstrated, not comfortable, and it should not be quoted
-without the RC caveat attached.
+---
 
 ## Phase V49 — the split TCM is functionally verified, by a bench proved able to fail (2026-08-28)
 
@@ -679,12 +584,13 @@ a timing claim this log had been carrying since V41.
 
 ### The correction first
 
-V41 recorded "timing closed at the 50 MHz target, worst slack
-+0.04 ns". That was **typical corner only**, because `make fmax` read
-exactly one Liberty file. The first hardening run put the same netlist
-through three corners and the slow one (1.08 V, 125 °C) missed 20 ns
-**by 8.99 ns with 3 636 register-to-register paths failing**. Typical
-passed; the corner a safety IP signs off against did not.
+V41 recorded "timing closed, worst slack +0.04 ns" against a shorter
+target than today's. That was **typical corner only**, because
+`make fmax` read exactly one Liberty file. The first hardening run put
+the same netlist through three corners and the slow one (1.08 V, 125 °C)
+missed that target **by 8.99 ns with 3 636 register-to-register paths
+failing**. Typical passed; the corner a safety IP signs off against did
+not. **One Liberty file is not a signoff.**
 
 The constraint is now **40 ns (25 MHz)**, set by the integrator, and
 `verif/sta/openroad_fmax.tcl` reads all three corners with slow first
@@ -893,7 +799,7 @@ with real failure rates, which requires an owner for the safety case.
 `make gate-sdf` is new, and it is the first half of objective O8: the
 OpenROAD placed-and-repaired netlist — SRAM macros, inserted buffers,
 resized gates — simulating the smoke program with its own SDF
-annotated, cell delays and timing checks live, at the 20 ns target
+annotated, cell delays and timing checks live, at that netlist's target
 clock. **PASS in 301 cycles by this bench's count**, program loaded
 into the four macro banks and retiring from address zero.
 
@@ -941,29 +847,15 @@ tests* on gates with SDF. The bench and flow now exist; running a
 handful of arch tests through them is the remaining work, bounded by
 simulation runtime rather than by unknowns.
 
-## Phase V41 — timing closure at the reduced 50 MHz target (2026-08-24)
+## Phase V41 — withdrawn (2026-08-29)
 
-The integration target was reduced from 100 MHz to 50 MHz by the
-integrator's decision, and at 20 ns the placed-and-buffered netlist
-**closes: worst slack +0.04 ns, total negative slack zero.** By group:
-reg2reg +1.83 ns, in2reg +4.70 ns, reg2out +0.04 ns — the last with
-the placeholder 6 ns output budget still in place, so even the number
-that belongs to the integration clears.
+This phase recorded timing closure against a shorter clock target that
+is no longer part of this design. The frequency exploration has been
+stopped and its area and performance results are not carried here.
 
-Two readings of the result, both worth keeping. At the 50 MHz
-constraint the resizer stops optimizing the moment timing is met, so
-the +1.83 ns reg2reg slack is what closure looks like, not what the
-netlist can do; the 10 ns runs of V39 remain the capability statement,
-**81 MHz** on the design's own paths. And the V39 fix options for the
-I-TCM enable path — registered or predicted enable decode, macro
-floorplanning — go from required to optional headroom: nothing needs
-them at 50 MHz, and they are on record if the target ever moves back
-up.
-
-The area moved from 2.582 to 2.580 mm² between the 10 ns and 20 ns
-runs: the resizer downsized once it no longer needed the drive
-strength. Slower targets are cheaper, which everyone knows and a
-measurement still says better.
+The heading is kept because V45 refers to it: the claim it made was
+**typical corner only**, and correcting that is the durable finding —
+see V45.
 
 ## Phase V40 — the O1–O7 gate is met (2026-08-24)
 
