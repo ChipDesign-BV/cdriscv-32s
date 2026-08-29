@@ -25,7 +25,7 @@ standard is claimed.
 | Timing constraints | `verif/sta/cdriscv_subsys.sdc` | three-corner, see §8 |
 | Verification suite | `verif/`, `Makefile` | 40+ targets; `make lint sim block cosim riscof formal coverage fi gate` |
 | Boot example | `tb/sw/start.S` | register zeroing, BIST, safety configuration |
-| Evidence | `doc/verification_findings.md` | V0–V45, every number's provenance |
+| Evidence | `doc/verification_findings.md` | V0–V52, every number's provenance |
 
 ### 0.2 Integration checklist
 

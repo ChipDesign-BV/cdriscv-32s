@@ -2,7 +2,7 @@
 
 > **Status, 2026-08-25: every objective O1–O9 is met** — see the
 > objective table below for each criterion's result, the README for
-> the one-line summary, and `verification_findings.md` (V0–V44) for
+> the one-line summary, and `verification_findings.md` (V0–V52) for
 > the evidence. The FMEDA runs on assumed failure rates; replacing
 > them with foundry data is the safety-case owner's first task.
 >

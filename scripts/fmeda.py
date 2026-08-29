@@ -30,8 +30,15 @@
 # Soft-error rates, 130 nm-class, sea level, typical literature values.
 SEU_SRAM_FIT_PER_MBIT = 700.0    # SRAM cell upsets
 SEU_FF_FIT_PER_MBIT   = 400.0    # flip-flop upsets
-# Permanent (hard) failures for a ~2.6 mm^2 digital die, SN 29500-class
-# figure, split over the cell population by count.
+# Permanent (hard) failures: a round SN 29500-class figure quoted for a
+# ~2.6 mm^2 digital die, split over the cell population by count.
+#
+# It is NOT scaled to this design's 3.353 mm^2 die.  Permanent failure
+# rate scales with area, so leaving it here makes the permanent
+# contribution optimistic by roughly 3.353/2.6.  It is left unscaled
+# deliberately: every rate in this block is a placeholder awaiting
+# foundry data, and inventing a scaled number would dress an assumption
+# up as a measurement.  A real safety case replaces the whole block.
 PERM_FIT_TOTAL        = 20.0
 MBIT = 1024.0 * 1024.0
 

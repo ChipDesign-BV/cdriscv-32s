@@ -38,7 +38,7 @@ things.
 > (latent 46.4 % → 0), diagnostic latency median 2–4 cycles, zero
 > silent data corruption over ~10⁴ injections, and **timing closed at
 > the 25 MHz integration target across all three PVT corners** (setup
-> +4.81 ns worst, hold +0.13 ns worst, TNS 0 on the routed netlist).
+> +2.698 ns worst, hold +0.133 ns worst, TNS 0 on the routed netlist).
 > An earlier closure figure against a shorter target was typical-corner
 > only and was withdrawn in V45. Twelve
 > functional defects were found and fixed on the way; CI re-runs the
@@ -171,10 +171,10 @@ rates. What it is: evidence that the RTL hardens, that the layout
 matches the netlist that was verified, and that the timing claim
 survives the corner that matters.
 
-| | Reference run |
+| | Main configuration |
 |---|---|
-| Die | 2.9 × 2.9 mm (8.41 mm²), **36 % utilisation** — 16 % standard cells, 23 % SRAM macros, ~61 % empty. Loose by choice, not a floor: see below |
-| Content | 50 241 standard cells (of which **13 126 are timing-repair buffers**), **4 SRAM macros**, 432 104 fill, 46 400 antenna diodes |
+| Die | 1330 × 2521 µm (**3.353 mm²**) — 39.9 % SRAM macros, 17.4 % standard cells, 7.6 % antenna diodes, the rest fill and routing. Placement utilisation 58.7 %, 71.7 % with the diodes placed |
+| Content | 95 958 standard cells (of which **12 666 are timing-repair buffers** and **46 689 are antenna diodes**), **6 SRAM macros**, 85 176 fill |
 | Memories | per TCM: `RM_IHPSG13_1P_2048x32` × 2 (data) + `RM_IHPSG13_1P_4096x8` × 1 (check bits); banded, 10 µm halos |
 | Clock | **40 ns (25 MHz)** |
 | IR drop | worst-case 1.20 V — negligible |
@@ -203,7 +203,7 @@ argument for running the physical flow at all.
 * [doc/integration.md](doc/integration.md) — integration manual: deliverables, checklist, ports, clocking, reset, CDC, boot, safety hooks, DFT, physical implementation
 * [doc/safety_manual.md](doc/safety_manual.md) — mechanisms, assumptions of use, remaining gaps
 * [doc/verification_plan.md](doc/verification_plan.md) — the objectives and their results
-* [doc/verification_findings.md](doc/verification_findings.md) — the evidence log, V0–V44
+* [doc/verification_findings.md](doc/verification_findings.md) — the evidence log, V0–V52
 * [doc/fmeda.md](doc/fmeda.md) — FMEDA: measured populations and coverage, assumed rates, derived metrics
 
 ## Building
@@ -228,7 +228,7 @@ Every objective of [doc/verification_plan.md](doc/verification_plan.md)
 has a result. The banner above audits the gate; the detail and every
 number's provenance live in
 [doc/verification_findings.md](doc/verification_findings.md) (phases
-V0–V44, newest first). Summary, one line per area:
+V0–V52, newest first). Summary, one line per area:
 
 | Area | State | Evidence |
 |------|-------|----------|

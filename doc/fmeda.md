@@ -19,7 +19,10 @@ each labeled throughout:
   IHP SG13G2 was available to this analysis.** The rates are typical
   published figures for a 130 nm-class process at sea level:
   700 FIT/Mbit SRAM soft errors, 400 FIT/Mbit flip-flop soft errors,
-  20 FIT total permanent for a ~2.6 mm² die, 2 % multi-bit-upset
+  20 FIT total permanent — a round SN 29500-class figure quoted for a
+  ~2.6 mm² digital die and **not scaled to this design's 3.353 mm²**,
+  which makes the permanent contribution optimistic by roughly the area
+  ratio; 2 % multi-bit-upset
   fraction. **A real safety case replaces every one of these** with
   foundry data and a mission profile; the script makes that a
   five-line edit.

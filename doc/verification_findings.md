@@ -92,7 +92,7 @@ is measured, not argued.
 half the clock period changed it by 0.1 %, because the resizer was not
 the thing consuming it. That is worth knowing before anyone trades
 frequency for die size on this design: the trade is not available. What
-consumes the area is the **antenna-diode fill** — 45 729 diodes, 248 912 µm², about
+consumes the area is the **antenna-diode fill** — 46 689 diodes, 254 138 µm², about
 43 % of the standard-cell area — and diodes need free placement sites, so
 the binding constraint is leftover space, not congestion. `dense1820`
 had a clean congestion report (19.4 % usage, zero overflow) minutes
