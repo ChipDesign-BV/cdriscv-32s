@@ -126,21 +126,29 @@ cd flow && librelane --manual-pdk --pdk-root $PDK_ROOT config.json
 ```
 
 **State: DRC clean, LVS matches, setup and hold both met at all three
-corners** — at **25 MHz** on a 1.90 mm square die (66 % utilization), and
-also at **50 MHz** on a 2.10 mm square die (54 %, V50). The table below is
-the 25 MHz configuration, which is the one to design against; see V50 for
-the 50 MHz result and the reason its margin is thinner than it looks. The flow runs floorplan → PDN → placement → CTS →
-detailed routing → extraction → IR-drop → streamout → DRC → LVS.
+corners** — at **25 MHz on a 1330 x 2521 um rectangular die (3.353 mm²,
+V52)**, which is the smallest signed-off configuration and the one to
+design against. Two others are closed: 25 MHz on a 1.90 mm square
+(3.610 mm²) and 50 MHz on a 2.10 mm square (4.410 mm², V50). The flow
+runs floorplan -> PDN -> placement -> CTS -> detailed routing ->
+extraction -> IR-drop -> streamout -> DRC -> LVS.
+
+The rectangle is worth 7.1 % of the area against the 25 MHz square, and
+24 % against the 50 MHz square, at the same frequency and the same
+fabric. It is not a geometry trick — die area is instance area over
+utilization — it is that six macros in two full-width rows leave a
+square with four corner regions the placer fills badly, and leave a
+rectangle with two contiguous bands. Utilization goes 0.445 -> 0.587.
 
 | Gate | Result |
 |---|---|
 | Detailed routing | 0 violations |
+| Antenna, post-route | **0 nets, 0 pins** |
 | **DRC** (IHP KLayout signoff deck) | **clean** |
-| GDS XOR (Magic vs KLayout streamouts) | agree |
-| **LVS** (netgen) | **circuits match uniquely** — 93 147 devices, 49 246 nets |
-| Setup, 3 corners | slow **+3.16 ns**, typ +14.02, fast +20.14; TNS 0 |
-| **Hold**, 3 corners | **closed** — fast **+0.15 ns**, typ +0.36, slow +0.73; TNS 0 |
-| Antenna | 0 violating nets |
+| GDS XOR (Magic vs KLayout streamouts) | **0 differences** |
+| **LVS** (netgen) | **circuits match uniquely** — 95 962 devices, 49 499 nets |
+| Setup, 3 corners | slow **+2.698 ns**, typ +13.70, fast +20.05; TNS 0 |
+| **Hold**, 3 corners | **closed** — fast **+0.133 ns**, typ +0.348, slow +0.704; TNS 0 |
 | TCM split-macro mapping | **verified functionally** — 6 600-check equivalence vs the behavioural TCM, mutation-proved (V49); `make block-tcm` |
 | Max slew / max cap | **not gated by the flow** — 791 slew pins (slow, up from 527) and 64 cap pins; see V46/V48 |
 

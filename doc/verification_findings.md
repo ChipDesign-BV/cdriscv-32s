@@ -5,6 +5,77 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V52 — 25 MHz signed off on 3.353 mm², and the density floor bracketed (2026-08-29)
+
+`f25narrow` completed the full flow. **1330 × 2521 µm at 25 MHz, every
+signoff gate clean:**
+
+| Gate | Result |
+|---|---|
+| Detailed routing | **0 violations** |
+| Antenna, post-route | **0 nets, 0 pins** |
+| Magic ↔ KLayout GDS XOR | **0 differences** |
+| **DRC** (IHP KLayout signoff deck) | **clean** |
+| Magic illegal overlap | clean |
+| Disconnected pins | clean |
+| **LVS** (netgen) | **circuits match uniquely** — 95 962 devices, 49 499 nets |
+| Setup, 3 corners | slow **+2.698 ns**, typ +13.70, fast +20.05; TNS 0 |
+| **Hold**, 3 corners | **closed** — fast **+0.133 ns**, typ +0.348, slow +0.704; TNS 0 |
+
+95 964 instances, of which **46 689 are antenna diodes** — 254 138 µm²,
+roughly 43 % of the standard-cell area. Placement utilization 0.587,
+0.717 with the diodes placed.
+
+**This is the smallest die that has been signed off at 25 MHz**, against
+`dense1900`'s 3.610 mm²: **7.1 % less area at the same frequency and the
+same fabric**, and 24 % less than the 50 MHz square.
+
+### The floor is now bracketed to 1.2 %
+
+| run | shape | clock | die | placement util | outcome |
+|---|---|---|---|---|---|
+| `f50`…`f50e` | 2100 × 2100 | 50 MHz | 4.410 mm² | 0.445 | signed off |
+| `f50rect` | 1400 × 2521 | 50 MHz | 3.529 mm² | 0.557 | 0 route DRC, 0 antenna; stopped before DRC/LVS |
+| `dense1900` | 1900 × 1900 | 25 MHz | 3.610 mm² | 0.544 | signed off |
+| **`f25narrow`** | **1330 × 2521** | **25 MHz** | **3.353 mm²** | **0.587** | **signed off** |
+| `dense1820` | 1820 × 1820 | 25 MHz | 3.312 mm² | 0.595 | **failed**, antenna-diode legalisation |
+
+3.312 mm² fails and 3.353 mm² passes — the two are **1.2 % apart in area
+and 0.008 apart in utilization**. That is as tight as this is worth
+pinning, and it says the limit is a real cliff rather than a gradual
+degradation: the flow either finds sites for ~46 700 diodes or it does
+not.
+
+**What the rectangle bought, restated precisely.** Not geometry — die
+area is instance area over utilization and aspect ratio does not appear
+in it. What changed is the *achievable* utilization, from 0.445 on the
+square to 0.587 here, because the six macros want to sit in two rows the
+width of the die and a square leaves four corner regions the placer
+fills badly. Stretching the die to two macro rows and narrowing it to
+one macro row turns the leftover into two contiguous bands.
+
+**And it is not a frequency trade.** Standard-cell area is 584 230 µm² at
+25 MHz against 583 550 µm² at 50 MHz — 0.1 % apart. The 50 MHz rectangle
+(`f50rect`, 3.529 mm²) is only 5 % larger than this one. Halving the
+clock buys almost nothing; the rectangle buys 22 %.
+
+### What this cost, and what is still open
+
+The width is 1330 µm against a 1151 µm macro row — 179 µm of margin for
+everything that is not a macro. Two things follow that an integrator
+should know:
+
+- Setup margin at the slow corner is **+2.698 ns on a 40 ns period**,
+  which is comfortable, but it is *less* comfortable than `dense1900`'s
+  +3.16 ns. Narrowing the die lengthened some routes.
+- `f50rect` remains unfinished: it reached 0 route DRC and 0 antenna
+  violations at 50 MHz on 3.529 mm² but stopped at step 58 when the
+  `pkill` incident killed its shell. Its DRC and LVS were never run. If a
+  50 MHz part is wanted on a rectangle, that run should be repeated
+  rather than assumed.
+
+---
+
 ## Phase V51 — the rectangle, and what actually sets the die size (2026-08-29)
 
 The die was square because nothing had said otherwise. Making it a
