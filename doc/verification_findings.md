@@ -5,6 +5,91 @@ first. Each finding records what was wrong, how it was found, and what
 was done about it. See `verification_plan.md` for the plan these come
 from.
 
+## Phase V51 — the rectangle, and what actually sets the die size (2026-08-29)
+
+The die was square because nothing had said otherwise. Making it a
+rectangle whose width is set by the SRAM row was worth **22 %** of the
+area at the same frequency and the same fabric:
+
+| run | shape | clock | die | placement util | outcome |
+|---|---|---|---|---|---|
+| `f50` … `f50e` | 2100 × 2100 | 50 MHz | 4.410 mm² | 0.445 | signed off |
+| `f50rect` | 1400 × 2521 | 50 MHz | **3.529 mm²** | 0.557 | 0 route DRC, 0 antenna violations |
+| `dense1900` | 1900 × 1900 | 25 MHz | 3.610 mm² | 0.544 | signed off |
+| `dense1820` | 1820 × 1820 | 25 MHz | 3.312 mm² | 0.595 | **failed**, antenna-diode legalisation |
+
+**The rectangle does not shrink the die by geometry.** Die area is
+instance area over utilization, and an aspect ratio does not appear in
+that. What it changes is the *achievable* utilization: the four TCM
+macros and their two parity macros want to sit in two rows the width of
+the die, and on a square that leaves four corner regions the placer
+fills badly. Stretching the die to the height of two macro rows and
+narrowing it to the width of one turns the leftover into two contiguous
+bands. Utilization went 0.445 → 0.557 and the die followed. An earlier
+claim of "27 % smaller by making it rectangular" was withdrawn as
+geometry; this is the same number arriving for the right reason, and it
+is measured, not argued.
+
+**Standard-cell area is very nearly clock-independent here** — 584 230 µm²
+at 25 MHz, 583 550 µm² at 50 MHz, a difference of 0.1 %. Halving the
+clock buys essentially no area, because the resizer was not the thing
+consuming it. That is worth knowing before anyone trades frequency for
+die size on this design: the trade is not available. What consumes the
+area is the **antenna-diode fill** — 45 729 diodes, 248 912 µm², about
+43 % of the standard-cell area — and diodes need free placement sites, so
+the binding constraint is leftover space, not congestion. `dense1820`
+had a clean congestion report (19.4 % usage, zero overflow) minutes
+before it failed on diode legalisation. **Read the congestion report as
+congestion only; it is silent about the thing that actually fails.**
+
+The pass/fail boundary now has real brackets: **0.557 placement
+utilization passes, 0.595 fails.**
+
+### The PDN channel trap
+
+The first 25 MHz narrow attempt (`f25narrow`, 1250 × 2521) died at
+`PDN-0179 Unable to repair all channels` with:
+
+```
+[WARNING PDN-0178] Remaining channel (934.08, 22.46) - (942.72, 673.06) on Metal1 for nets: VPWR
+```
+
+The macro gap was 29 µm. `PL_MACRO_HALO` is 10 µm per side, so the
+channel between the halos is **8.64 µm** — too narrow to place a power
+strap in, too wide to be left as blocked area, so cell rows exist there
+and cannot be connected to VPWR.
+
+Both spacings that work bracket this one, and for opposite reasons:
+
+| gap | channel after halos | why it works |
+|---|---|---|
+| 13 µm (`f50flip`, `dense1900`) | none — halos overlap | no rows between the macros, so no channel to repair |
+| 40 µm (`f50rect`) | 20 µm | wide enough to strap |
+| **29 µm** (`f25narrow`) | **8.64 µm** | neither |
+
+**A macro gap has to be chosen against the halo, not on its own.** The
+failure is not a function of how much room there is between macros; it
+is a function of what is left after the halo, and there is a band of gap
+values that is strictly worse than either closing it or opening it
+further. The retry keeps `f50rect`'s 40 µm and moves only the side
+margins, 125 → 90 µm.
+
+`f50rect` itself stopped at step 58 of the flow, short of signoff DRC and
+LVS — collateral from the `pkill -f queue_rect.sh` that killed the
+invoking shell (the trap CLAUDE.md already warns about, met anyway). Its
+routing and antenna results above are real; its DRC/LVS are simply not
+yet run.
+
+### `f25narrow`, second attempt — in flight
+
+1330 × 2521 = 3.353 mm² at 25 MHz, placement utilization **0.586**,
+deliberately between the 0.557 that passed and the 0.595 that failed, so
+the result is informative either way. Width is 179 µm more than the
+1151 µm macro row. Config `flow/config_25mhz_narrow.json`, driver
+`flow/run_f25narrow.sh`.
+
+---
+
 ## Phase V50 — 50 MHz, signed off (2026-08-29)
 
 `f50e` reached "Flow complete" at a 20 ns period with **LVS matching
